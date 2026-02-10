@@ -1,0 +1,722 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="shadowhand-right">
+  <mujoco>
+    <compiler balanceinertia="true" discardvisual="false" eulerseq="xyz" autolimits="true"/>
+  </mujoco>
+
+  <!-- Palm Link -->
+  <link name="palm">
+    <inertial>
+      <origin xyz="0 0 0.035" rpy="0 0 0"/>
+      <mass value="0.3"/>
+      <inertia ixx="0.0003" ixy="0" ixz="0" iyy="0.0002" iyz="0" izz="0.0001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.035" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.066 0.08 0.07"/>
+      </geometry>
+      <material name="grey">
+        <color rgba="0.4 0.4 0.4 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.035" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.066 0.08 0.07"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- ==================== THUMB ==================== -->
+  <link name="thbase">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.012" length="0.014"/>
+      </geometry>
+      <material name="darkgrey">
+        <color rgba="0.5 0.5 0.5 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.012" length="0.014"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="THJ5" type="revolute">
+    <origin xyz="0.034 -0.009 0.029" rpy="0 0.7854 -0.5236"/>
+    <parent link="palm"/>
+    <child link="thbase"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.047" upper="1.047" effort="2" velocity="4"/>
+  </joint>
+
+  <link name="thproximal">
+    <inertial>
+      <origin xyz="0 0 0.019" rpy="0 0 0"/>
+      <mass value="0.04"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="5e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.019" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.01" length="0.038"/>
+      </geometry>
+      <material name="lightgrey">
+        <color rgba="0.6 0.6 0.6 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.019" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.01" length="0.038"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="THJ4" type="revolute">
+    <origin xyz="0 0 0.014" rpy="0 0 0"/>
+    <parent link="thbase"/>
+    <child link="thproximal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.222" effort="2" velocity="4"/>
+  </joint>
+
+  <link name="thhub">
+    <inertial>
+      <origin xyz="0 0 0.005" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.006" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.011" length="0.012"/>
+      </geometry>
+      <material name="darkgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.006" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.011" length="0.012"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="THJ3" type="revolute">
+    <origin xyz="0 0 0.038" rpy="0 0 0"/>
+    <parent link="thproximal"/>
+    <child link="thhub"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.209" upper="0.209" effort="1" velocity="4"/>
+  </joint>
+
+  <link name="thmiddle">
+    <inertial>
+      <origin xyz="0 0 0.016" rpy="0 0 0"/>
+      <mass value="0.026"/>
+      <inertia ixx="8e-6" ixy="0" ixz="0" iyy="8e-6" iyz="0" izz="3e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.016" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.009" length="0.032"/>
+      </geometry>
+      <material name="lightgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.016" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.009" length="0.032"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="THJ2" type="revolute">
+    <origin xyz="0 0 0.012" rpy="0 0 0"/>
+    <parent link="thhub"/>
+    <child link="thmiddle"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.524" upper="0.524" effort="1" velocity="4"/>
+  </joint>
+
+  <link name="thdistal">
+    <inertial>
+      <origin xyz="0 0 0.0135" rpy="0 0 0"/>
+      <mass value="0.016"/>
+      <inertia ixx="4e-6" ixy="0" ixz="0" iyy="4e-6" iyz="0" izz="2e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0135" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.027"/>
+      </geometry>
+      <material name="white">
+        <color rgba="0.7 0.7 0.7 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0135" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.027"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="THJ1" type="revolute">
+    <origin xyz="0 0 0.032" rpy="0 0 0"/>
+    <parent link="thmiddle"/>
+    <child link="thdistal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.262" upper="1.571" effort="0.5" velocity="4"/>
+  </joint>
+
+  <link name="thtip">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-8" ixy="0" ixz="0" iyy="1e-8" iyz="0" izz="1e-8"/>
+    </inertial>
+  </link>
+  <joint name="thtip_fixed" type="fixed">
+    <origin xyz="0 0 0.027" rpy="0 0 0"/>
+    <parent link="thdistal"/>
+    <child link="thtip"/>
+  </joint>
+
+  <!-- ==================== FIRST FINGER (INDEX) ==================== -->
+  <link name="ffknuckle">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.008"/>
+      <inertia ixx="5e-7" ixy="0" ixz="0" iyy="5e-7" iyz="0" izz="5e-7"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.009"/>
+      </geometry>
+      <material name="darkgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.009"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="FFJ4" type="revolute">
+    <origin xyz="0.033 0.017 0.095" rpy="0 0 0"/>
+    <parent link="palm"/>
+    <child link="ffknuckle"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.349" upper="0.349" effort="0.5" velocity="4"/>
+  </joint>
+
+  <link name="ffproximal">
+    <inertial>
+      <origin xyz="0 0 0.0225" rpy="0 0 0"/>
+      <mass value="0.03"/>
+      <inertia ixx="1.2e-5" ixy="0" ixz="0" iyy="1.2e-5" iyz="0" izz="4e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0225" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.009" length="0.045"/>
+      </geometry>
+      <material name="lightgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0225" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.009" length="0.045"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="FFJ3" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="ffknuckle"/>
+    <child link="ffproximal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="2" velocity="4"/>
+  </joint>
+
+  <link name="ffmiddle">
+    <inertial>
+      <origin xyz="0 0 0.0125" rpy="0 0 0"/>
+      <mass value="0.017"/>
+      <inertia ixx="5e-6" ixy="0" ixz="0" iyy="5e-6" iyz="0" izz="2e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0125" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.025"/>
+      </geometry>
+      <material name="lightgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0125" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.025"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="FFJ2" type="revolute">
+    <origin xyz="0 0 0.045" rpy="0 0 0"/>
+    <parent link="ffproximal"/>
+    <child link="ffmiddle"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="1" velocity="4"/>
+  </joint>
+
+  <link name="ffdistal">
+    <inertial>
+      <origin xyz="0 0 0.012" rpy="0 0 0"/>
+      <mass value="0.012"/>
+      <inertia ixx="3e-6" ixy="0" ixz="0" iyy="3e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.012" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.024"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.012" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.024"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="FFJ1" type="revolute">
+    <origin xyz="0 0 0.025" rpy="0 0 0"/>
+    <parent link="ffmiddle"/>
+    <child link="ffdistal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="0.5" velocity="4"/>
+  </joint>
+
+  <link name="fftip">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-8" ixy="0" ixz="0" iyy="1e-8" iyz="0" izz="1e-8"/>
+    </inertial>
+  </link>
+  <joint name="fftip_fixed" type="fixed">
+    <origin xyz="0 0 0.024" rpy="0 0 0"/>
+    <parent link="ffdistal"/>
+    <child link="fftip"/>
+  </joint>
+
+  <!-- ==================== MIDDLE FINGER ==================== -->
+  <link name="mfknuckle">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.008"/>
+      <inertia ixx="5e-7" ixy="0" ixz="0" iyy="5e-7" iyz="0" izz="5e-7"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.009"/>
+      </geometry>
+      <material name="darkgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.009"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="MFJ4" type="revolute">
+    <origin xyz="0.011 0.017 0.099" rpy="0 0 0"/>
+    <parent link="palm"/>
+    <child link="mfknuckle"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.349" upper="0.349" effort="0.5" velocity="4"/>
+  </joint>
+
+  <link name="mfproximal">
+    <inertial>
+      <origin xyz="0 0 0.0225" rpy="0 0 0"/>
+      <mass value="0.03"/>
+      <inertia ixx="1.2e-5" ixy="0" ixz="0" iyy="1.2e-5" iyz="0" izz="4e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0225" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.009" length="0.045"/>
+      </geometry>
+      <material name="lightgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0225" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.009" length="0.045"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="MFJ3" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="mfknuckle"/>
+    <child link="mfproximal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="2" velocity="4"/>
+  </joint>
+
+  <link name="mfmiddle">
+    <inertial>
+      <origin xyz="0 0 0.0125" rpy="0 0 0"/>
+      <mass value="0.017"/>
+      <inertia ixx="5e-6" ixy="0" ixz="0" iyy="5e-6" iyz="0" izz="2e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0125" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.025"/>
+      </geometry>
+      <material name="lightgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0125" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.025"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="MFJ2" type="revolute">
+    <origin xyz="0 0 0.045" rpy="0 0 0"/>
+    <parent link="mfproximal"/>
+    <child link="mfmiddle"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="1" velocity="4"/>
+  </joint>
+
+  <link name="mfdistal">
+    <inertial>
+      <origin xyz="0 0 0.012" rpy="0 0 0"/>
+      <mass value="0.012"/>
+      <inertia ixx="3e-6" ixy="0" ixz="0" iyy="3e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.012" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.024"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.012" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.024"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="MFJ1" type="revolute">
+    <origin xyz="0 0 0.025" rpy="0 0 0"/>
+    <parent link="mfmiddle"/>
+    <child link="mfdistal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="0.5" velocity="4"/>
+  </joint>
+
+  <link name="mftip">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-8" ixy="0" ixz="0" iyy="1e-8" iyz="0" izz="1e-8"/>
+    </inertial>
+  </link>
+  <joint name="mftip_fixed" type="fixed">
+    <origin xyz="0 0 0.024" rpy="0 0 0"/>
+    <parent link="mfdistal"/>
+    <child link="mftip"/>
+  </joint>
+
+  <!-- ==================== RING FINGER ==================== -->
+  <link name="rfknuckle">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.008"/>
+      <inertia ixx="5e-7" ixy="0" ixz="0" iyy="5e-7" iyz="0" izz="5e-7"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.009"/>
+      </geometry>
+      <material name="darkgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.009"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="RFJ4" type="revolute">
+    <origin xyz="-0.011 0.017 0.095" rpy="0 0 0"/>
+    <parent link="palm"/>
+    <child link="rfknuckle"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.349" upper="0.349" effort="0.5" velocity="4"/>
+  </joint>
+
+  <link name="rfproximal">
+    <inertial>
+      <origin xyz="0 0 0.0225" rpy="0 0 0"/>
+      <mass value="0.03"/>
+      <inertia ixx="1.2e-5" ixy="0" ixz="0" iyy="1.2e-5" iyz="0" izz="4e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0225" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.009" length="0.045"/>
+      </geometry>
+      <material name="lightgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0225" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.009" length="0.045"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="RFJ3" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="rfknuckle"/>
+    <child link="rfproximal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="2" velocity="4"/>
+  </joint>
+
+  <link name="rfmiddle">
+    <inertial>
+      <origin xyz="0 0 0.0125" rpy="0 0 0"/>
+      <mass value="0.017"/>
+      <inertia ixx="5e-6" ixy="0" ixz="0" iyy="5e-6" iyz="0" izz="2e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0125" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.025"/>
+      </geometry>
+      <material name="lightgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0125" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.025"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="RFJ2" type="revolute">
+    <origin xyz="0 0 0.045" rpy="0 0 0"/>
+    <parent link="rfproximal"/>
+    <child link="rfmiddle"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="1" velocity="4"/>
+  </joint>
+
+  <link name="rfdistal">
+    <inertial>
+      <origin xyz="0 0 0.012" rpy="0 0 0"/>
+      <mass value="0.012"/>
+      <inertia ixx="3e-6" ixy="0" ixz="0" iyy="3e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.012" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.024"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.012" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.024"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="RFJ1" type="revolute">
+    <origin xyz="0 0 0.025" rpy="0 0 0"/>
+    <parent link="rfmiddle"/>
+    <child link="rfdistal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="0.5" velocity="4"/>
+  </joint>
+
+  <link name="rftip">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-8" ixy="0" ixz="0" iyy="1e-8" iyz="0" izz="1e-8"/>
+    </inertial>
+  </link>
+  <joint name="rftip_fixed" type="fixed">
+    <origin xyz="0 0 0.024" rpy="0 0 0"/>
+    <parent link="rfdistal"/>
+    <child link="rftip"/>
+  </joint>
+
+  <!-- ==================== LITTLE FINGER ==================== -->
+  <link name="lfmetacarpal">
+    <inertial>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <mass value="0.02"/>
+      <inertia ixx="8e-6" ixy="0" ixz="0" iyy="8e-6" iyz="0" izz="3e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.04"/>
+      </geometry>
+      <material name="darkgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.04"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="LFJ5" type="revolute">
+    <origin xyz="-0.033 0.011 0.063" rpy="0 0 -0.0873"/>
+    <parent link="palm"/>
+    <child link="lfmetacarpal"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="0.698" effort="1" velocity="4"/>
+  </joint>
+
+  <link name="lfknuckle">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.008"/>
+      <inertia ixx="5e-7" ixy="0" ixz="0" iyy="5e-7" iyz="0" izz="5e-7"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.008"/>
+      </geometry>
+      <material name="darkgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.008"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="LFJ4" type="revolute">
+    <origin xyz="0 0 0.04" rpy="0 0 0"/>
+    <parent link="lfmetacarpal"/>
+    <child link="lfknuckle"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.349" upper="0.349" effort="0.5" velocity="4"/>
+  </joint>
+
+  <link name="lfproximal">
+    <inertial>
+      <origin xyz="0 0 0.0175" rpy="0 0 0"/>
+      <mass value="0.025"/>
+      <inertia ixx="8e-6" ixy="0" ixz="0" iyy="8e-6" iyz="0" izz="3e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0175" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.035"/>
+      </geometry>
+      <material name="lightgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0175" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.008" length="0.035"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="LFJ3" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="lfknuckle"/>
+    <child link="lfproximal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="2" velocity="4"/>
+  </joint>
+
+  <link name="lfmiddle">
+    <inertial>
+      <origin xyz="0 0 0.0105" rpy="0 0 0"/>
+      <mass value="0.014"/>
+      <inertia ixx="4e-6" ixy="0" ixz="0" iyy="4e-6" iyz="0" izz="1.5e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.0105" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.021"/>
+      </geometry>
+      <material name="lightgrey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0105" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.007" length="0.021"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="LFJ2" type="revolute">
+    <origin xyz="0 0 0.035" rpy="0 0 0"/>
+    <parent link="lfproximal"/>
+    <child link="lfmiddle"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="1" velocity="4"/>
+  </joint>
+
+  <link name="lfdistal">
+    <inertial>
+      <origin xyz="0 0 0.01" rpy="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="2e-6" ixy="0" ixz="0" iyy="2e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.01" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.006" length="0.020"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.01" rpy="0 0 0"/>
+      <geometry>
+        <capsule radius="0.006" length="0.020"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="LFJ1" type="revolute">
+    <origin xyz="0 0 0.021" rpy="0 0 0"/>
+    <parent link="lfmiddle"/>
+    <child link="lfdistal"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.571" effort="0.5" velocity="4"/>
+  </joint>
+
+  <link name="lftip">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-8" ixy="0" ixz="0" iyy="1e-8" iyz="0" izz="1e-8"/>
+    </inertial>
+  </link>
+  <joint name="lftip_fixed" type="fixed">
+    <origin xyz="0 0 0.020" rpy="0 0 0"/>
+    <parent link="lfdistal"/>
+    <child link="lftip"/>
+  </joint>
+</robot>

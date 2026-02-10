@@ -1,0 +1,270 @@
+<mujoco model="shadowhand-left">
+  <compiler angle="radian" balanceinertia="true"/>
+
+  <option jacobian="sparse"
+          integrator="RK4"
+          timestep="0.002"
+          solver="Newton"
+          iterations="50"
+          tolerance="1e-10"
+          impratio="10"/>
+
+  <visual>
+    <global offwidth="3840" offheight="2160" />
+  </visual>
+
+  <default>
+    <joint armature="0.005" damping="0.1" frictionloss="0.01"/>
+    <default class="robot">
+      <default class="visual">
+        <geom contype="0" conaffinity="0" group="1" />
+      </default>
+      <default class="collision">
+        <geom contype="1" conaffinity="1" group="3" />
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <!-- Palm -->
+    <body name="palm" pos="0 0 0.035">
+      <inertial pos="0 0 0.035" mass="0.3" diaginertia="0.0003 0.0002 0.0001"/>
+      <geom name="palm_visual" type="box" size="0.033 0.04 0.035" rgba="0.4 0.4 0.4 1" class="visual"/>
+      <geom name="palm_collision" type="box" size="0.033 0.04 0.035" class="collision"/>
+
+      <!-- ==================== THUMB (TH) - Mirrored ==================== -->
+      <body name="thbase" pos="-0.034 -0.009 0.029" euler="0 -0.7854 0.5236">
+        <inertial pos="0 0 0" mass="0.01" diaginertia="1e-6 1e-6 1e-6"/>
+        <joint name="THJ5" type="hinge" axis="0 0 1" range="-1.047 1.047" actuatorfrcrange="-2 2"/>
+        <geom name="thbase_visual" type="cylinder" size="0.012 0.007" rgba="0.5 0.5 0.5 1" class="visual"/>
+        <geom name="thbase_collision" type="cylinder" size="0.012 0.007" class="collision"/>
+
+        <body name="thproximal" pos="0 0 0.014" euler="0 0 0">
+          <inertial pos="0 0 0.019" mass="0.04" diaginertia="1e-5 1e-5 5e-6"/>
+          <joint name="THJ4" type="hinge" axis="1 0 0" range="0 1.222" actuatorfrcrange="-2 2"/>
+          <geom name="thproximal_visual" type="capsule" size="0.01" fromto="0 0 0 0 0 0.038" rgba="0.6 0.6 0.6 1" class="visual"/>
+          <geom name="thproximal_collision" type="capsule" size="0.01" fromto="0 0 0 0 0 0.038" class="collision"/>
+
+          <body name="thhub" pos="0 0 0.038">
+            <inertial pos="0 0 0.005" mass="0.01" diaginertia="1e-6 1e-6 1e-6"/>
+            <joint name="THJ3" type="hinge" axis="1 0 0" range="-0.209 0.209" actuatorfrcrange="-1 1"/>
+            <geom name="thhub_visual" type="cylinder" size="0.011 0.006" rgba="0.5 0.5 0.5 1" class="visual"/>
+            <geom name="thhub_collision" type="cylinder" size="0.011 0.006" class="collision"/>
+
+            <body name="thmiddle" pos="0 0 0.012">
+              <inertial pos="0 0 0.016" mass="0.026" diaginertia="8e-6 8e-6 3e-6"/>
+              <joint name="THJ2" type="hinge" axis="1 0 0" range="-0.524 0.524" actuatorfrcrange="-1 1"/>
+              <geom name="thmiddle_visual" type="capsule" size="0.009" fromto="0 0 0 0 0 0.032" rgba="0.6 0.6 0.6 1" class="visual"/>
+              <geom name="thmiddle_collision" type="capsule" size="0.009" fromto="0 0 0 0 0 0.032" class="collision"/>
+
+              <body name="thdistal" pos="0 0 0.032">
+                <inertial pos="0 0 0.0135" mass="0.016" diaginertia="4e-6 4e-6 2e-6"/>
+                <joint name="THJ1" type="hinge" axis="1 0 0" range="-0.262 1.571" actuatorfrcrange="-0.5 0.5"/>
+                <geom name="thdistal_visual" type="capsule" size="0.008" fromto="0 0 0 0 0 0.027" rgba="0.7 0.7 0.7 1" class="visual"/>
+                <geom name="thdistal_collision" type="capsule" size="0.008" fromto="0 0 0 0 0 0.027" class="collision"/>
+                <site name="thtip" pos="0 0 0.027" size="0.005"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- ==================== FIRST FINGER / INDEX (FF) - Mirrored ==================== -->
+      <body name="ffknuckle" pos="-0.033 0.017 0.095">
+        <inertial pos="0 0 0" mass="0.008" diaginertia="5e-7 5e-7 5e-7"/>
+        <joint name="FFJ4" type="hinge" axis="0 1 0" range="-0.349 0.349" actuatorfrcrange="-0.5 0.5"/>
+        <geom name="ffknuckle_visual" type="sphere" size="0.009" rgba="0.5 0.5 0.5 1" class="visual"/>
+        <geom name="ffknuckle_collision" type="sphere" size="0.009" class="collision"/>
+
+        <body name="ffproximal" pos="0 0 0">
+          <inertial pos="0 0 0.0225" mass="0.03" diaginertia="1.2e-5 1.2e-5 4e-6"/>
+          <joint name="FFJ3" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-2 2"/>
+          <geom name="ffproximal_visual" type="capsule" size="0.009" fromto="0 0 0 0 0 0.045" rgba="0.6 0.6 0.6 1" class="visual"/>
+          <geom name="ffproximal_collision" type="capsule" size="0.009" fromto="0 0 0 0 0 0.045" class="collision"/>
+
+          <body name="ffmiddle" pos="0 0 0.045">
+            <inertial pos="0 0 0.0125" mass="0.017" diaginertia="5e-6 5e-6 2e-6"/>
+            <joint name="FFJ2" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-1 1"/>
+            <geom name="ffmiddle_visual" type="capsule" size="0.008" fromto="0 0 0 0 0 0.025" rgba="0.6 0.6 0.6 1" class="visual"/>
+            <geom name="ffmiddle_collision" type="capsule" size="0.008" fromto="0 0 0 0 0 0.025" class="collision"/>
+
+            <body name="ffdistal" pos="0 0 0.025">
+              <inertial pos="0 0 0.012" mass="0.012" diaginertia="3e-6 3e-6 1e-6"/>
+              <joint name="FFJ1" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-0.5 0.5"/>
+              <geom name="ffdistal_visual" type="capsule" size="0.007" fromto="0 0 0 0 0 0.024" rgba="0.7 0.7 0.7 1" class="visual"/>
+              <geom name="ffdistal_collision" type="capsule" size="0.007" fromto="0 0 0 0 0 0.024" class="collision"/>
+              <site name="fftip" pos="0 0 0.024" size="0.005"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- ==================== MIDDLE FINGER (MF) ==================== -->
+      <body name="mfknuckle" pos="-0.011 0.017 0.099">
+        <inertial pos="0 0 0" mass="0.008" diaginertia="5e-7 5e-7 5e-7"/>
+        <joint name="MFJ4" type="hinge" axis="0 1 0" range="-0.349 0.349" actuatorfrcrange="-0.5 0.5"/>
+        <geom name="mfknuckle_visual" type="sphere" size="0.009" rgba="0.5 0.5 0.5 1" class="visual"/>
+        <geom name="mfknuckle_collision" type="sphere" size="0.009" class="collision"/>
+
+        <body name="mfproximal" pos="0 0 0">
+          <inertial pos="0 0 0.0225" mass="0.03" diaginertia="1.2e-5 1.2e-5 4e-6"/>
+          <joint name="MFJ3" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-2 2"/>
+          <geom name="mfproximal_visual" type="capsule" size="0.009" fromto="0 0 0 0 0 0.045" rgba="0.6 0.6 0.6 1" class="visual"/>
+          <geom name="mfproximal_collision" type="capsule" size="0.009" fromto="0 0 0 0 0 0.045" class="collision"/>
+
+          <body name="mfmiddle" pos="0 0 0.045">
+            <inertial pos="0 0 0.0125" mass="0.017" diaginertia="5e-6 5e-6 2e-6"/>
+            <joint name="MFJ2" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-1 1"/>
+            <geom name="mfmiddle_visual" type="capsule" size="0.008" fromto="0 0 0 0 0 0.025" rgba="0.6 0.6 0.6 1" class="visual"/>
+            <geom name="mfmiddle_collision" type="capsule" size="0.008" fromto="0 0 0 0 0 0.025" class="collision"/>
+
+            <body name="mfdistal" pos="0 0 0.025">
+              <inertial pos="0 0 0.012" mass="0.012" diaginertia="3e-6 3e-6 1e-6"/>
+              <joint name="MFJ1" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-0.5 0.5"/>
+              <geom name="mfdistal_visual" type="capsule" size="0.007" fromto="0 0 0 0 0 0.024" rgba="0.7 0.7 0.7 1" class="visual"/>
+              <geom name="mfdistal_collision" type="capsule" size="0.007" fromto="0 0 0 0 0 0.024" class="collision"/>
+              <site name="mftip" pos="0 0 0.024" size="0.005"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- ==================== RING FINGER (RF) - Mirrored ==================== -->
+      <body name="rfknuckle" pos="0.011 0.017 0.095">
+        <inertial pos="0 0 0" mass="0.008" diaginertia="5e-7 5e-7 5e-7"/>
+        <joint name="RFJ4" type="hinge" axis="0 1 0" range="-0.349 0.349" actuatorfrcrange="-0.5 0.5"/>
+        <geom name="rfknuckle_visual" type="sphere" size="0.009" rgba="0.5 0.5 0.5 1" class="visual"/>
+        <geom name="rfknuckle_collision" type="sphere" size="0.009" class="collision"/>
+
+        <body name="rfproximal" pos="0 0 0">
+          <inertial pos="0 0 0.0225" mass="0.03" diaginertia="1.2e-5 1.2e-5 4e-6"/>
+          <joint name="RFJ3" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-2 2"/>
+          <geom name="rfproximal_visual" type="capsule" size="0.009" fromto="0 0 0 0 0 0.045" rgba="0.6 0.6 0.6 1" class="visual"/>
+          <geom name="rfproximal_collision" type="capsule" size="0.009" fromto="0 0 0 0 0 0.045" class="collision"/>
+
+          <body name="rfmiddle" pos="0 0 0.045">
+            <inertial pos="0 0 0.0125" mass="0.017" diaginertia="5e-6 5e-6 2e-6"/>
+            <joint name="RFJ2" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-1 1"/>
+            <geom name="rfmiddle_visual" type="capsule" size="0.008" fromto="0 0 0 0 0 0.025" rgba="0.6 0.6 0.6 1" class="visual"/>
+            <geom name="rfmiddle_collision" type="capsule" size="0.008" fromto="0 0 0 0 0 0.025" class="collision"/>
+
+            <body name="rfdistal" pos="0 0 0.025">
+              <inertial pos="0 0 0.012" mass="0.012" diaginertia="3e-6 3e-6 1e-6"/>
+              <joint name="RFJ1" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-0.5 0.5"/>
+              <geom name="rfdistal_visual" type="capsule" size="0.007" fromto="0 0 0 0 0 0.024" rgba="0.7 0.7 0.7 1" class="visual"/>
+              <geom name="rfdistal_collision" type="capsule" size="0.007" fromto="0 0 0 0 0 0.024" class="collision"/>
+              <site name="rftip" pos="0 0 0.024" size="0.005"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- ==================== LITTLE FINGER (LF) - Mirrored ==================== -->
+      <body name="lfmetacarpal" pos="0.033 0.011 0.063" euler="0 0 0.0873">
+        <inertial pos="0 0 0.02" mass="0.02" diaginertia="8e-6 8e-6 3e-6"/>
+        <joint name="LFJ5" type="hinge" axis="0 1 0" range="0 0.698" actuatorfrcrange="-1 1"/>
+        <geom name="lfmetacarpal_visual" type="capsule" size="0.007" fromto="0 0 0 0 0 0.04" rgba="0.5 0.5 0.5 1" class="visual"/>
+        <geom name="lfmetacarpal_collision" type="capsule" size="0.007" fromto="0 0 0 0 0 0.04" class="collision"/>
+
+        <body name="lfknuckle" pos="0 0 0.04">
+          <inertial pos="0 0 0" mass="0.008" diaginertia="5e-7 5e-7 5e-7"/>
+          <joint name="LFJ4" type="hinge" axis="0 1 0" range="-0.349 0.349" actuatorfrcrange="-0.5 0.5"/>
+          <geom name="lfknuckle_visual" type="sphere" size="0.008" rgba="0.5 0.5 0.5 1" class="visual"/>
+          <geom name="lfknuckle_collision" type="sphere" size="0.008" class="collision"/>
+
+          <body name="lfproximal" pos="0 0 0">
+            <inertial pos="0 0 0.0175" mass="0.025" diaginertia="8e-6 8e-6 3e-6"/>
+            <joint name="LFJ3" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-2 2"/>
+            <geom name="lfproximal_visual" type="capsule" size="0.008" fromto="0 0 0 0 0 0.035" rgba="0.6 0.6 0.6 1" class="visual"/>
+            <geom name="lfproximal_collision" type="capsule" size="0.008" fromto="0 0 0 0 0 0.035" class="collision"/>
+
+            <body name="lfmiddle" pos="0 0 0.035">
+              <inertial pos="0 0 0.0105" mass="0.014" diaginertia="4e-6 4e-6 1.5e-6"/>
+              <joint name="LFJ2" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-1 1"/>
+              <geom name="lfmiddle_visual" type="capsule" size="0.007" fromto="0 0 0 0 0 0.021" rgba="0.6 0.6 0.6 1" class="visual"/>
+              <geom name="lfmiddle_collision" type="capsule" size="0.007" fromto="0 0 0 0 0 0.021" class="collision"/>
+
+              <body name="lfdistal" pos="0 0 0.021">
+                <inertial pos="0 0 0.01" mass="0.01" diaginertia="2e-6 2e-6 1e-6"/>
+                <joint name="LFJ1" type="hinge" axis="1 0 0" range="0 1.571" actuatorfrcrange="-0.5 0.5"/>
+                <geom name="lfdistal_visual" type="capsule" size="0.006" fromto="0 0 0 0 0 0.020" rgba="0.7 0.7 0.7 1" class="visual"/>
+                <geom name="lfdistal_collision" type="capsule" size="0.006" fromto="0 0 0 0 0 0.020" class="collision"/>
+                <site name="lftip" pos="0 0 0.020" size="0.005"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- Thumb actuators -->
+    <position name="THJ5" joint="THJ5" ctrlrange="-1.047 1.047" kp="5" forcerange="-2 2"/>
+    <position name="THJ4" joint="THJ4" ctrlrange="0 1.222" kp="5" forcerange="-2 2"/>
+    <position name="THJ3" joint="THJ3" ctrlrange="-0.209 0.209" kp="2" forcerange="-1 1"/>
+    <position name="THJ2" joint="THJ2" ctrlrange="-0.524 0.524" kp="2" forcerange="-1 1"/>
+    <position name="THJ1" joint="THJ1" ctrlrange="-0.262 1.571" kp="1" forcerange="-0.5 0.5"/>
+
+    <!-- First finger actuators -->
+    <position name="FFJ4" joint="FFJ4" ctrlrange="-0.349 0.349" kp="1" forcerange="-0.5 0.5"/>
+    <position name="FFJ3" joint="FFJ3" ctrlrange="0 1.571" kp="5" forcerange="-2 2"/>
+    <position name="FFJ2" joint="FFJ2" ctrlrange="0 1.571" kp="2" forcerange="-1 1"/>
+    <position name="FFJ1" joint="FFJ1" ctrlrange="0 1.571" kp="1" forcerange="-0.5 0.5"/>
+
+    <!-- Middle finger actuators -->
+    <position name="MFJ4" joint="MFJ4" ctrlrange="-0.349 0.349" kp="1" forcerange="-0.5 0.5"/>
+    <position name="MFJ3" joint="MFJ3" ctrlrange="0 1.571" kp="5" forcerange="-2 2"/>
+    <position name="MFJ2" joint="MFJ2" ctrlrange="0 1.571" kp="2" forcerange="-1 1"/>
+    <position name="MFJ1" joint="MFJ1" ctrlrange="0 1.571" kp="1" forcerange="-0.5 0.5"/>
+
+    <!-- Ring finger actuators -->
+    <position name="RFJ4" joint="RFJ4" ctrlrange="-0.349 0.349" kp="1" forcerange="-0.5 0.5"/>
+    <position name="RFJ3" joint="RFJ3" ctrlrange="0 1.571" kp="5" forcerange="-2 2"/>
+    <position name="RFJ2" joint="RFJ2" ctrlrange="0 1.571" kp="2" forcerange="-1 1"/>
+    <position name="RFJ1" joint="RFJ1" ctrlrange="0 1.571" kp="1" forcerange="-0.5 0.5"/>
+
+    <!-- Little finger actuators -->
+    <position name="LFJ5" joint="LFJ5" ctrlrange="0 0.698" kp="2" forcerange="-1 1"/>
+    <position name="LFJ4" joint="LFJ4" ctrlrange="-0.349 0.349" kp="1" forcerange="-0.5 0.5"/>
+    <position name="LFJ3" joint="LFJ3" ctrlrange="0 1.571" kp="5" forcerange="-2 2"/>
+    <position name="LFJ2" joint="LFJ2" ctrlrange="0 1.571" kp="2" forcerange="-1 1"/>
+    <position name="LFJ1" joint="LFJ1" ctrlrange="0 1.571" kp="1" forcerange="-0.5 0.5"/>
+  </actuator>
+
+  <contact>
+    <!-- Exclude adjacent finger links -->
+    <exclude body1="palm" body2="thbase"/>
+    <exclude body1="thbase" body2="thproximal"/>
+    <exclude body1="thproximal" body2="thhub"/>
+    <exclude body1="thhub" body2="thmiddle"/>
+    <exclude body1="thmiddle" body2="thdistal"/>
+
+    <exclude body1="palm" body2="ffknuckle"/>
+    <exclude body1="ffknuckle" body2="ffproximal"/>
+    <exclude body1="ffproximal" body2="ffmiddle"/>
+    <exclude body1="ffmiddle" body2="ffdistal"/>
+
+    <exclude body1="palm" body2="mfknuckle"/>
+    <exclude body1="mfknuckle" body2="mfproximal"/>
+    <exclude body1="mfproximal" body2="mfmiddle"/>
+    <exclude body1="mfmiddle" body2="mfdistal"/>
+
+    <exclude body1="palm" body2="rfknuckle"/>
+    <exclude body1="rfknuckle" body2="rfproximal"/>
+    <exclude body1="rfproximal" body2="rfmiddle"/>
+    <exclude body1="rfmiddle" body2="rfdistal"/>
+
+    <exclude body1="palm" body2="lfmetacarpal"/>
+    <exclude body1="lfmetacarpal" body2="lfknuckle"/>
+    <exclude body1="lfknuckle" body2="lfproximal"/>
+    <exclude body1="lfproximal" body2="lfmiddle"/>
+    <exclude body1="lfmiddle" body2="lfdistal"/>
+  </contact>
+</mujoco>
