@@ -35,8 +35,7 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 
 | Robot | Config File | Description |
 |-------|-------------|-------------|
-| **Shadow Hand Menagerie** | `shadow_hand_menagerie.yaml` | Shadow Hand with MuJoCo Menagerie meshes (default) |
-| **Shadow Hand** | `shadow_hand.yaml` | 24-DoF Shadow Dexterous Hand |
+| **Shadow Hand** | `shadow_hand_menagerie.yaml` | Shadow Hand with MuJoCo Menagerie meshes (default) |
 
 ## Repository Structure
 
@@ -67,7 +66,7 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 ### Install
 
 ```bash
-git clone https://github.com/qqsq12321/qsq-retargeting.git
+git clone https://gitee.com/gx_robot/qsq-retargeting.git
 cd qsq-retargeting
 pip install -r requirements.txt
 pip install -e .
@@ -87,7 +86,7 @@ mjpython example/teleop_sim.py --play example/data/avp1.pkl
 
 ## Quick Start
 
-### Shadow Hand Menagerie (Default)
+### Shadow Hand (Default)
 
 ```bash
 cd example
@@ -100,15 +99,6 @@ python teleop_sim.py --input camera --hand right
 
 # Real-time with Vision Pro
 python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
-```
-
-### Other Shadow Hand Configs
-
-```bash
-cd example
-
-# Original Shadow Hand (without Menagerie meshes)
-python teleop_sim.py --config config/shadow_hand.yaml --play data/avp1.pkl --hand right
 ```
 
 ### Real Hardware
@@ -144,7 +134,7 @@ optimizer:
   type: "AdaptiveOptimizerAnalytical"
 
 robot:
-  type: "shadow_hand_menagerie"  # or "shadow_hand"
+  type: "shadow_hand_menagerie"
 
 retarget:
   # Loss weights
@@ -260,7 +250,7 @@ Where `dᵢ` is thumb-to-finger distance.
   title={Hand Retargeting},
   author={QSQ},
   year={2025},
-  url={https://github.com/qqsq12321/qsq-retargeting},
+  url={https://gitee.com/gx_robot/qsq-retargeting},
 }
 ```
 
@@ -271,7 +261,8 @@ Where `dᵢ` is thumb-to-finger distance.
 - [dex-retargeting](https://github.com/dexsuite/dex-retargeting) - Retargeting algorithms
 - [DexPilot](https://arxiv.org/abs/1910.03135) - Vision-based teleoperation
 - [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop) - Apple Vision Pro streaming
+- [wuji-retargeting](https://github.com/wuji-technology/wuji-retargeting) - Wuji retargeting
 
 ## Contact
 
-For questions, please open an issue on [GitHub](https://github.com/qqsq12321/qsq-retargeting/issues).
+For questions, please open an issue on [Gitee](https://gitee.com/gx_robot/qsq-retargeting/issues) or contact the author via 932851972@qq.com.

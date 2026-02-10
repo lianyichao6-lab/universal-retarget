@@ -35,8 +35,7 @@
 
 | 机器人 | 配置文件 | 说明 |
 |--------|----------|------|
-| **Shadow Hand Menagerie** | `shadow_hand_menagerie.yaml` | Shadow Hand + MuJoCo Menagerie 高精度模型（默认） |
-| **Shadow Hand** | `shadow_hand.yaml` | 24自由度 Shadow 灵巧手 |
+| **Shadow Hand** | `shadow_hand_menagerie.yaml` | Shadow Hand + MuJoCo Menagerie 高精度模型（默认） |
 
 ## 仓库结构
 
@@ -67,7 +66,7 @@
 ### 安装步骤
 
 ```bash
-git clone https://github.com/qqsq12321/qsq-retargeting.git
+git clone https://gitee.com/gx_robot/qsq-retargeting.git
 cd qsq-retargeting
 pip install -r requirements.txt
 pip install -e .
@@ -87,7 +86,7 @@ mjpython example/teleop_sim.py --play example/data/avp1.pkl
 
 ## 快速开始
 
-### Shadow Hand Menagerie（默认）
+### Shadow Hand（默认）
 
 ```bash
 cd example
@@ -100,15 +99,6 @@ python teleop_sim.py --input camera --hand right
 
 # Vision Pro 实时遥操作
 python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
-```
-
-### 其他 Shadow Hand 配置
-
-```bash
-cd example
-
-# 原版 Shadow Hand（无 Menagerie 模型）
-python teleop_sim.py --config config/shadow_hand.yaml --play data/avp1.pkl --hand right
 ```
 
 ### 真机控制
@@ -144,7 +134,7 @@ optimizer:
   type: "AdaptiveOptimizerAnalytical"
 
 robot:
-  type: "shadow_hand_menagerie"  # 或 "shadow_hand"
+  type: "shadow_hand_menagerie"
 
 retarget:
   # 损失权重
@@ -260,7 +250,7 @@ L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + w_pinch · L_pin
   title={Hand Retargeting},
   author={QSQ},
   year={2025},
-  url={https://github.com/qqsq12321/qsq-retargeting},
+  url={https://gitee.com/gx_robot/qsq-retargeting},
 }
 ```
 
@@ -271,7 +261,8 @@ L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + w_pinch · L_pin
 - [dex-retargeting](https://github.com/dexsuite/dex-retargeting) - 重定向算法
 - [DexPilot](https://arxiv.org/abs/1910.03135) - 基于视觉的遥操作
 - [VisionProTeleop](https://github.com/Improbable-AI/VisionProTeleop) - Apple Vision Pro 数据流
+- [wuji-retargeting](https://github.com/wuji-technology/wuji-retargeting) - 无极重定向
 
 ## 联系方式
 
-如有问题，请在 [GitHub](https://github.com/qqsq12321/qsq-retargeting/issues) 上提交 issue。
+如有问题，请在 [Gitee](https://gitee.com/gx_robot/qsq-retargeting/issues) 上提交 issue 或通过 932851972@qq.com 联系作者。
