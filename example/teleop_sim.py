@@ -128,7 +128,7 @@ def run_teleop(
 
     # Load config to determine robot type
     config_file = Path(__file__).parent / config_path
-    with open(config_file, 'r') as f:
+    with open(config_file, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
 
     robot_type = config.get('robot', {}).get('type', 'shadow_hand_menagerie')

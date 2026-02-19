@@ -3,7 +3,7 @@ requires = ["setuptools>=64.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wuji-retargeting"
+name = "qsq-retargeting"
 version = "0.2.0"
 description = "High-precision hand pose retargeting system for WujiHand using Wuji Retargeting algorithm"
 readme = "README.md"
@@ -12,16 +12,15 @@ license = {text = "MIT"}
 dependencies = [
     "numpy>=1.21.0",
     "nlopt",
-    "pin>=3.8.0",
     "pyyaml",
 ]
 
 [tool.setuptools]
-packages = ["wuji_retargeting"]
+packages = ["qsq_retargeting"]
 
 # Important: Ensure URDF and STL files are included in the package
 [tool.setuptools.package-data]
-"wuji_retargeting" = [
+"qsq_retargeting" = [
     "urdf/*.urdf",
     "meshes/**/*.STL",
 ]

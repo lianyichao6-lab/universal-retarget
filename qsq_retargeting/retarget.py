@@ -78,7 +78,7 @@ class Retargeter:
         Returns:
             Retargeter instance
         """
-        with open(yaml_path, 'r') as f:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         return cls(config, hand_side)
 

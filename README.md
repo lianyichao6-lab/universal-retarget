@@ -68,15 +68,20 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 ```bash
 git clone https://gitee.com/gx_robot/qsq-retargeting.git
 cd qsq-retargeting
+
+# Install pinocchio via conda (recommended, pre-built binaries)
+conda install -c conda-forge pinocchio
+
+# Install other dependencies
 pip install -r requirements.txt
 pip install -e .
 ```
 
 ### Troubleshooting
 
-**pinocchio Installation**: If PyPI mirror fails:
+**pinocchio Installation**: `pinocchio` must be installed via conda (not pip). The pip package `pin` requires C++ compilation and often fails on Windows:
 ```bash
-pip install pin==3.8.0 -i https://pypi.org/simple
+conda install -c conda-forge pinocchio
 ```
 
 **macOS MuJoCo**: Use `mjpython` instead of `python`:

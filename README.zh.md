@@ -68,15 +68,20 @@
 ```bash
 git clone https://gitee.com/gx_robot/qsq-retargeting.git
 cd qsq-retargeting
+
+# 通过 conda 安装 pinocchio（推荐，预编译二进制包）
+conda install -c conda-forge pinocchio
+
+# 安装其他依赖
 pip install -r requirements.txt
 pip install -e .
 ```
 
 ### 故障排除
 
-**pinocchio 安装问题**：如果 PyPI 镜像源安装失败：
+**pinocchio 安装问题**：`pinocchio` 需要通过 conda 安装（不要用 pip）。pip 上的 `pin` 包需要 C++ 编译，在 Windows 上通常会失败：
 ```bash
-pip install pin==3.8.0 -i https://pypi.org/simple
+conda install -c conda-forge pinocchio
 ```
 
 **macOS MuJoCo**：仿真脚本使用 `mjpython` 代替 `python`：
