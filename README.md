@@ -100,7 +100,7 @@ cd example
 python teleop_sim.py --play data/avp1.pkl --hand right
 
 # Real-time with laptop camera (MediaPipe)
-python teleop_sim.py --input camera --hand right
+python teleop_sim.py --input camera --hand right --config config/adaptive_analytical_camera.yaml
 
 # Real-time with Vision Pro
 python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
@@ -120,7 +120,7 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--config` | `config/adaptive_analytical_avp.yaml` | Configuration file |
+| `--config` | `config/adaptive_analytical_avp.yaml` | Configuration file (`adaptive_analytical_camera.yaml` for camera) |
 | `--hand` | `left` (sim) / `right` (real) | Hand side (`left`/`right`) |
 | `--input` | - | Input type (`visionpro`/`camera`/`mediapipe_replay`) |
 | `--play FILE` | - | Replay recording (shortcut for `--input mediapipe_replay`) |

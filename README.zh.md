@@ -100,7 +100,7 @@ cd example
 python teleop_sim.py --play data/avp1.pkl --hand right
 
 # 笔记本摄像头实时遥操作（MediaPipe）
-python teleop_sim.py --input camera --hand right
+python teleop_sim.py --input camera --hand right --config config/adaptive_analytical_camera.yaml
 
 # Vision Pro 实时遥操作
 python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
@@ -120,7 +120,7 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--config` | `config/adaptive_analytical_avp.yaml` | 配置文件 |
+| `--config` | `config/adaptive_analytical_avp.yaml` | 配置文件（摄像头用 `adaptive_analytical_camera.yaml`） |
 | `--hand` | `left`（sim）/ `right`（real） | 手的方向（`left`/`right`） |
 | `--input` | - | 输入类型（`visionpro`/`camera`/`mediapipe_replay`） |
 | `--play FILE` | - | 回放录制（`--input mediapipe_replay` 的快捷方式） |

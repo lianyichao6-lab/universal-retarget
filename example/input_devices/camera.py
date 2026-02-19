@@ -10,6 +10,10 @@ import cv2
 import numpy as np
 import mediapipe as mp
 
+# 参考手掌尺寸：手腕到中指 MCP 的距离（米）
+# 基于 VisionPro 录制数据的平均值，用于将 MediaPipe 归一化坐标转换为米制坐标
+REFERENCE_WRIST_TO_MIDDLE_MCP = 0.092
+
 
 class Camera:
     """使用 OpenCV + MediaPipe 从摄像头获取手部关键点"""
@@ -55,10 +59,7 @@ class Camera:
                 "right_fingers": np.zeros((21, 3), dtype=np.float32),
             }
 
-        # 镜像翻转 (让画面更直观，像照镜子)
-        frame = cv2.flip(frame, 1)
-
-        # BGR -> RGB (MediaPipe 需要 RGB 格式)
+        # 用原始图像做 MediaPipe 推理（不翻转，保证 3D 坐标空间关系正确）
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.hands.process(rgb_frame)
 
@@ -76,35 +77,46 @@ class Camera:
                 )
 
                 # 坐标转换:
-                # MediaPipe 输出: x,y 归一化到 [0,1], z 是相对深度
-                # 需要转换为: 以手腕为中心的米制坐标
-                scale = 0.2  # 缩放因子，调整手的大小
+                # MediaPipe 输出: x,y 归一化到 [0,1], z 是相对深度（与 x 大致同尺度）
+                # 需要转换为: 以手腕为中心的米制坐标（与 VisionPro 输出一致）
+
+                # 动态缩放：根据手腕到中指 MCP 的距离归一化到真实尺度
+                wrist = landmarks[0]
+                middle_mcp = landmarks[9]
+                raw_dist = np.linalg.norm(middle_mcp - wrist)
+                if raw_dist > 1e-6:
+                    scale = REFERENCE_WRIST_TO_MIDDLE_MCP / raw_dist
+                else:
+                    scale = 0.2
+
+                # 以手腕为原点，转换到米制坐标
                 landmarks[:, 0] = (landmarks[:, 0] - landmarks[0, 0]) * scale
                 landmarks[:, 1] = -(landmarks[:, 1] - landmarks[0, 1]) * scale  # Y轴翻转
-                landmarks[:, 2] = -landmarks[:, 2] * scale  # Z轴翻转
+                landmarks[:, 2] = -(landmarks[:, 2] - landmarks[0, 2]) * scale  # Z轴翻转，以手腕为原点
 
                 # 判断左右手
-                # 注意: 因为镜像翻转，MediaPipe 检测到的 "Left" 实际是用户的右手
+                # MediaPipe 假设输入是前置摄像头（镜像），但 OpenCV 读取的是原始图像
+                # 所以标签是反的: "Left" 实际是用户的右手
                 label = handedness.classification[0].label
                 if label == "Left":
                     right_fingers = landmarks
                 else:
                     left_fingers = landmarks
 
-                # 绘制预览
+                # 在原始帧上绘制关键点（翻转前）
                 if self.show_preview:
                     self.mp_draw.draw_landmarks(
                         frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS
                     )
 
-        # 显示预览窗口
+        # 显示预览窗口（翻转后显示，像照镜子更直观）
         if self.show_preview:
-            # 添加提示文字
+            display_frame = cv2.flip(frame, 1)
             cv2.putText(
-                frame, "Press 'q' to quit", (10, 30),
+                display_frame, "Press 'q' to quit", (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2
             )
-            cv2.imshow("Hand Tracking", frame)
+            cv2.imshow("Hand Tracking", display_frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 raise KeyboardInterrupt("用户按下 q 键退出")
