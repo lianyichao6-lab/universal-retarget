@@ -32,20 +32,6 @@ retarget:
   scaling: 0.81                # Scale MediaPipe to match Shadow Hand size (MP is ~24% larger)
   project_tip_dir: false       # Whether to project tip direction
 
-  # Pinch distance loss weight
-  # Directly penalizes difference between robot and human pinch distances
-  # Higher values = fingertips meet more precisely during pinch
-  # Tested: w_pinch=5 -> ~1cm error, w_pinch=20 -> ~0.2cm, w_pinch=50 -> ~0.05cm
-  # Use 50.0 for precise pinch tasks, 20.0 for balanced performance
-  # Note: Works best with w_dir=5 (lower w_dir reduces conflict with pinch)
-  w_pinch: 50.0
-
-  # Tendon coupling weight for Shadow Hand
-  # MuJoCo uses coupled tendons: FFJ0 controls FFJ2+FFJ1 together
-  # This penalizes |FFJ2 - FFJ1| to ensure URDF matches MuJoCo simulation
-  # Higher values = stricter coupling (100.0 recommended for accurate simulation)
-  w_coupling: 100.0
-
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
 

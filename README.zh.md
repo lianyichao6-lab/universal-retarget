@@ -15,8 +15,7 @@
 - **Shadow Hand 支持**：Shadow Hand + MuJoCo Menagerie 高精度模型
 - **高精度对指**：自适应优化，精确的拇指-手指接触
 - **实时性能**：解析梯度 + NLopt SLSQP（~2ms/帧）
-- **多输入源**：Apple Vision Pro、笔记本摄像头（MediaPipe）、录制数据回放
-- **肌腱耦合**：Shadow Hand J2-J1 耦合约束，兼容 MuJoCo 仿真
+- **多输入源**：Apple Vision Pro、Meta Quest 3、笔记本摄像头（MediaPipe）、录制数据回放
 
 ## 目录
 
@@ -104,6 +103,9 @@ python teleop_sim.py --input camera --hand right --config config/adaptive_analyt
 
 # Vision Pro 实时遥操作
 python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
+
+# Quest 3 实时遥操作（通过 Hand Tracking Streamer）
+python teleop_sim.py --input quest3 --port 9000 --hand right
 ```
 
 ### 真机控制
@@ -120,11 +122,13 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--config` | `config/adaptive_analytical_avp.yaml` | 配置文件（摄像头用 `adaptive_analytical_camera.yaml`） |
+| `--config` | 自动选择 | 配置文件（根据输入设备自动选择） |
 | `--hand` | `left`（sim）/ `right`（real） | 手的方向（`left`/`right`） |
-| `--input` | - | 输入类型（`visionpro`/`camera`/`mediapipe_replay`） |
+| `--input` | - | 输入类型（`visionpro`/`quest3`/`camera`/`mediapipe_replay`） |
 | `--play FILE` | - | 回放录制（`--input mediapipe_replay` 的快捷方式） |
 | `--ip` | `192.168.50.127` | Vision Pro IP |
+| `--port` | `9000` | Quest 3 HTS 监听端口 |
+| `--protocol` | `udp` | Quest 3 HTS 传输协议（`udp`/`tcp`） |
 | `--speed` | `1.0` | 播放速度 |
 | `--record` | - | 录制输入数据 |
 | `--output FILE` | - | 录制输出文件路径 |
@@ -145,8 +149,6 @@ retarget:
   # 损失权重
   w_pos: 1.0              # 指尖位置权重
   w_dir: 5.0              # 指尖方向权重
-  w_pinch: 50.0           # 对指距离权重（越高对指越精确）
-  w_coupling: 100.0       # 肌腱耦合权重（仅 Shadow Hand）
   w_full_hand: 1.0        # 全手权重
 
   # Huber 损失阈值
@@ -180,8 +182,6 @@ retarget:
 
 | 参数 | 说明 |
 |------|------|
-| `w_pinch` | 对指精度权重。精细抓取任务建议 50-100 |
-| `w_coupling` | Shadow Hand 肌腱耦合。设置 100+ 以匹配 MuJoCo 仿真 |
 | `scaling` | 手部尺寸比例。Shadow Hand ≈ 0.81 |
 | `mediapipe_rotation.z` | 坐标系对齐。Shadow Hand = -90° |
 
@@ -230,18 +230,16 @@ s.t.   q_min ≤ q ≤ q_max
 ### 损失函数
 
 ```
-L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + w_pinch · L_pinch + w_coupling · L_coupling
+L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + norm_delta · ||Δq||²
 ```
 
 - **L_tip_dir_vec**：位置 + 方向匹配（用于对指手势）
 - **L_full_hand**：全手向量匹配（用于张开手势）
-- **L_pinch**：拇指-手指直接距离匹配
-- **L_coupling**：Shadow Hand 肌腱 |J2 - J1| 惩罚
 
 ### 自适应混合
 
 ```
-αᵢ = 1.0    如果 dᵢ < d1  (对指 → TipDirVec 模式)
+αᵢ = 0.7    如果 dᵢ < d1  (对指 → TipDirVec 模式)
 αᵢ = 0.0    如果 dᵢ > d2  (张开 → FullHandVec 模式)
 αᵢ = 插值   其他情况
 ```

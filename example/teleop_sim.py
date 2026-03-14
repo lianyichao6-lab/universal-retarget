@@ -41,6 +41,7 @@ from qsq_retargeting import Retargeter
 from input_devices.visionpro import VisionPro
 from input_devices.mediapipe_replay import MediaPipeReplay
 from input_devices.camera import Camera
+from input_devices.quest3 import Quest3
 
 
 def map_urdf_to_mujoco_menagerie(qpos: np.ndarray) -> np.ndarray:
@@ -107,6 +108,8 @@ def run_teleop(
     input_device_type: str = "mediapipe_replay",
     mediapipe_replay_path: str = "",
     visionpro_ip: str = "192.168.50.127",
+    quest3_port: int = 9000,
+    quest3_protocol: str = "udp",
     playback_speed: float = 1.0,
     playback_loop: bool = True,
     enable_recording: bool = False,
@@ -116,9 +119,11 @@ def run_teleop(
     Args:
         hand_side: 'right' or 'left'
         config_path: Path to YAML configuration file
-        input_device_type: Input device type ('visionpro' or 'mediapipe_replay')
+        input_device_type: Input device type ('visionpro', 'quest3', 'mediapipe_replay', or 'camera')
         mediapipe_replay_path: Path to MediaPipe recording (.pkl)
         visionpro_ip: VisionPro IP address
+        quest3_port: Quest 3 HTS listener port
+        quest3_protocol: Quest 3 HTS transport protocol ('udp' or 'tcp')
         playback_speed: Playback speed for replay mode
         playback_loop: Whether to loop replay
         enable_recording: Whether to record raw input data
@@ -174,6 +179,7 @@ def run_teleop(
     # Initialize input device
     device_map = {
         "visionpro": lambda: VisionPro(ip=visionpro_ip),
+        "quest3": lambda: Quest3(port=quest3_port, protocol=quest3_protocol),
         "mediapipe_replay": lambda: MediaPipeReplay(
             record_path=mediapipe_replay_path,
             playback_speed=playback_speed,
@@ -291,14 +297,14 @@ Examples:
     )
 
     # Config
-    parser.add_argument('--config', type=str, default='config/adaptive_analytical_avp.yaml',
-                        help='Path to YAML configuration file (default: config/adaptive_analytical_avp.yaml)')
+    parser.add_argument('--config', type=str, default=None,
+                        help='Path to YAML configuration file (default: auto-select based on input device)')
     parser.add_argument('--hand', type=str, default='left', choices=['left', 'right'],
                         help='Hand side (default: left)')
 
     # Input device options
     parser.add_argument('--input', type=str, default=None,
-                        choices=['visionpro', 'mediapipe_replay', 'camera'],
+                        choices=['visionpro', 'quest3', 'mediapipe_replay', 'camera'],
                         help='Input device type')
 
     # Shortcut options
@@ -308,6 +314,12 @@ Examples:
     # VisionPro options
     parser.add_argument('--ip', type=str, default='192.168.50.127',
                         help='VisionPro IP address (default: 192.168.50.127)')
+
+    # Quest 3 options
+    parser.add_argument('--port', type=int, default=9000,
+                        help='Quest 3 HTS listener port (default: 9000)')
+    parser.add_argument('--protocol', type=str, default='udp', choices=['udp', 'tcp'],
+                        help='Quest 3 HTS transport protocol (default: udp)')
 
     # Playback options
     parser.add_argument('--speed', type=float, default=1.0,
@@ -340,13 +352,23 @@ Examples:
     if input_device_type == "mediapipe_replay" and not mediapipe_replay_path:
         parser.error("--play FILE is required for mediapipe_replay mode")
 
+    # Auto-select config based on input device if not specified
+    config_path = args.config
+    if config_path is None:
+        config_map = {
+            "quest3": "config/adaptive_analytical_quest3.yaml",
+        }
+        config_path = config_map.get(input_device_type, "config/adaptive_analytical_avp.yaml")
+
     # Run teleoperation
     log = run_teleop(
         hand_side=args.hand,
-        config_path=args.config,
+        config_path=config_path,
         input_device_type=input_device_type,
         mediapipe_replay_path=mediapipe_replay_path,
         visionpro_ip=args.ip,
+        quest3_port=args.port,
+        quest3_protocol=args.protocol,
         playback_speed=args.speed,
         playback_loop=not args.no_loop,
         enable_recording=args.record,

@@ -25,12 +25,6 @@ retarget:
   scaling: 0.81                # Scale MediaPipe to match Shadow Hand size (MP is ~24% larger)
   project_tip_dir: false       # Whether to project tip direction
 
-  # Pinch distance loss weight
-  w_pinch: 50.0
-
-  # Tendon coupling weight for Shadow Hand
-  w_coupling: 100.0
-
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
 

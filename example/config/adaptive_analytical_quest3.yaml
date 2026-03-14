@@ -1,5 +1,4 @@
-# Shadow Hand Menagerie Configuration for Retargeting (Default)
-# Uses high-quality meshes from MuJoCo Menagerie
+# Shadow Hand Menagerie Configuration for Quest 3 (HTS) Input
 # Adaptive blend: TipDirVec when pinching, FullHandVec otherwise
 # Loss: L = Σ (α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i) + norm_delta * ||Δq||²
 # Uses Huber loss + analytical gradients + NLopt SLSQP
@@ -22,7 +21,7 @@ retarget:
   # TipDirVec parameters
   w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
   w_dir: 5.0                   # Tip direction weight (link4 → tip vectors)
-  scaling: 0.81                # Scale MediaPipe to match Shadow Hand size (MP is ~24% larger)
+  scaling: 0.81                # Scale MediaPipe to match Shadow Hand size
   project_tip_dir: false       # Whether to project tip direction
 
   # FullHandVec parameters
@@ -31,10 +30,10 @@ retarget:
   # Per-finger segment scaling [PIP, DIP, TIP]
   segment_scaling:
     thumb:  [1.0, 1.0, 1.0]
-    index:  [1.0, 1.0, 1.0]
+    index:  [1.0, 1.03, 1.05]
     middle: [1.0, 1.0, 1.0]
     ring:   [1.0, 1.0, 1.0]
-    pinky:  [1.0, 1.0, 1.0]
+    pinky:  [1.05, 1.15, 1.15]
 
   # Pinch distance thresholds (cm) for each finger
   pinch_thresholds:
@@ -44,8 +43,9 @@ retarget:
     pinky:  { d1: 2.0, d2: 4.0 }
 
   # MediaPipe rotation adjustment (degrees)
+  # Quest 3 coordinate system: smaller rotation needed
   mediapipe_rotation:
-    x: -10.0
+    x: -7.0
     y: 0.0
     z: -90.0
 

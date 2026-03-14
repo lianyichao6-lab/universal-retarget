@@ -34,27 +34,6 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         self.scaling = retarget_config.get('scaling', 1.0)
         self.project_tip_dir = retarget_config.get('project_tip_dir', False)
 
-        # Pinch distance loss weight (directly penalize robot-human pinch distance difference)
-        self.w_pinch = retarget_config.get('w_pinch', 0.0)
-
-        # Tendon coupling weight for Shadow Hand (FFJ2=FFJ1, MFJ2=MFJ1, etc.)
-        # MuJoCo uses coupled tendons where J2+J1 is controlled together
-        # This penalizes |J2 - J1| to ensure URDF optimization matches MuJoCo behavior
-        self.w_coupling = retarget_config.get('w_coupling', 0.0)
-
-        # Setup tendon coupling indices for Shadow Hand (4 fingers, excluding thumb)
-        # URDF joint order (alphabetical): FFJ4,FFJ3,FFJ2,FFJ1, LFJ5,LFJ4,LFJ3,LFJ2,LFJ1, MFJ4,MFJ3,MFJ2,MFJ1, ...
-        robot_type = config.get('robot', {}).get('type', 'shadow_hand_menagerie')
-        if robot_type == 'shadow_hand_menagerie' and self.w_coupling > 0:
-            # Coupled joint pairs: (J2_idx, J1_idx) for each finger
-            # Index: FFJ2=2, FFJ1=3
-            # Little: LFJ2=7, LFJ1=8
-            # Middle: MFJ2=11, MFJ1=12
-            # Ring: RFJ2=15, RFJ1=16
-            self.coupling_pairs = [(2, 3), (7, 8), (11, 12), (15, 16)]
-        else:
-            self.coupling_pairs = []
-
         # FullHandVec parameters
         self.w_full_hand = retarget_config.get('w_full_hand', 1.0)
         segment_scaling_config = retarget_config.get('segment_scaling', {})
@@ -111,23 +90,9 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         thumb_tip = mediapipe_keypoints[self.MP_TIP_INDICES[0]]
         finger_tips = mediapipe_keypoints[self.MP_TIP_INDICES[1:]]
         distances = np.linalg.norm(finger_tips - thumb_tip, axis=1) * M_TO_CM
-        alphas_4 = np.clip((self.d2 - distances) / (self.d2 - self.d1 + 1e-8), 0.0, 1.0)
+        alphas_4 = np.clip((self.d2 - distances) / (self.d2 - self.d1 + 1e-8), 0.0, 0.7)
         alpha_thumb = np.max(alphas_4)
         return np.concatenate([[alpha_thumb], alphas_4])
-
-    def _compute_pinch_distances(self, mediapipe_keypoints: np.ndarray) -> np.ndarray:
-        """Compute target pinch distances (thumb to each finger) in cm.
-
-        Args:
-            mediapipe_keypoints: (21, 3) MediaPipe keypoints in meters
-
-        Returns:
-            distances: (4,) thumb-to-finger distances for index, middle, ring, pinky (cm)
-        """
-        thumb_tip = mediapipe_keypoints[self.MP_TIP_INDICES[0]]
-        finger_tips = mediapipe_keypoints[self.MP_TIP_INDICES[1:]]  # index, middle, ring, pinky
-        distances = np.linalg.norm(finger_tips - thumb_tip, axis=1) * M_TO_CM
-        return distances
 
     def solve(
         self,
@@ -153,16 +118,13 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         target_full_hand_vectors = self._compute_full_hand_vectors(
             mediapipe_keypoints, self.segment_scaling
         )
-        # Compute target pinch distances (thumb to each finger) in cm
-        target_pinch_dists = self._compute_pinch_distances(mediapipe_keypoints)
 
         if self._enable_timing:
             self._timing.preprocess_ms += (time.perf_counter() - t_preprocess_start) * 1000
             t_nlopt_start = time.perf_counter()
 
         objective_fn = self._get_objective_analytical(
-            target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, reg_qpos,
-            target_pinch_dists
+            target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, reg_qpos
         )
         result = self._run_optimization(objective_fn, init_qpos)
 
@@ -186,10 +148,8 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         target_full_hand_vectors = self._compute_full_hand_vectors(
             mediapipe_keypoints, self.segment_scaling
         )
-        target_pinch_dists = self._compute_pinch_distances(mediapipe_keypoints)
         loss, _ = self._loss_and_grad_analytical(
-            qpos, target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, None,
-            target_pinch_dists
+            qpos, target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, None
         )
         return float(loss)
 
@@ -201,7 +161,6 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         target_full_hand_vectors: np.ndarray,
         alphas: np.ndarray,
         last_qpos: Optional[np.ndarray],
-        target_pinch_dists: Optional[np.ndarray] = None,
     ) -> tuple[float, np.ndarray]:
         """Compute loss and gradient analytically."""
         qpos = np.asarray(qpos, dtype=np.float64)
@@ -341,46 +300,6 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         loss_per_finger = alphas * loss_tip_dir_vec + (1.0 - alphas) * loss_full
         total_loss = np.sum(loss_per_finger)
 
-        # === Simple Pinch Distance Loss ===
-        # Directly penalize difference between robot and human pinch distances
-        if self.w_pinch > 0 and target_pinch_dists is not None:
-            thumb_tip_pos = task_pos[0]  # (3,)
-            finger_tip_pos = task_pos[1:]  # (4, 3)
-
-            # Compute robot pinch distances
-            pinch_diff_vec = finger_tip_pos - thumb_tip_pos  # (4, 3)
-            robot_pinch_dists = np.linalg.norm(pinch_diff_vec, axis=1)  # (4,)
-
-            # Loss: squared difference between robot and target pinch distances
-            pinch_dist_error = robot_pinch_dists - target_pinch_dists  # (4,)
-            pinch_loss = 0.5 * pinch_dist_error ** 2  # (4,)
-
-            # Weight by alpha (only penalize when pinching)
-            alphas_4 = alphas[1:]  # (4,) - exclude thumb alpha
-            total_loss += self.w_pinch * np.sum(alphas_4 * pinch_loss)
-
-            # Gradient
-            J_thumb = J_task[0]  # (3, nq)
-            J_fingers = J_task[1:]  # (4, 3, nq)
-
-            pinch_diff_normed = pinch_diff_vec / (robot_pinch_dists[:, None] + 1e-8)  # (4, 3)
-            for i in range(4):
-                if alphas_4[i] > 0:
-                    grad_coeff = self.w_pinch * alphas_4[i] * pinch_dist_error[i]
-                    J_diff = J_fingers[i] - J_thumb  # (3, nq)
-                    total_grad += grad_coeff * (pinch_diff_normed[i] @ J_diff)
-
-        # === Tendon Coupling Constraint ===
-        # For Shadow Hand, penalize |J2 - J1| to match MuJoCo tendon behavior
-        if self.w_coupling > 0 and self.coupling_pairs:
-            for j2_idx, j1_idx in self.coupling_pairs:
-                diff = qpos[j2_idx] - qpos[j1_idx]
-                # Quadratic penalty: w * 0.5 * (q_j2 - q_j1)^2
-                total_loss += self.w_coupling * 0.5 * diff ** 2
-                # Gradient: w * (q_j2 - q_j1) for j2, -w * (q_j2 - q_j1) for j1
-                total_grad[j2_idx] += self.w_coupling * diff
-                total_grad[j1_idx] -= self.w_coupling * diff
-
         # === Regularization ===
         if last_qpos is not None:
             total_loss += self.norm_delta * np.sum((qpos - last_qpos) ** 2)
@@ -410,7 +329,6 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         target_full_hand_vectors: np.ndarray,
         alphas: np.ndarray,
         last_qpos: Optional[np.ndarray],
-        target_pinch_dists: Optional[np.ndarray] = None,
     ):
         """Create NLopt objective function with analytical gradient."""
         target_tip_vectors = np.asarray(target_tip_vectors, dtype=np.float64)
@@ -419,14 +337,11 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         alphas = np.asarray(alphas, dtype=np.float64)
         if last_qpos is not None:
             last_qpos = np.asarray(last_qpos, dtype=np.float64)
-        if target_pinch_dists is not None:
-            target_pinch_dists = np.asarray(target_pinch_dists, dtype=np.float64)
 
         def objective(x, grad_out):
             qpos = np.asarray(x, dtype=np.float64)
             loss, grad = self._loss_and_grad_analytical(
-                qpos, target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, last_qpos,
-                target_pinch_dists
+                qpos, target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, last_qpos
             )
             if grad_out.size > 0:
                 grad_out[:] = grad

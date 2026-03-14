@@ -15,8 +15,7 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 - **Shadow Hand Support**: Shadow Hand with MuJoCo Menagerie high-quality meshes
 - **High-Precision Pinch**: Adaptive optimization for accurate finger-to-thumb contact
 - **Real-time Performance**: Analytical gradients + NLopt SLSQP (~2ms per frame)
-- **Multiple Input Sources**: Apple Vision Pro, laptop camera (MediaPipe), recorded data replay
-- **Tendon Coupling**: Shadow Hand J2-J1 coupling constraint for MuJoCo compatibility
+- **Multiple Input Sources**: Apple Vision Pro, Meta Quest 3, laptop camera (MediaPipe), recorded data replay
 
 ## Table of Contents
 
@@ -104,6 +103,9 @@ python teleop_sim.py --input camera --hand right --config config/adaptive_analyt
 
 # Real-time with Vision Pro
 python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
+
+# Real-time with Quest 3 (via Hand Tracking Streamer)
+python teleop_sim.py --input quest3 --port 9000 --hand right
 ```
 
 ### Real Hardware
@@ -120,11 +122,13 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--config` | `config/adaptive_analytical_avp.yaml` | Configuration file (`adaptive_analytical_camera.yaml` for camera) |
+| `--config` | auto-select | Configuration file (auto-selects based on input device) |
 | `--hand` | `left` (sim) / `right` (real) | Hand side (`left`/`right`) |
-| `--input` | - | Input type (`visionpro`/`camera`/`mediapipe_replay`) |
+| `--input` | - | Input type (`visionpro`/`quest3`/`camera`/`mediapipe_replay`) |
 | `--play FILE` | - | Replay recording (shortcut for `--input mediapipe_replay`) |
 | `--ip` | `192.168.50.127` | Vision Pro IP |
+| `--port` | `9000` | Quest 3 HTS listener port |
+| `--protocol` | `udp` | Quest 3 HTS transport protocol (`udp`/`tcp`) |
 | `--speed` | `1.0` | Playback speed |
 | `--record` | - | Record input data |
 | `--output FILE` | - | Output file path for recording |
@@ -145,8 +149,6 @@ retarget:
   # Loss weights
   w_pos: 1.0              # Tip position weight
   w_dir: 5.0              # Tip direction weight
-  w_pinch: 50.0           # Pinch distance weight (higher = more precise pinch)
-  w_coupling: 100.0       # Tendon coupling weight (Shadow Hand only)
   w_full_hand: 1.0        # Full hand weight
 
   # Huber loss thresholds
@@ -180,8 +182,6 @@ retarget:
 
 | Parameter | Description |
 |-----------|-------------|
-| `w_pinch` | Pinch precision weight. Higher values (50-100) for precise grasping tasks |
-| `w_coupling` | Shadow Hand tendon coupling. Set 100+ to match MuJoCo simulation |
 | `scaling` | Hand size ratio. Shadow Hand ≈ 0.81 |
 | `mediapipe_rotation.z` | Coordinate alignment. Shadow Hand = -90° |
 
@@ -230,18 +230,16 @@ s.t.   q_min ≤ q ≤ q_max
 ### Loss Function
 
 ```
-L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + w_pinch · L_pinch + w_coupling · L_coupling
+L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + norm_delta · ||Δq||²
 ```
 
 - **L_tip_dir_vec**: Position + direction matching (for pinch gestures)
 - **L_full_hand**: Full hand vector matching (for open hand)
-- **L_pinch**: Direct thumb-to-finger distance matching
-- **L_coupling**: |J2 - J1| penalty for Shadow Hand tendons
 
 ### Adaptive Blending
 
 ```
-αᵢ = 1.0    if dᵢ < d1  (pinching → TipDirVec mode)
+αᵢ = 0.7    if dᵢ < d1  (pinching → TipDirVec mode)
 αᵢ = 0.0    if dᵢ > d2  (open → FullHandVec mode)
 αᵢ = lerp   otherwise
 ```
