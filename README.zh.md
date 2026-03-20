@@ -35,6 +35,12 @@
 | 机器人 | 配置文件 | 说明 |
 |--------|----------|------|
 | **Shadow Hand** | `shadow_hand_menagerie.yaml` | Shadow Hand + MuJoCo Menagerie 高精度模型（默认） |
+| **Wuji Hand** | `wuji_hand.yaml` | 无极灵巧手 5 指 20 自由度 |
+| **Allegro Hand** | `allegro_hand.yaml` | Allegro Hand 4 指 16 自由度 |
+| **Inspire Hand** | `inspire_hand.yaml` | 因时灵巧手 5 指（含 mimic 关节） |
+| **Ability Hand** | `ability_hand.yaml` | Ability Hand 5 指（含 mimic 关节） |
+| **Leap Hand** | `leap_hand.yaml` | Leap Hand 4 指 16 自由度 |
+| **SVH Hand** | `svh_hand.yaml` | Schunk SVH Hand 5 指（含 mimic 关节） |
 
 ## 仓库结构
 
@@ -49,6 +55,9 @@
 ├── example/
 │   ├── teleop_sim.py                 # MuJoCo 仿真示例
 │   ├── teleop_real.py                # 真机控制
+│   ├── test/                         # 调试与可视化工具
+│   │   ├── debug_skeleton.py         # 对比输入/缩放/FK 骨架
+│   │   └── visualize_scaling.py      # 可视化缩放对关键点的影响
 │   ├── input_devices/                # 输入设备模块
 │   ├── config/                       # YAML 配置文件
 │   └── data/                         # 示例录制数据
@@ -126,6 +135,7 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--hand` | `left`（sim）/ `right`（real） | 手的方向（`left`/`right`） |
 | `--input` | - | 输入类型（`visionpro`/`quest3`/`camera`/`mediapipe_replay`） |
 | `--play FILE` | - | 回放录制（`--input mediapipe_replay` 的快捷方式） |
+| `--video FILE` | - | 视频文件输入（MediaPipe 手部检测） |
 | `--ip` | `192.168.50.127` | Vision Pro IP |
 | `--port` | `9000` | Quest 3 HTS 监听端口 |
 | `--protocol` | `udp` | Quest 3 HTS 传输协议（`udp`/`tcp`） |
@@ -133,6 +143,43 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--record` | - | 录制输入数据 |
 | `--output FILE` | - | 录制输出文件路径 |
 | `--no-loop` | - | 禁用回放循环 |
+
+### 调试与可视化工具
+
+#### debug_skeleton.py
+
+在 MuJoCo 查看器中对比三���骨架，用于调试重定向问题：
+
+- **蓝色**：原始 MediaPipe 骨架（坐标变换后，未缩放）
+- **绿色**：缩放后的目标骨架（优化器的匹配目标）
+- **红色**：机器人 FK 骨架（重定向结果）
+
+```bash
+cd example
+
+# 摄像头输入
+python test/debug_skeleton.py --config config/leap_hand.yaml --input camera
+
+# 视频文件输入
+python test/debug_skeleton.py --config config/leap_hand.yaml --video data/right.mp4
+
+# 回放录制数据
+python test/debug_skeleton.py --config config/shadow_hand_menagerie.yaml --play data/avp1.pkl
+```
+
+#### visualize_scaling.py
+
+可视化 `scaling` 和 `segment_scaling` 参数对 MediaPipe 关键点的影响。在 matplotlib 3D 图中对比原始骨架和缩放后的目标骨架。
+
+```bash
+cd example
+
+# 回放录制数据
+python test/visualize_scaling.py --config config/allegro_hand.yaml --play data/avp1.pkl --hand right
+
+# 视频文件输入
+python test/visualize_scaling.py --config config/leap_hand.yaml --video data/right.mp4 --hand right
+```
 
 ## 配置说明
 

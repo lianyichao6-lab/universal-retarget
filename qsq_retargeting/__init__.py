@@ -9,7 +9,7 @@ Main classes:
 Example:
     from qsq_retargeting import Retargeter
 
-    retargeter = Retargeter.from_yaml("config/shadow_hand_menagerie.yaml", hand_side="right")
+    retargeter = Retargeter.from_yaml("config/shadow_hand.yaml", hand_side="right")
     qpos = retargeter.retarget(raw_keypoints)  # (21, 3) -> (22,)
 """
 

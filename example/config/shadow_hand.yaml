@@ -1,4 +1,5 @@
 # Shadow Hand Configuration for Retargeting
+# Uses high-quality meshes from MuJoCo Menagerie
 # Adaptive blend: TipDirVec when pinching, FullHandVec otherwise
 # Loss: L = Σ (α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i) + norm_delta * ||Δq||²
 # Uses Huber loss + analytical gradients + NLopt SLSQP
@@ -6,14 +7,14 @@
 optimizer:
   type: "AdaptiveOptimizerAnalytical"
 
-# Robot configuration for Shadow Hand (shadowhand_description style, no prefix)
+# Robot configuration for Shadow Hand (rh_ prefix)
 robot:
   type: "shadow_hand"
-  # Link names (matching shadowhand_description/urdf/right.urdf):
-  # - palm, thtip/fftip/mftip/rftip/lftip
-  # - thproximal/ffproximal/mfproximal/rfproximal/lfproximal
-  # - thmiddle/ffmiddle/mfmiddle/rfmiddle/lfmiddle
-  # - thdistal/ffdistal/mfdistal/rfdistal/lfdistal
+  # Link names (matching shadow_hand_description/urdf/right_rh.urdf with rh_ prefix):
+  # - rh_palm, rh_thtip/rh_fftip/rh_mftip/rh_rftip/rh_lftip
+  # - rh_thproximal/rh_ffproximal/rh_mfproximal/rh_rfproximal/rh_lfproximal
+  # - rh_thmiddle/rh_ffmiddle/rh_mfmiddle/rh_rfmiddle/rh_lfmiddle
+  # - rh_thdistal/rh_ffdistal/rh_mfdistal/rh_rfdistal/rh_lfdistal
 
 retarget:
   # Huber loss thresholds
@@ -25,8 +26,10 @@ retarget:
 
   # TipDirVec parameters
   w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
-  w_dir: 10.0                  # Tip direction weight (link4 → tip vectors)
-  scaling: 1.0                 # Global MediaPipe scaling parameter
+  w_dir: 5.0                   # Tip direction weight (link4 → tip vectors)
+                               # Note: High w_dir conflicts with pinch optimization
+                               # Use 5.0 for better pinch accuracy, 10.0 for finger direction
+  scaling: 0.81                # Scale MediaPipe to match Shadow Hand size (MP is ~24% larger)
   project_tip_dir: false       # Whether to project tip direction
 
   # FullHandVec parameters
@@ -51,9 +54,14 @@ retarget:
 
   # MediaPipe rotation adjustment (degrees)
   mediapipe_rotation:
-    x: 0.0
+    x: -10.0
     y: 0.0
-    z: 0.0
+    z: -90.0
+
+  # Clamp joint lower bounds to prevent hyperextension
+  # Pattern matches joint names containing the key, sets minimum lower bound
+  clamp_joint_lower:
+    "J3": 0.0                   # Prevent MCP hyperextension for FF/MF/RF/LF
 
   # Low-pass filter coefficient (0~1, smaller=smoother)
   lp_alpha: 0.4

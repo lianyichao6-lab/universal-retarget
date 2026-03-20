@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import time
+import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import nlopt
 import numpy as np
@@ -106,9 +107,9 @@ class TimingStats:
         }
 
 
-# Package root for URDF path resolution
+# Project root for asset path resolution
 _THIS_FILE = Path(__file__).resolve()
-_PACKAGE_ROOT = _THIS_FILE.parent.parent
+_PROJECT_ROOT = _THIS_FILE.parent.parent.parent
 
 # Unit conversion: internal computations use cm
 M_TO_CM = 100.0
@@ -175,48 +176,75 @@ class BaseOptimizer(ABC):
 
     # Default link names for different robot hands
     ROBOT_CONFIGS = {
-        # Shadow Hand without prefix (e.g., shadowhand_description style)
-        'shadow_hand': {
-            'origin_link': 'palm',
-            'tip_links': ['thtip', 'fftip', 'mftip', 'rftip', 'lftip'],
-            'link1_names': ['thproximal', 'ffproximal', 'mfproximal', 'rfproximal', 'lfproximal'],
-            'link3_names': ['thmiddle', 'ffmiddle', 'mfmiddle', 'rfmiddle', 'lfmiddle'],
-            'link4_names': ['thdistal', 'ffdistal', 'mfdistal', 'rfdistal', 'lfdistal'],
-            'urdf_subdir': 'shadow_hand_description/urdf',
-            'mjcf_subdir': 'shadow_hand_description/mjcf',
-        },
-        # Shadow Hand with rh_/lh_ prefix (MuJoCo Menagerie style) - high quality meshes
+        # Shadow Hand (MuJoCo Menagerie style, rh_/lh_ prefix) - high quality meshes
         # Uses custom URDF that exactly matches MuJoCo Menagerie joint axes
-        'shadow_hand_menagerie': {
+        'shadow_hand': {
             'origin_link': 'rh_palm',  # Will be lh_palm for left hand
             'tip_links': ['rh_thtip', 'rh_fftip', 'rh_mftip', 'rh_rftip', 'rh_lftip'],
             'link1_names': ['rh_thproximal', 'rh_ffproximal', 'rh_mfproximal', 'rh_rfproximal', 'rh_lfproximal'],
             'link3_names': ['rh_thmiddle', 'rh_ffmiddle', 'rh_mfmiddle', 'rh_rfmiddle', 'rh_lfmiddle'],
             'link4_names': ['rh_thdistal', 'rh_ffdistal', 'rh_mfdistal', 'rh_rfdistal', 'rh_lfdistal'],
-            'urdf_subdir': 'shadow_hand_menagerie',  # New URDF matching MuJoCo exactly
+            'urdf_subdir': 'assets/shadow_hand',
             'urdf_file': {'right': 'right_hand_mj.urdf', 'left': 'left_hand_mj.urdf'},
-            'mjcf_subdir': 'shadow_hand_menagerie',  # Use Menagerie for visualization
+            'mjcf_subdir': 'assets/shadow_hand',
             'mjcf_file': {'right': 'scene_right.xml', 'left': 'scene_left.xml'},
+            'num_fingers': 5,
         },
-        # Shadow Hand with rh_ prefix (official sr_common style)
-        'shadow_hand_rh': {
-            'origin_link': 'rh_palm',
-            'tip_links': ['rh_thtip', 'rh_fftip', 'rh_mftip', 'rh_rftip', 'rh_lftip'],
-            'link1_names': ['rh_thproximal', 'rh_ffproximal', 'rh_mfproximal', 'rh_rfproximal', 'rh_lfproximal'],
-            'link3_names': ['rh_thmiddle', 'rh_ffmiddle', 'rh_mfmiddle', 'rh_rfmiddle', 'rh_lfmiddle'],
-            'link4_names': ['rh_thdistal', 'rh_ffdistal', 'rh_mfdistal', 'rh_rfdistal', 'rh_lfdistal'],
-            'urdf_subdir': 'shadow_hand_description/urdf',
-            'mjcf_subdir': 'shadow_hand_description/mjcf',
+        # Wuji Hand (5 fingers x 4 joints = 20 DOF)
+        'wuji_hand': {
+            'origin_link': 'right_palm_link',
+            'tip_links': ['right_finger1_tip_link', 'right_finger2_tip_link', 'right_finger3_tip_link', 'right_finger4_tip_link', 'right_finger5_tip_link'],
+            'link1_names': ['right_finger1_link1', 'right_finger2_link1', 'right_finger3_link1', 'right_finger4_link1', 'right_finger5_link1'],
+            'link3_names': ['right_finger1_link3', 'right_finger2_link3', 'right_finger3_link3', 'right_finger4_link3', 'right_finger5_link3'],
+            'link4_names': ['right_finger1_link4', 'right_finger2_link4', 'right_finger3_link4', 'right_finger4_link4', 'right_finger5_link4'],
+            'num_fingers': 5,
         },
-        # Shadow Hand with lh_ prefix (left hand)
-        'shadow_hand_lh': {
-            'origin_link': 'lh_palm',
-            'tip_links': ['lh_thtip', 'lh_fftip', 'lh_mftip', 'lh_rftip', 'lh_lftip'],
-            'link1_names': ['lh_thproximal', 'lh_ffproximal', 'lh_mfproximal', 'lh_rfproximal', 'lh_lfproximal'],
-            'link3_names': ['lh_thmiddle', 'lh_ffmiddle', 'lh_mfmiddle', 'lh_rfmiddle', 'lh_lfmiddle'],
-            'link4_names': ['lh_thdistal', 'lh_ffdistal', 'lh_mfdistal', 'lh_rfdistal', 'lh_lfdistal'],
-            'urdf_subdir': 'shadow_hand_description/urdf',
-            'mjcf_subdir': 'shadow_hand_description/mjcf',
+        # Allegro Hand (4 fingers: thumb, index, middle, ring - no pinky)
+        # Finger order: thumb (link_12~15), index (link_0~3), middle (link_4~7), ring (link_8~11)
+        'allegro_hand': {
+            'origin_link': 'base_link',
+            'tip_links': ['link_15.0_tip', 'link_3.0_tip', 'link_7.0_tip', 'link_11.0_tip'],
+            'link1_names': ['link_12.0', 'link_0.0', 'link_4.0', 'link_8.0'],
+            'link3_names': ['link_13.0', 'link_1.0', 'link_5.0', 'link_9.0'],
+            'link4_names': ['link_14.0', 'link_2.0', 'link_6.0', 'link_10.0'],
+            'num_fingers': 4,
+        },
+        # Inspire Hand (5 fingers, 2-DOF per non-thumb finger)
+        # Non-thumb: proximal → intermediate → tip(fixed), so link3=proximal(PIP), link4=intermediate(DIP)
+        'inspire_hand': {
+            'origin_link': 'hand_base_link',
+            'tip_links': ['thumb_tip', 'index_tip', 'middle_tip', 'ring_tip', 'pinky_tip'],
+            'link1_names': ['thumb_proximal', 'index_proximal', 'middle_proximal', 'ring_proximal', 'pinky_proximal'],
+            'link3_names': ['thumb_proximal', 'index_proximal', 'middle_proximal', 'ring_proximal', 'pinky_proximal'],
+            'link4_names': ['thumb_intermediate', 'index_intermediate', 'middle_intermediate', 'ring_intermediate', 'pinky_intermediate'],
+            'num_fingers': 5,
+        },
+        # Ability Hand (5 fingers, 2 links each)
+        'ability_hand': {
+            'origin_link': 'base',
+            'tip_links': ['thumb_tip', 'index_tip', 'middle_tip', 'ring_tip', 'pinky_tip'],
+            'link1_names': ['thumb_L1', 'index_L1', 'middle_L1', 'ring_L1', 'pinky_L1'],
+            'link3_names': ['thumb_L1', 'index_L1', 'middle_L1', 'ring_L1', 'pinky_L1'],
+            'link4_names': ['thumb_L2', 'index_L2', 'middle_L2', 'ring_L2', 'pinky_L2'],
+            'num_fingers': 5,
+        },
+        # Leap Hand (4 fingers + thumb, no pinky)
+        'leap_hand': {
+            'origin_link': 'base',
+            'tip_links': ['thumb_tip_head', 'index_tip_head', 'middle_tip_head', 'ring_tip_head'],
+            'link1_names': ['thumb_pip', 'pip', 'pip_2', 'pip_3'],
+            'link3_names': ['thumb_dip', 'dip', 'dip_2', 'dip_3'],
+            'link4_names': ['thumb_fingertip', 'fingertip', 'fingertip_2', 'fingertip_3'],
+            'num_fingers': 4,
+        },
+        # SVH Hand (5 fingers)
+        'svh_hand': {
+            'origin_link': 'right_hand_base_link',
+            'tip_links': ['thtip', 'fftip', 'mftip', 'rftip', 'lftip'],
+            'link1_names': ['right_hand_z', 'right_hand_l', 'right_hand_k', 'right_hand_j', 'right_hand_i'],
+            'link3_names': ['right_hand_a', 'right_hand_p', 'right_hand_o', 'right_hand_n', 'right_hand_m'],
+            'link4_names': ['right_hand_b', 'right_hand_t', 'right_hand_s', 'right_hand_r', 'right_hand_q'],
+            'num_fingers': 5,
         },
     }
 
@@ -241,13 +269,13 @@ class BaseOptimizer(ABC):
 
         # Extract robot config
         robot_config = config.get('robot', {})
-        robot_type = robot_config.get('type', 'shadow_hand_menagerie')
+        robot_type = robot_config.get('type', 'shadow_hand')
 
         # Get robot-specific defaults
         if robot_type in self.ROBOT_CONFIGS:
             robot_defaults = self.ROBOT_CONFIGS[robot_type]
         else:
-            robot_defaults = self.ROBOT_CONFIGS['shadow_hand_menagerie']
+            robot_defaults = self.ROBOT_CONFIGS['shadow_hand']
 
         # Load URDF - support custom path or use default
         urdf_path = robot_config.get('urdf_path')
@@ -255,7 +283,7 @@ class BaseOptimizer(ABC):
             # Custom URDF path (absolute or relative to package root)
             urdf_path = Path(urdf_path)
             if not urdf_path.is_absolute():
-                urdf_path = _PACKAGE_ROOT / urdf_path
+                urdf_path = _PROJECT_ROOT / urdf_path
             urdf_path = str(urdf_path.resolve())
         else:
             # Default URDF path based on robot type and hand side
@@ -266,17 +294,39 @@ class BaseOptimizer(ABC):
                 urdf_filename = urdf_file_config.get(self.hand_side, f"{self.hand_side}.urdf")
             else:
                 urdf_filename = f"{self.hand_side}.urdf"
-            urdf_path = str((_PACKAGE_ROOT / urdf_subdir / urdf_filename).resolve())
+            urdf_path = str((_PROJECT_ROOT / urdf_subdir / urdf_filename).resolve())
 
         self.robot = RobotWrapper(urdf_path)
         self.num_joints = self.robot.model.nq
 
-        # Setup NLopt optimizer
-        self.opt = nlopt.opt(nlopt.LD_SLSQP, self.num_joints)
-        self.opt.set_maxeval(50)      # Reduced from 1000 for faster convergence with warm-start
-        self.opt.set_ftol_abs(1e-4)   # Relaxed from 1e-6 for faster convergence
-        self.opt.set_lower_bounds(self.robot.joint_limits[:, 0].tolist())
-        self.opt.set_upper_bounds(self.robot.joint_limits[:, 1].tolist())
+        # Parse mimic joints from URDF
+        self._parse_mimic_joints(urdf_path)
+
+        # Setup NLopt optimizer (dimension = number of independent joints)
+        self.num_opt_vars = len(self.independent_indices)
+        self.opt = nlopt.opt(nlopt.LD_SLSQP, self.num_opt_vars)
+        self.opt.set_maxeval(50)
+        self.opt.set_ftol_abs(1e-4)
+
+        # Apply joint limit overrides from config
+        lower_bounds = self.robot.joint_limits[:, 0].copy()
+        upper_bounds = self.robot.joint_limits[:, 1].copy()
+        clamp_config = retarget_config.get('clamp_joint_lower', {})
+        if clamp_config:
+            for pattern, min_val in clamp_config.items():
+                for ji in range(1, self.robot.model.njoints):
+                    jname = self.robot.model.names[ji]
+                    idx_q = self.robot.model.joints[ji].idx_q
+                    nq = self.robot.model.joints[ji].nq
+                    if nq > 0 and pattern in jname:
+                        if lower_bounds[idx_q] < min_val:
+                            lower_bounds[idx_q] = min_val
+
+        self.opt_lower_bounds = lower_bounds
+        self.opt_upper_bounds = upper_bounds
+        # NLopt bounds only for independent joints
+        self.opt.set_lower_bounds(lower_bounds[self.independent_indices].tolist())
+        self.opt.set_upper_bounds(upper_bounds[self.independent_indices].tolist())
 
         # Link names - from config or robot defaults
         self.origin_link_name = robot_config.get('origin_link', robot_defaults['origin_link'])
@@ -285,9 +335,20 @@ class BaseOptimizer(ABC):
         self.link3_names = robot_config.get('link3_names', robot_defaults['link3_names'])
         self.link4_names = robot_config.get('link4_names', robot_defaults['link4_names'])
 
-        # Handle left/right hand prefix for shadow_hand_menagerie
+        # Number of fingers (4 for Allegro/Leap, 5 for others)
+        self.num_fingers = robot_config.get('num_fingers', robot_defaults.get('num_fingers', 5))
+
+        # For 4-finger hands, map MediaPipe 5-finger indices to 4-finger robot
+        # MediaPipe: thumb=0, index=1, middle=2, ring=3, pinky=4
+        # 4-finger: thumb=0, index=1, middle=2, ring=3 (pinky ignored)
+        if self.num_fingers == 4:
+            self.mp_finger_indices = [0, 1, 2, 3]  # Skip pinky
+        else:
+            self.mp_finger_indices = [0, 1, 2, 3, 4]  # All 5
+
+        # Handle left/right hand prefix for shadow_hand
         # The config uses 'rh_' prefix by default, replace with 'lh_' for left hand
-        if robot_type == 'shadow_hand_menagerie' and self.hand_side == 'left':
+        if robot_type == 'shadow_hand' and self.hand_side == 'left':
             def replace_prefix(name):
                 return name.replace('rh_', 'lh_')
             self.origin_link_name = replace_prefix(self.origin_link_name)
@@ -316,10 +377,10 @@ class BaseOptimizer(ABC):
             self.robot.get_link_index(name) for name in self.computed_link_names
         ]
 
-        # Build index mappings
+        # Build index mappings (use num_fingers instead of hardcoded 5)
         self.origin_indices = [
             self.computed_link_names.index(self.origin_link_name)
-            for _ in range(5)
+            for _ in range(self.num_fingers)
         ]
         self.task_indices = [
             self.computed_link_names.index(name) for name in self.task_link_names
@@ -330,6 +391,106 @@ class BaseOptimizer(ABC):
         self.link4_indices = [
             self.computed_link_names.index(name) for name in self.link4_names
         ]
+
+    def _parse_mimic_joints(self, urdf_path: str):
+        """Parse mimic joint relationships from URDF.
+
+        Sets up:
+            self.independent_indices: indices of independent joints in full qpos
+            self.mimic_map: dict mapping mimic_qidx -> (source_qidx, multiplier, offset)
+            self.has_mimic: whether any mimic joints exist
+        """
+        # Build joint name -> idx_q mapping from pinocchio model
+        joint_name_to_qidx = {}
+        for ji in range(1, self.robot.model.njoints):
+            jname = self.robot.model.names[ji]
+            nq = self.robot.model.joints[ji].nq
+            if nq > 0:
+                joint_name_to_qidx[jname] = self.robot.model.joints[ji].idx_q
+
+        # Parse URDF XML for mimic tags
+        self.mimic_map = {}  # mimic_qidx -> (source_qidx, multiplier, offset)
+        try:
+            tree = ET.parse(urdf_path)
+            root = tree.getroot()
+            for joint_elem in root.iter('joint'):
+                mimic_elem = joint_elem.find('mimic')
+                if mimic_elem is not None:
+                    joint_name = joint_elem.get('name')
+                    source_name = mimic_elem.get('joint')
+                    multiplier = float(mimic_elem.get('multiplier', '1.0'))
+                    offset = float(mimic_elem.get('offset', '0.0'))
+
+                    if joint_name in joint_name_to_qidx and source_name in joint_name_to_qidx:
+                        mimic_qidx = joint_name_to_qidx[joint_name]
+                        source_qidx = joint_name_to_qidx[source_name]
+                        self.mimic_map[mimic_qidx] = (source_qidx, multiplier, offset)
+        except (ET.ParseError, FileNotFoundError):
+            pass
+
+        # Determine independent joint indices
+        mimic_indices = set(self.mimic_map.keys())
+        self.independent_indices = np.array(
+            [i for i in range(self.num_joints) if i not in mimic_indices],
+            dtype=np.int64
+        )
+        self.has_mimic = len(self.mimic_map) > 0
+
+        if self.has_mimic:
+            # Precompute gradient mapping: for each independent joint, which mimic joints depend on it?
+            # mimic_dependents[source_qidx] = [(mimic_qidx, multiplier), ...]
+            self._mimic_dependents = {}
+            for mimic_qidx, (source_qidx, mult, offset) in self.mimic_map.items():
+                if source_qidx not in self._mimic_dependents:
+                    self._mimic_dependents[source_qidx] = []
+                self._mimic_dependents[source_qidx].append((mimic_qidx, mult))
+
+    def expand_to_full_qpos(self, opt_vars: np.ndarray) -> np.ndarray:
+        """Expand independent joint values to full qpos with mimic constraints.
+
+        Args:
+            opt_vars: (num_opt_vars,) independent joint values
+
+        Returns:
+            full_qpos: (num_joints,) full joint vector with mimic values filled in
+        """
+        if not self.has_mimic:
+            return opt_vars.copy()
+
+        full_qpos = np.zeros(self.num_joints, dtype=np.float64)
+        full_qpos[self.independent_indices] = opt_vars
+
+        for mimic_qidx, (source_qidx, mult, offset) in self.mimic_map.items():
+            full_qpos[mimic_qidx] = full_qpos[source_qidx] * mult + offset
+
+        # Clip mimic joints to their limits
+        full_qpos = np.clip(full_qpos, self.opt_lower_bounds, self.opt_upper_bounds)
+        return full_qpos
+
+    def map_gradient_to_independent(self, full_grad: np.ndarray) -> np.ndarray:
+        """Map full gradient to independent joint gradient using chain rule.
+
+        For mimic joint j with q_j = q_src * mult + offset:
+            dL/dq_src += dL/dq_j * mult
+
+        Args:
+            full_grad: (num_joints,) gradient w.r.t. full qpos
+
+        Returns:
+            opt_grad: (num_opt_vars,) gradient w.r.t. independent joints
+        """
+        if not self.has_mimic:
+            return full_grad.copy()
+
+        # Start with direct gradients for independent joints
+        mapped_grad = full_grad.copy()
+
+        # Add chain rule contributions from mimic joints
+        for source_qidx, deps in self._mimic_dependents.items():
+            for mimic_qidx, mult in deps:
+                mapped_grad[source_qidx] += mapped_grad[mimic_qidx] * mult
+
+        return mapped_grad[self.independent_indices]
 
     @classmethod
     def from_yaml(cls, yaml_path: str, hand_side: str = None) -> "BaseOptimizer":
@@ -411,35 +572,32 @@ class BaseOptimizer(ABC):
     # =========================================================================
 
     def _get_init_qpos(self, last_qpos: Optional[np.ndarray]) -> np.ndarray:
-        """Get initial qpos for optimization (clipped to joint limits).
+        """Get initial qpos for optimization (independent joints only, clipped).
 
         Args:
-            last_qpos: Optional last qpos from caller
+            last_qpos: Optional last qpos from caller (full qpos)
 
         Returns:
-            Initial qpos for optimization
+            Initial values for independent joints (num_opt_vars,)
         """
         if last_qpos is not None:
-            init_qpos = np.asarray(last_qpos, dtype=np.float64)
+            full_qpos = np.asarray(last_qpos, dtype=np.float64)
         elif self.last_qpos is not None:
-            init_qpos = self.last_qpos
+            full_qpos = self.last_qpos
         else:
-            init_qpos = self.robot.joint_limits.mean(axis=1)
+            full_qpos = (self.opt_lower_bounds + self.opt_upper_bounds) / 2.0
 
-        return np.clip(
-            init_qpos,
-            self.robot.joint_limits[:, 0],
-            self.robot.joint_limits[:, 1]
-        )
+        full_qpos = np.clip(full_qpos, self.opt_lower_bounds, self.opt_upper_bounds)
+        return full_qpos[self.independent_indices]
 
     def _get_reg_qpos(self, last_qpos: Optional[np.ndarray]) -> Optional[np.ndarray]:
-        """Get regularization qpos for norm_delta term.
+        """Get regularization qpos for norm_delta term (full qpos).
 
         Args:
             last_qpos: Optional last qpos from caller
 
         Returns:
-            Regularization qpos or None
+            Regularization qpos (full) or None
         """
         if last_qpos is not None:
             return np.asarray(last_qpos, dtype=np.float64)
@@ -451,21 +609,24 @@ class BaseOptimizer(ABC):
         """Run NLopt optimization and update last_qpos.
 
         Args:
-            objective_fn: NLopt objective function
-            init_qpos: Initial qpos
+            objective_fn: NLopt objective function (operates on independent joints)
+            init_qpos: Initial values for independent joints (num_opt_vars,)
 
         Returns:
-            Optimized qpos
+            Optimized full qpos (num_joints,)
         """
         self.opt.set_min_objective(objective_fn)
         try:
-            qpos = self.opt.optimize(init_qpos.tolist())
-            qpos = np.array(qpos, dtype=np.float32)
+            opt_result = self.opt.optimize(init_qpos.tolist())
+            opt_vars = np.array(opt_result, dtype=np.float64)
         except RuntimeError as e:
             print(f"[{self.__class__.__name__}] Optimization failed: {e}")
-            qpos = np.array(init_qpos, dtype=np.float32)
-        self.last_qpos = qpos.astype(np.float64)
-        return qpos
+            opt_vars = np.array(init_qpos, dtype=np.float64)
+
+        # Expand to full qpos
+        full_qpos = self.expand_to_full_qpos(opt_vars)
+        self.last_qpos = full_qpos.astype(np.float64)
+        return full_qpos.astype(np.float32)
 
     def _compute_tip_vectors(self, keypoints: np.ndarray, scaling: float = 1.0) -> np.ndarray:
         """Compute wrist->tip vectors.
@@ -475,11 +636,12 @@ class BaseOptimizer(ABC):
             scaling: Global scaling factor
 
         Returns:
-            vectors: (5, 3) tip vectors in cm
+            vectors: (num_fingers, 3) tip vectors in cm
         """
         wrist = keypoints[self.MP_ORIGIN_IDX]
+        tip_indices = [self.MP_TIP_INDICES[i] for i in self.mp_finger_indices]
         vectors = np.array([
-            keypoints[idx] - wrist for idx in self.MP_TIP_INDICES
+            keypoints[idx] - wrist for idx in tip_indices
         ]) * scaling * M_TO_CM
         return vectors.astype(np.float64)
 
@@ -490,10 +652,12 @@ class BaseOptimizer(ABC):
             keypoints: (21, 3) MediaPipe keypoints
 
         Returns:
-            tip_dirs: (5, 3) normalized direction vectors
+            tip_dirs: (num_fingers, 3) normalized direction vectors
         """
         tip_dirs = []
-        for dip_idx, tip_idx in zip(self.MP_DIP_INDICES, self.MP_TIP_INDICES):
+        for fi in self.mp_finger_indices:
+            dip_idx = self.MP_DIP_INDICES[fi]
+            tip_idx = self.MP_TIP_INDICES[fi]
             dir_vec = keypoints[tip_idx] - keypoints[dip_idx]
             norm = np.linalg.norm(dir_vec)
             tip_dirs.append(dir_vec / (norm + 1e-8))
@@ -504,27 +668,32 @@ class BaseOptimizer(ABC):
 
         Args:
             keypoints: (21, 3) MediaPipe keypoints in meters
-            scaling: (5, 3) scaling factors for each finger and segment
+            scaling: (num_fingers, 3) scaling factors for each finger and segment
 
         Returns:
-            vectors: (15, 3) vectors in cm [PIP*5, DIP*5, TIP*5]
+            vectors: (num_fingers*3, 3) vectors in cm [PIP*N, DIP*N, TIP*N]
         """
         wrist = keypoints[self.MP_ORIGIN_IDX]
+        nf = self.num_fingers
 
-        # wrist -> PIP (5 vectors)
+        pip_indices = [self.MP_PIP_INDICES[i] for i in self.mp_finger_indices]
+        dip_indices = [self.MP_DIP_INDICES[i] for i in self.mp_finger_indices]
+        tip_indices = [self.MP_TIP_INDICES[i] for i in self.mp_finger_indices]
+
+        # wrist -> PIP (N vectors)
         pip_vectors = np.array([
-            keypoints[idx] - wrist for idx in self.MP_PIP_INDICES
-        ]) * scaling[:, 0:1]
+            keypoints[idx] - wrist for idx in pip_indices
+        ]) * scaling[:nf, 0:1]
 
-        # wrist -> DIP (5 vectors)
+        # wrist -> DIP (N vectors)
         dip_vectors = np.array([
-            keypoints[idx] - wrist for idx in self.MP_DIP_INDICES
-        ]) * scaling[:, 1:2]
+            keypoints[idx] - wrist for idx in dip_indices
+        ]) * scaling[:nf, 1:2]
 
-        # wrist -> TIP (5 vectors)
+        # wrist -> TIP (N vectors)
         tip_vectors = np.array([
-            keypoints[idx] - wrist for idx in self.MP_TIP_INDICES
-        ]) * scaling[:, 2:3]
+            keypoints[idx] - wrist for idx in tip_indices
+        ]) * scaling[:nf, 2:3]
 
         # Concatenate and convert to cm
         vectors = np.vstack([pip_vectors, dip_vectors, tip_vectors]) * M_TO_CM

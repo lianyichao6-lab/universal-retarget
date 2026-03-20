@@ -37,11 +37,17 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         # FullHandVec parameters
         self.w_full_hand = retarget_config.get('w_full_hand', 1.0)
         segment_scaling_config = retarget_config.get('segment_scaling', {})
-        finger_names = ['thumb', 'index', 'middle', 'ring', 'pinky']
-        # For optimization: (5, 3) - PIP, DIP, TIP only
-        self.segment_scaling = np.ones((5, 3), dtype=np.float64)
-        # For visualization: (5, 4) - MCP, PIP, DIP, TIP (full version)
-        self.segment_scaling_full = np.ones((5, 4), dtype=np.float64)
+        all_finger_names = ['thumb', 'index', 'middle', 'ring', 'pinky']
+        # Select finger names based on num_fingers
+        if self.num_fingers == 4:
+            finger_names = ['thumb', 'index', 'middle', 'ring']
+        else:
+            finger_names = all_finger_names
+        nf = self.num_fingers
+        # For optimization: (nf, 3) - PIP, DIP, TIP only
+        self.segment_scaling = np.ones((nf, 3), dtype=np.float64)
+        # For visualization: (nf, 4) - MCP, PIP, DIP, TIP (full version)
+        self.segment_scaling_full = np.ones((nf, 4), dtype=np.float64)
         for i, finger_name in enumerate(finger_names):
             if finger_name in segment_scaling_config:
                 scales = np.array(segment_scaling_config[finger_name])
@@ -54,19 +60,17 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
                     self.segment_scaling_full[i] = np.array([1.0, scales[0], scales[1], scales[2]])
                     self.segment_scaling[i] = scales
 
-        # Pinch thresholds
+        # Pinch thresholds (for non-thumb fingers)
         pinch_config = retarget_config.get('pinch_thresholds', {})
+        if self.num_fingers == 4:
+            non_thumb_fingers = ['index', 'middle', 'ring']
+        else:
+            non_thumb_fingers = ['index', 'middle', 'ring', 'pinky']
         self.d1 = np.array([
-            pinch_config.get('index', {}).get('d1', 2.0),
-            pinch_config.get('middle', {}).get('d1', 2.0),
-            pinch_config.get('ring', {}).get('d1', 2.0),
-            pinch_config.get('pinky', {}).get('d1', 2.0),
+            pinch_config.get(f, {}).get('d1', 2.0) for f in non_thumb_fingers
         ], dtype=np.float64)
         self.d2 = np.array([
-            pinch_config.get('index', {}).get('d2', 4.0),
-            pinch_config.get('middle', {}).get('d2', 4.0),
-            pinch_config.get('ring', {}).get('d2', 4.0),
-            pinch_config.get('pinky', {}).get('d2', 4.0),
+            pinch_config.get(f, {}).get('d2', 4.0) for f in non_thumb_fingers
         ], dtype=np.float64)
 
         # Add link1 for finger plane computation (inherited from base class)
@@ -88,11 +92,13 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
     def _compute_pinch_alpha(self, mediapipe_keypoints: np.ndarray) -> np.ndarray:
         """Compute alpha weights for each finger."""
         thumb_tip = mediapipe_keypoints[self.MP_TIP_INDICES[0]]
-        finger_tips = mediapipe_keypoints[self.MP_TIP_INDICES[1:]]
+        # Use only the non-thumb finger indices that this hand has
+        non_thumb_mp_indices = self.mp_finger_indices[1:]  # skip thumb
+        finger_tips = np.array([mediapipe_keypoints[self.MP_TIP_INDICES[i]] for i in non_thumb_mp_indices])
         distances = np.linalg.norm(finger_tips - thumb_tip, axis=1) * M_TO_CM
-        alphas_4 = np.clip((self.d2 - distances) / (self.d2 - self.d1 + 1e-8), 0.0, 0.7)
-        alpha_thumb = np.max(alphas_4)
-        return np.concatenate([[alpha_thumb], alphas_4])
+        alphas_nt = np.clip((self.d2 - distances) / (self.d2 - self.d1 + 1e-8), 0.0, 0.7)
+        alpha_thumb = np.max(alphas_nt)
+        return np.concatenate([[alpha_thumb], alphas_nt])
 
     def solve(
         self,
@@ -185,83 +191,65 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             self._timing.jacobian_ms += (time.perf_counter() - t_jac_start) * 1000
             t_grad_start = time.perf_counter()
 
+        nf = self.num_fingers
+
         # Extract positions
-        origin_pos = positions[self.origin_indices]  # (5, 3)
-        task_pos = positions[self.task_indices]  # (5, 3)
-        link3_pos = positions[self.link3_indices]  # (5, 3)
-        link4_pos = positions[self.link4_indices]  # (5, 3)
+        origin_pos = positions[self.origin_indices]  # (nf, 3)
+        task_pos = positions[self.task_indices]  # (nf, 3)
+        link3_pos = positions[self.link3_indices]  # (nf, 3)
+        link4_pos = positions[self.link4_indices]  # (nf, 3)
         wrist_pos = positions[self.origin_indices[0]]  # (3,)
 
         # Get Jacobians for each link type
-        J_origin = Js[self.origin_indices]  # (5, 3, nq)
-        J_task = Js[self.task_indices]  # (5, 3, nq)
-        J_link3 = Js[self.link3_indices]  # (5, 3, nq)
-        J_link4 = Js[self.link4_indices]  # (5, 3, nq)
+        J_origin = Js[self.origin_indices]  # (nf, 3, nq)
+        J_task = Js[self.task_indices]  # (nf, 3, nq)
+        J_link3 = Js[self.link3_indices]  # (nf, 3, nq)
+        J_link4 = Js[self.link4_indices]  # (nf, 3, nq)
         J_wrist = Js[self.origin_indices[0]]  # (3, nq)
 
         total_loss = 0.0
         total_grad = np.zeros(self.num_joints, dtype=np.float64)
 
         # === Tip Position Loss ===
-        # robot_tip_vec = task_pos - origin_pos
-        # diff = robot_tip_vec - target_tip_vectors
-        # dist = ||diff||
-        # loss = huber(dist)
-        robot_tip_vec = task_pos - origin_pos  # (5, 3)
-        diff_pos = robot_tip_vec - target_tip_vectors  # (5, 3)
-        dist_pos = np.linalg.norm(diff_pos, axis=1)  # (5,)
-        loss_tip_pos = huber_loss_np(dist_pos, self.huber_delta)  # (5,)
+        robot_tip_vec = task_pos - origin_pos  # (nf, 3)
+        diff_pos = robot_tip_vec - target_tip_vectors  # (nf, 3)
+        dist_pos = np.linalg.norm(diff_pos, axis=1)  # (nf,)
+        loss_tip_pos = huber_loss_np(dist_pos, self.huber_delta)  # (nf,)
 
-        # Gradient: d(huber(dist))/dq = huber'(dist) * d(dist)/dq
-        # d(dist)/dq = (diff / dist) @ (J_task - J_origin)
-        huber_grad_pos = huber_loss_grad_np(dist_pos, self.huber_delta)  # (5,)
-        diff_normed_pos = diff_pos / (dist_pos[:, None] + 1e-8)  # (5, 3)
-        for i in range(5):
+        huber_grad_pos = huber_loss_grad_np(dist_pos, self.huber_delta)  # (nf,)
+        diff_normed_pos = diff_pos / (dist_pos[:, None] + 1e-8)  # (nf, 3)
+        for i in range(nf):
             grad_coeff = alphas[i] * self.w_pos * huber_grad_pos[i]
-            # d(pos)/dq for task - origin
             J_diff = J_task[i] - J_origin[i]  # (3, nq)
             total_grad += grad_coeff * (diff_normed_pos[i] @ J_diff)
 
         # === Tip Direction Loss ===
-        # robot_tip_dir_vec = task_pos - link4_pos
-        # robot_tip_dir = normalized(robot_tip_dir_vec)
-        # diff = robot_tip_dir - target_tip_dirs
-        # dist = ||diff||
-        # loss = huber(dist)
-        robot_tip_dir_vec = task_pos - link4_pos  # (5, 3)
-        robot_tip_dir_norm = np.linalg.norm(robot_tip_dir_vec, axis=1, keepdims=True)  # (5, 1)
-        robot_tip_dirs = robot_tip_dir_vec / (robot_tip_dir_norm + 1e-8)  # (5, 3)
+        robot_tip_dir_vec = task_pos - link4_pos  # (nf, 3)
+        robot_tip_dir_norm = np.linalg.norm(robot_tip_dir_vec, axis=1, keepdims=True)  # (nf, 1)
+        robot_tip_dirs = robot_tip_dir_vec / (robot_tip_dir_norm + 1e-8)  # (nf, 3)
 
-        diff_dir = robot_tip_dirs - target_tip_dirs  # (5, 3)
-        dist_dir = np.linalg.norm(diff_dir, axis=1)  # (5,)
-        loss_tip_dir = huber_loss_np(dist_dir, self.huber_delta_dir)  # (5,)
+        diff_dir = robot_tip_dirs - target_tip_dirs  # (nf, 3)
+        dist_dir = np.linalg.norm(diff_dir, axis=1)  # (nf,)
+        loss_tip_dir = huber_loss_np(dist_dir, self.huber_delta_dir)  # (nf,)
 
-        # Gradient for normalized direction is more complex
-        # Let v = task_pos - link4_pos, n = ||v||, u = v/n
-        # du/dq = (I - u*u^T) / n @ (J_task - J_link4)
-        huber_grad_dir = huber_loss_grad_np(dist_dir, self.huber_delta_dir)  # (5,)
-        diff_normed_dir = diff_dir / (dist_dir[:, None] + 1e-8)  # (5, 3)
-        for i in range(5):
+        huber_grad_dir = huber_loss_grad_np(dist_dir, self.huber_delta_dir)  # (nf,)
+        diff_normed_dir = diff_dir / (dist_dir[:, None] + 1e-8)  # (nf, 3)
+        for i in range(nf):
             grad_coeff = alphas[i] * self.w_dir * huber_grad_dir[i]
             u = robot_tip_dirs[i]  # (3,)
             n = robot_tip_dir_norm[i, 0]  # scalar
-            # Jacobian of normalization: (I - u*u^T) / n
             J_norm = (np.eye(3) - np.outer(u, u)) / (n + 1e-8)  # (3, 3)
             J_diff = J_task[i] - J_link4[i]  # (3, nq)
-            # Chain rule: diff_normed_dir @ J_norm @ J_diff
             total_grad += grad_coeff * (diff_normed_dir[i] @ J_norm @ J_diff)
 
         # === Full Hand Vec Loss ===
-        # PIP: link3 - wrist
-        # DIP: link4 - wrist
-        # TIP: task - wrist
-        robot_pip_vec = link3_pos - wrist_pos  # (5, 3)
-        robot_dip_vec = link4_pos - wrist_pos  # (5, 3)
-        robot_tip_vec_full = task_pos - wrist_pos  # (5, 3)
+        robot_pip_vec = link3_pos - wrist_pos  # (nf, 3)
+        robot_dip_vec = link4_pos - wrist_pos  # (nf, 3)
+        robot_tip_vec_full = task_pos - wrist_pos  # (nf, 3)
 
-        target_pip = target_full_hand_vectors[:5]
-        target_dip = target_full_hand_vectors[5:10]
-        target_tip = target_full_hand_vectors[10:15]
+        target_pip = target_full_hand_vectors[:nf]
+        target_dip = target_full_hand_vectors[nf:2*nf]
+        target_tip = target_full_hand_vectors[2*nf:3*nf]
 
         diff_pip = robot_pip_vec - target_pip
         diff_dip = robot_dip_vec - target_dip
@@ -274,9 +262,8 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         loss_pip = huber_loss_np(dist_pip, self.huber_delta)
         loss_dip = huber_loss_np(dist_dip, self.huber_delta)
         loss_tip_full = huber_loss_np(dist_tip, self.huber_delta)
-        loss_full_hand = (loss_pip + loss_dip + loss_tip_full) / 3.0  # (5,)
+        loss_full_hand = (loss_pip + loss_dip + loss_tip_full) / 3.0  # (nf,)
 
-        # Gradients for full hand vectors
         huber_grad_pip = huber_loss_grad_np(dist_pip, self.huber_delta)
         huber_grad_dip = huber_loss_grad_np(dist_dip, self.huber_delta)
         huber_grad_tip = huber_loss_grad_np(dist_tip, self.huber_delta)
@@ -285,13 +272,10 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         diff_normed_dip = diff_dip / (dist_dip[:, None] + 1e-8)
         diff_normed_tip = diff_tip / (dist_tip[:, None] + 1e-8)
 
-        for i in range(5):
+        for i in range(nf):
             grad_coeff = (1.0 - alphas[i]) * self.w_full_hand / 3.0
-            # PIP gradient
             total_grad += grad_coeff * huber_grad_pip[i] * (diff_normed_pip[i] @ (J_link3[i] - J_wrist))
-            # DIP gradient
             total_grad += grad_coeff * huber_grad_dip[i] * (diff_normed_dip[i] @ (J_link4[i] - J_wrist))
-            # TIP gradient
             total_grad += grad_coeff * huber_grad_tip[i] * (diff_normed_tip[i] @ (J_task[i] - J_wrist))
 
         # === Total Loss ===
@@ -330,7 +314,11 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         alphas: np.ndarray,
         last_qpos: Optional[np.ndarray],
     ):
-        """Create NLopt objective function with analytical gradient."""
+        """Create NLopt objective function with analytical gradient.
+
+        The objective operates on independent joints only (num_opt_vars).
+        Mimic joints are expanded internally before FK.
+        """
         target_tip_vectors = np.asarray(target_tip_vectors, dtype=np.float64)
         target_tip_dirs = np.asarray(target_tip_dirs, dtype=np.float64)
         target_full_hand_vectors = np.asarray(target_full_hand_vectors, dtype=np.float64)
@@ -339,12 +327,16 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             last_qpos = np.asarray(last_qpos, dtype=np.float64)
 
         def objective(x, grad_out):
-            qpos = np.asarray(x, dtype=np.float64)
-            loss, grad = self._loss_and_grad_analytical(
-                qpos, target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, last_qpos
+            opt_vars = np.asarray(x, dtype=np.float64)
+            # Expand independent vars to full qpos
+            full_qpos = self.expand_to_full_qpos(opt_vars)
+
+            loss, full_grad = self._loss_and_grad_analytical(
+                full_qpos, target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, last_qpos
             )
             if grad_out.size > 0:
-                grad_out[:] = grad
+                # Map gradient back to independent joints
+                grad_out[:] = self.map_gradient_to_independent(full_grad)
             # Record iteration loss for plotting
             if self._enable_timing:
                 self._timing.record_iter_loss(float(loss))

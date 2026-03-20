@@ -1,4 +1,4 @@
-# Shadow Hand Menagerie Configuration for Camera Input (MediaPipe)
+# Shadow Hand Configuration for Camera Input (MediaPipe)
 # Uses high-quality meshes from MuJoCo Menagerie
 # Adaptive blend: TipDirVec when pinching, FullHandVec otherwise
 # Loss: L = Σ (α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i) + norm_delta * ||Δq||²
@@ -7,9 +7,9 @@
 optimizer:
   type: "AdaptiveOptimizerAnalytical"
 
-# Robot configuration for Shadow Hand Menagerie (rh_ prefix)
+# Robot configuration for Shadow Hand (rh_ prefix)
 robot:
-  type: "shadow_hand_menagerie"
+  type: "shadow_hand"
 
 retarget:
   # Huber loss thresholds
@@ -49,6 +49,11 @@ retarget:
     x: -10.0
     y: -20.0
     z: -90.0
+
+  # Clamp joint lower bounds to prevent hyperextension
+  # Pattern matches joint names containing the key, sets minimum lower bound
+  clamp_joint_lower:
+    "J3": 0.0                   # Prevent MCP hyperextension for FF/MF/RF/LF
 
   # Low-pass filter coefficient (0~1, smaller=smoother)
   lp_alpha: 0.4

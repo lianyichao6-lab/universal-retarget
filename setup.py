@@ -8,10 +8,7 @@ setup(
     license="MIT",
     packages=find_packages(),
     package_data={
-        "qsq_retargeting": [
-            "shadow_hand_menagerie/**/*",
-            "shadow_hand_description/**/*",
-        ],
+        "qsq_retargeting": [],
     },
     include_package_data=True,
     install_requires=[

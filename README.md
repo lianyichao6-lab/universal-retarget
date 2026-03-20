@@ -35,6 +35,12 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 | Robot | Config File | Description |
 |-------|-------------|-------------|
 | **Shadow Hand** | `shadow_hand_menagerie.yaml` | Shadow Hand with MuJoCo Menagerie meshes (default) |
+| **Wuji Hand** | `wuji_hand.yaml` | Wuji Hand 5-finger 20 DOF |
+| **Allegro Hand** | `allegro_hand.yaml` | Allegro Hand 4-finger 16 DOF |
+| **Inspire Hand** | `inspire_hand.yaml` | Inspire Hand 5-finger with mimic joints |
+| **Ability Hand** | `ability_hand.yaml` | Ability Hand 5-finger with mimic joints |
+| **Leap Hand** | `leap_hand.yaml` | Leap Hand 4-finger 16 DOF |
+| **SVH Hand** | `svh_hand.yaml` | Schunk SVH Hand 5-finger with mimic joints |
 
 ## Repository Structure
 
@@ -49,6 +55,9 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 ├── example/
 │   ├── teleop_sim.py                 # MuJoCo simulation demo
 │   ├── teleop_real.py                # Real hardware control
+│   ├── test/                         # Debug & visualization tools
+│   │   ├── debug_skeleton.py         # Compare input/scaled/FK skeletons
+│   │   └── visualize_scaling.py      # Visualize scaling effect on keypoints
 │   ├── input_devices/                # Input device modules
 │   ├── config/                       # YAML configurations
 │   └── data/                         # Sample recordings
@@ -126,6 +135,7 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--hand` | `left` (sim) / `right` (real) | Hand side (`left`/`right`) |
 | `--input` | - | Input type (`visionpro`/`quest3`/`camera`/`mediapipe_replay`) |
 | `--play FILE` | - | Replay recording (shortcut for `--input mediapipe_replay`) |
+| `--video FILE` | - | Video file input with MediaPipe hand detection |
 | `--ip` | `192.168.50.127` | Vision Pro IP |
 | `--port` | `9000` | Quest 3 HTS listener port |
 | `--protocol` | `udp` | Quest 3 HTS transport protocol (`udp`/`tcp`) |
@@ -133,6 +143,43 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--record` | - | Record input data |
 | `--output FILE` | - | Output file path for recording |
 | `--no-loop` | - | Disable looping for replay |
+
+### Debug & Visualization Tools
+
+#### debug_skeleton.py
+
+Compare three hand skeletons in the MuJoCo viewer to debug retargeting issues:
+
+- **Blue**: Raw MediaPipe skeleton (after coordinate transform, before scaling)
+- **Green**: Scaled target skeleton (what the optimizer tries to match)
+- **Red**: Robot FK skeleton (retargeting result)
+
+```bash
+cd example
+
+# With camera input
+python test/debug_skeleton.py --config config/leap_hand.yaml --input camera
+
+# With video file
+python test/debug_skeleton.py --config config/leap_hand.yaml --video data/right.mp4
+
+# With recorded data
+python test/debug_skeleton.py --config config/shadow_hand_menagerie.yaml --play data/avp1.pkl
+```
+
+#### visualize_scaling.py
+
+Visualize how `scaling` and `segment_scaling` parameters affect MediaPipe keypoints. Shows the original skeleton vs the scaled target skeleton in a matplotlib 3D plot.
+
+```bash
+cd example
+
+# With recorded data
+python test/visualize_scaling.py --config config/allegro_hand.yaml --play data/avp1.pkl --hand right
+
+# With video file
+python test/visualize_scaling.py --config config/leap_hand.yaml --video data/right.mp4 --hand right
+```
 
 ## Configuration
 
