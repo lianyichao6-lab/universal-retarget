@@ -71,7 +71,13 @@ class RobotWrapper:
 
     def get_link_index(self, name: str) -> int:
         """Get frame index by name."""
-        return self.model.getFrameId(name, pin.BODY)
+        idx = self.model.getFrameId(name, pin.BODY)
+        if idx >= self.model.nframes:
+            raise ValueError(
+                f"Link/frame '{name}' not found in robot model. "
+                f"Model has {self.model.nframes} frames."
+            )
+        return idx
 
     def compute_forward_kinematics(self, qpos: npt.NDArray):
         """Compute forward kinematics for all links."""
@@ -115,6 +121,88 @@ class RobotWrapper:
             R = self.data.oMf[idx].rotation
             # Only take position part (3, nq) and transform to world frame
             J_world_pos = R @ J_local[:3, :]
+            jacobians.append(J_world_pos)
+
+        return np.stack(jacobians, axis=0)
+
+    def compute_points_batch(
+        self,
+        qpos: npt.NDArray,
+        link_indices: List[int],
+        local_offsets: npt.NDArray | None = None,
+    ) -> npt.NDArray:
+        """Batch compute positions for points attached to frames.
+
+        Args:
+            qpos: Joint positions
+            link_indices: List of frame indices
+            local_offsets: (num_links, 3) offsets in each frame's local coordinates.
+                If None, uses the frame origins.
+
+        Returns:
+            positions: (num_links, 3) world positions
+        """
+        qpos = np.asarray(qpos, dtype=np.float64)
+        pin.forwardKinematics(self.model, self.data, qpos)
+        pin.updateFramePlacements(self.model, self.data)
+
+        if local_offsets is None:
+            local_offsets = np.zeros((len(link_indices), 3), dtype=np.float64)
+        else:
+            local_offsets = np.asarray(local_offsets, dtype=np.float64)
+
+        positions = []
+        for idx, offset in zip(link_indices, local_offsets):
+            frame = self.data.oMf[idx]
+            pos = frame.translation + frame.rotation @ offset
+            positions.append(pos)
+
+        return np.stack(positions, axis=0)
+
+    def compute_all_jacobians_batch_with_offsets(
+        self,
+        qpos: npt.NDArray,
+        link_indices: List[int],
+        local_offsets: npt.NDArray | None = None,
+    ) -> npt.NDArray:
+        """Batch compute position Jacobians for points attached to frames.
+
+        Args:
+            qpos: Joint positions
+            link_indices: List of frame indices
+            local_offsets: (num_links, 3) offsets in each frame's local coordinates.
+                If None, uses the frame origins.
+
+        Returns:
+            jacobians: (num_links, 3, nq) world position Jacobians
+        """
+        qpos = np.asarray(qpos, dtype=np.float64)
+
+        pin.computeJointJacobians(self.model, self.data, qpos)
+        pin.updateFramePlacements(self.model, self.data)
+
+        if local_offsets is None:
+            local_offsets = np.zeros((len(link_indices), 3), dtype=np.float64)
+        else:
+            local_offsets = np.asarray(local_offsets, dtype=np.float64)
+
+        jacobians = []
+        for idx, offset in zip(link_indices, local_offsets):
+            J_local = pin.getFrameJacobian(self.model, self.data, idx, pin.LOCAL)
+            R = self.data.oMf[idx].rotation
+            if np.allclose(offset, 0.0):
+                J_world_pos = R @ J_local[:3, :]
+            else:
+                offset_cross = np.array(
+                    [
+                        [0.0, -offset[2], offset[1]],
+                        [offset[2], 0.0, -offset[0]],
+                        [-offset[1], offset[0], 0.0],
+                    ],
+                    dtype=np.float64,
+                )
+                J_point_local = J_local[:3, :] - offset_cross @ J_local[3:, :]
+                J_world_pos = R @ J_point_local
             jacobians.append(J_world_pos)
 
         return np.stack(jacobians, axis=0)

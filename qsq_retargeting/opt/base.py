@@ -246,6 +246,71 @@ class BaseOptimizer(ABC):
             'link4_names': ['right_hand_b', 'right_hand_t', 'right_hand_s', 'right_hand_r', 'right_hand_q'],
             'num_fingers': 5,
         },
+        # LinkerHand L21
+        'linkerhand_l21': {
+            'origin_link': 'hand_base_link',
+            'tip_links': ['thumb_distal', 'index_middle', 'middle_middle', 'ring_middle', 'pinky_middle'],
+            'link1_names': ['thumb_metacarpals', 'index_metacarpals', 'middle_metacarpals', 'ring_metacarpals', 'pinky_metacarpals'],
+            'link3_names': ['thumb_metacarpals', 'index_proximal', 'middle_proximal', 'ring_proximal', 'pinky_proximal'],
+            'link4_names': ['thumb_distal', 'index_middle', 'middle_middle', 'ring_middle', 'pinky_middle'],
+            'link3_offsets': [
+                [0.018, 0.000, 0.000],
+                [0.000, 0.000, 0.022],
+                [0.000, 0.000, 0.022],
+                [0.000, 0.000, 0.022],
+                [0.000, 0.000, 0.022],
+            ],
+            'tip_offsets': [
+                [0.040, 0.000, 0.000],
+                [0.000, 0.000, 0.044],
+                [0.000, 0.000, 0.044],
+                [0.000, 0.000, 0.044],
+                [0.000, 0.000, 0.044],
+            ],
+            'link4_offsets': [
+                [0.023, 0.000, 0.000],
+                [0.000, 0.000, 0.022],
+                [0.000, 0.000, 0.022],
+                [0.000, 0.000, 0.022],
+                [0.000, 0.000, 0.022],
+            ],
+            'urdf_subdir': 'assets/linkerhand_l21',
+            'urdf_file': {
+                'right': 'right/linkerhand_l21_right_vis.urdf',
+                'left': 'left/linkerhand_l21_left_vis.urdf',
+            },
+            'num_fingers': 5,
+            'neutral_qpos': [0.0] * 17,
+        },
+        # ROHand
+        'rohand': {
+            'origin_link': 'base_link',
+            'tip_links': ['th_distal_link', 'if_distal_link', 'mf_distal_link', 'rf_distal_link', 'lf_distal_link'],
+            'link1_names': ['th_root_link', 'if_slider_abpart_link', 'mf_slider_abpart_link', 'rf_slider_abpart_link', 'lf_slider_abpart_link'],
+            'link3_names': ['th_root_link', 'if_slider_abpart_link', 'mf_slider_abpart_link', 'rf_slider_abpart_link', 'lf_slider_abpart_link'],
+            'link4_names': ['th_proximal_link', 'if_proximal_link', 'mf_proximal_link', 'rf_proximal_link', 'lf_proximal_link'],
+            'urdf_subdir': 'assets/rohand',
+            'urdf_file': {
+                'right': 'right/rohand_right_vis.urdf',
+                'left': 'left/rohand_left_vis.urdf',
+            },
+            'num_fingers': 5,
+        },
+        # Unitree Dex5
+        'unitree_dex5_hand': {
+            'origin_link': 'base_link00',
+            'tip_links': ['Link_14R', 'Link_24R', 'Link_34R', 'Link_44R', 'Link_54R'],
+            'link1_names': ['Link_11R', 'Link_21R', 'Link_31R', 'Link_41R', 'Link_51R'],
+            'link3_names': ['Link_12R', 'Link_22R', 'Link_32R', 'Link_42R', 'Link_52R'],
+            'link4_names': ['Link_13R', 'Link_23R', 'Link_33R', 'Link_43R', 'Link_53R'],
+            'urdf_subdir': 'assets/unitree_dex5_hand',
+            'urdf_file': {
+                'right': 'right/Dex5-URDF-R.urdf',
+                'left': 'left/Dex5-URDF-L.urdf',
+            },
+            'num_fingers': 5,
+            'neutral_qpos': [0.0] * 20,
+        },
     }
 
     def __init__(self, config: dict):
@@ -334,6 +399,20 @@ class BaseOptimizer(ABC):
         self.link1_names = robot_config.get('link1_names', robot_defaults['link1_names'])
         self.link3_names = robot_config.get('link3_names', robot_defaults['link3_names'])
         self.link4_names = robot_config.get('link4_names', robot_defaults['link4_names'])
+        self.task_offsets = self._resolve_link_offsets(
+            robot_config.get('tip_offsets', robot_defaults.get('tip_offsets')),
+            len(self.task_link_names),
+        )
+        self.link3_offsets = self._resolve_link_offsets(
+            robot_config.get('link3_offsets', robot_defaults.get('link3_offsets')),
+            len(self.link3_names),
+        )
+        self.link4_offsets = self._resolve_link_offsets(
+            robot_config.get('link4_offsets', robot_defaults.get('link4_offsets')),
+            len(self.link4_names),
+        )
+        neutral_qpos = robot_config.get('neutral_qpos', robot_defaults.get('neutral_qpos'))
+        self.neutral_qpos = None if neutral_qpos is None else np.asarray(neutral_qpos, dtype=np.float64)
 
         # Number of fingers (4 for Allegro/Leap, 5 for others)
         self.num_fingers = robot_config.get('num_fingers', robot_defaults.get('num_fingers', 5))
@@ -356,6 +435,16 @@ class BaseOptimizer(ABC):
             self.link1_names = [replace_prefix(n) for n in self.link1_names]
             self.link3_names = [replace_prefix(n) for n in self.link3_names]
             self.link4_names = [replace_prefix(n) for n in self.link4_names]
+        elif robot_type == 'unitree_dex5_hand' and self.hand_side == 'left':
+            def replace_suffix(name):
+                if name == 'base_link00':
+                    return 'base_link00L'
+                return f"{name[:-1]}L" if name.endswith('R') else name
+            self.origin_link_name = replace_suffix(self.origin_link_name)
+            self.task_link_names = [replace_suffix(n) for n in self.task_link_names]
+            self.link1_names = [replace_suffix(n) for n in self.link1_names]
+            self.link3_names = [replace_suffix(n) for n in self.link3_names]
+            self.link4_names = [replace_suffix(n) for n in self.link4_names]
 
         # Build link indices
         self._build_link_indices()
@@ -363,34 +452,56 @@ class BaseOptimizer(ABC):
         # Store last solution for warm start
         self.last_qpos = None
 
+    @staticmethod
+    def _resolve_link_offsets(offsets_config, count: int) -> np.ndarray:
+        """Normalize per-link local offsets to shape (count, 3)."""
+        offsets = np.zeros((count, 3), dtype=np.float64)
+        if offsets_config is None:
+            return offsets
+
+        arr = np.asarray(offsets_config, dtype=np.float64)
+        if arr.ndim == 1:
+            if arr.size != 3:
+                raise ValueError(f"Offset must have 3 values, got shape {arr.shape}")
+            offsets[:] = arr.reshape(1, 3)
+            return offsets
+        if arr.ndim != 2 or arr.shape[1] != 3:
+            raise ValueError(f"Offsets must have shape (N, 3), got {arr.shape}")
+
+        n = min(count, arr.shape[0])
+        offsets[:n] = arr[:n]
+        return offsets
+
     def _build_link_indices(self):
         """Build link indices for FK computation."""
-        # Collect all needed link names
-        all_link_names = (
-            [self.origin_link_name] +
-            self.task_link_names +
-            self.link3_names +
-            self.link4_names
-        )
-        self.computed_link_names = list(dict.fromkeys(all_link_names))
-        self.computed_link_indices = [
-            self.robot.get_link_index(name) for name in self.computed_link_names
-        ]
+        self.computed_link_names = []
+        self.computed_link_indices = []
+        self.computed_link_offsets = []
 
-        # Build index mappings (use num_fingers instead of hardcoded 5)
-        self.origin_indices = [
-            self.computed_link_names.index(self.origin_link_name)
-            for _ in range(self.num_fingers)
-        ]
+        def add_point(name: str, offset: np.ndarray | None = None) -> int:
+            self.computed_link_names.append(name)
+            self.computed_link_indices.append(self.robot.get_link_index(name))
+            if offset is None:
+                self.computed_link_offsets.append(np.zeros(3, dtype=np.float64))
+            else:
+                self.computed_link_offsets.append(np.asarray(offset, dtype=np.float64))
+            return len(self.computed_link_indices) - 1
+
+        origin_idx = add_point(self.origin_link_name)
+        self.origin_indices = [origin_idx for _ in range(self.num_fingers)]
         self.task_indices = [
-            self.computed_link_names.index(name) for name in self.task_link_names
+            add_point(name, offset)
+            for name, offset in zip(self.task_link_names, self.task_offsets)
         ]
         self.link3_indices = [
-            self.computed_link_names.index(name) for name in self.link3_names
+            add_point(name, offset)
+            for name, offset in zip(self.link3_names, self.link3_offsets)
         ]
         self.link4_indices = [
-            self.computed_link_names.index(name) for name in self.link4_names
+            add_point(name, offset)
+            for name, offset in zip(self.link4_names, self.link4_offsets)
         ]
+        self.computed_link_offsets = np.asarray(self.computed_link_offsets, dtype=np.float64)
 
     def _parse_mimic_joints(self, urdf_path: str):
         """Parse mimic joint relationships from URDF.
@@ -584,6 +695,8 @@ class BaseOptimizer(ABC):
             full_qpos = np.asarray(last_qpos, dtype=np.float64)
         elif self.last_qpos is not None:
             full_qpos = self.last_qpos
+        elif self.neutral_qpos is not None:
+            full_qpos = self.neutral_qpos
         else:
             full_qpos = (self.opt_lower_bounds + self.opt_upper_bounds) / 2.0
 

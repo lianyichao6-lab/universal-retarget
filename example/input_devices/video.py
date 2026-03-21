@@ -54,12 +54,14 @@ class Video:
         playback_speed: float = 1.0,
         loop: bool = True,
         correct_segments: bool = True,
+        depth_scale: float = 1.25,
     ):
         self.hand_side = hand_side.lower()
         self.show_video = show_video
         self.playback_speed = playback_speed
         self.loop = loop
         self.correct_segments = correct_segments
+        self.depth_scale = float(depth_scale)
         self._reference_wrist_to_mid_mcp = _REFERENCE_WRIST_TO_MIDDLE_MCP
 
         self._cap = cv2.VideoCapture(video_path)
@@ -91,6 +93,7 @@ class Video:
         print(f"  Resolution: {self.frame_width}x{self.frame_height} @ {self.fps:.1f}fps")
         print(f"  Total frames: {self.total_frames}")
         print(f"  Hand side: {self.hand_side}, playback_speed: {self.playback_speed}")
+        print(f"  Depth scale: {self.depth_scale}")
 
     def get_fingers_data(self) -> dict:
         empty = np.zeros((21, 3), dtype=np.float32)
@@ -169,6 +172,7 @@ class Video:
         kp = kp * scale
         if self.correct_segments:
             kp = self._correct_segment_lengths(kp)
+        kp[:, 2] *= self.depth_scale
         return kp
 
     def _correct_segment_lengths(self, kp: np.ndarray) -> np.ndarray:

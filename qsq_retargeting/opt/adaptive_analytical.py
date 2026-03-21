@@ -73,21 +73,24 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             pinch_config.get(f, {}).get('d2', 4.0) for f in non_thumb_fingers
         ], dtype=np.float64)
 
-        # Add link1 for finger plane computation (inherited from base class)
-        all_link_names = (
-            [self.origin_link_name] +
-            self.task_link_names +
-            self.link3_names +
-            self.link4_names +
-            self.link1_names
+        # Add link1 points for finger plane computation while preserving
+        # possibly duplicated frame names with different local offsets.
+        self.link1_indices = []
+        extra_indices = []
+        extra_names = []
+        extra_offsets = []
+        for name in self.link1_names:
+            self.link1_indices.append(len(self.computed_link_indices) + len(extra_indices))
+            extra_indices.append(self.robot.get_link_index(name))
+            extra_names.append(name)
+            extra_offsets.append(np.zeros(3, dtype=np.float64))
+
+        self.computed_link_indices.extend(extra_indices)
+        self.computed_link_names.extend(extra_names)
+        self.computed_link_offsets = np.concatenate(
+            [self.computed_link_offsets, np.asarray(extra_offsets, dtype=np.float64)],
+            axis=0,
         )
-        self.computed_link_names = list(dict.fromkeys(all_link_names))
-        self.computed_link_indices = [
-            self.robot.get_link_index(name) for name in self.computed_link_names
-        ]
-        self.link1_indices = [
-            self.computed_link_names.index(name) for name in self.link1_names
-        ]
 
     def _compute_pinch_alpha(self, mediapipe_keypoints: np.ndarray) -> np.ndarray:
         """Compute alpha weights for each finger."""
@@ -175,17 +178,22 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         if self._enable_timing:
             t_fk_start = time.perf_counter()
 
-        self.robot.compute_forward_kinematics(qpos)
-        positions = np.array([
-            self.robot.get_link_pose(idx)[:3, 3] for idx in self.computed_link_indices
-        ], dtype=np.float64) * M_TO_CM
+        positions = self.robot.compute_points_batch(
+            qpos,
+            self.computed_link_indices,
+            self.computed_link_offsets,
+        ) * M_TO_CM
 
         if self._enable_timing:
             self._timing.fk_ms += (time.perf_counter() - t_fk_start) * 1000
             t_jac_start = time.perf_counter()
 
         # Get Jacobians (num_links, 3, nq) - already in world frame
-        Js = self.robot.compute_all_jacobians_batch(qpos, self.computed_link_indices) * M_TO_CM
+        Js = self.robot.compute_all_jacobians_batch_with_offsets(
+            qpos,
+            self.computed_link_indices,
+            self.computed_link_offsets,
+        ) * M_TO_CM
 
         if self._enable_timing:
             self._timing.jacobian_ms += (time.perf_counter() - t_jac_start) * 1000

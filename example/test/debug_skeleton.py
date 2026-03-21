@@ -126,10 +126,16 @@ def get_robot_fk_skeleton(optimizer, qpos):
     robot = optimizer.robot
     robot.compute_forward_kinematics(qpos)
 
+    def point_pos(link_name, offset=None):
+        lid = robot.get_link_index(link_name)
+        pose = robot.get_link_pose(lid)
+        pos = pose[:3, 3]
+        if offset is not None:
+            pos = pos + pose[:3, :3] @ np.asarray(offset, dtype=np.float64)
+        return pos
+
     # Get origin position
-    origin_id = robot.get_link_index(optimizer.origin_link_name)
-    origin_pose = robot.get_link_pose(origin_id)
-    origin_pos = origin_pose[:3, 3]
+    origin_pos = point_pos(optimizer.origin_link_name)
 
     points = [origin_pos.copy()]  # index 0 = origin
     connections = []
@@ -139,19 +145,20 @@ def get_robot_fk_skeleton(optimizer, qpos):
         # Get link positions: link1, link3, link4, tip
         link_names = []
         if hasattr(optimizer, 'link1_names') and fi < len(optimizer.link1_names):
-            link_names.append(optimizer.link1_names[fi])
+            link_names.append((optimizer.link1_names[fi], None))
         if hasattr(optimizer, 'link3_names') and fi < len(optimizer.link3_names):
-            link_names.append(optimizer.link3_names[fi])
+            offset = optimizer.link3_offsets[fi] if hasattr(optimizer, 'link3_offsets') else None
+            link_names.append((optimizer.link3_names[fi], offset))
         if hasattr(optimizer, 'link4_names') and fi < len(optimizer.link4_names):
-            link_names.append(optimizer.link4_names[fi])
+            offset = optimizer.link4_offsets[fi] if hasattr(optimizer, 'link4_offsets') else None
+            link_names.append((optimizer.link4_names[fi], offset))
         if fi < len(optimizer.task_link_names):
-            link_names.append(optimizer.task_link_names[fi])
+            offset = optimizer.task_offsets[fi] if hasattr(optimizer, 'task_offsets') else None
+            link_names.append((optimizer.task_link_names[fi], offset))
 
         prev_idx = 0  # origin
-        for lname in link_names:
-            lid = robot.get_link_index(lname)
-            pose = robot.get_link_pose(lid)
-            pos = pose[:3, 3]
+        for lname, offset in link_names:
+            pos = point_pos(lname, offset)
             cur_idx = len(points)
             points.append(pos.copy())
             connections.append((prev_idx, cur_idx))
@@ -245,16 +252,27 @@ def main():
     model = mujoco.MjModel.from_xml_path(str(model_path))
     data = mujoco.MjData(model)
 
-    # Initialize control
-    for i in range(model.nu):
-        if model.actuator_ctrllimited[i]:
-            r = model.actuator_ctrlrange[i]
-            data.ctrl[i] = (r[0] + r[1]) / 2
-        else:
-            data.ctrl[i] = 0.0
+    # Determine control mode (same logic as teleop_sim.py)
+    qpos_servo_alpha = hand_cfg.get("qpos_servo_alpha")
+    direct_qpos_mode = hand_cfg.get("direct_qpos", False)
+    qpos_servo_mode = (qpos_servo_alpha is not None) and not direct_qpos_mode
+    actuator_mode = (model.nu > 0) and not direct_qpos_mode and not qpos_servo_mode
+    if not actuator_mode and not qpos_servo_mode:
+        direct_qpos_mode = True
+    target_len = model.nu if actuator_mode else model.nq
 
-    for _ in range(100):
-        mujoco.mj_step(model, data)
+    # Initialize control
+    if actuator_mode:
+        for i in range(model.nu):
+            if model.actuator_ctrllimited[i]:
+                r = model.actuator_ctrlrange[i]
+                data.ctrl[i] = (r[0] + r[1]) / 2
+            else:
+                data.ctrl[i] = 0.0
+        for _ in range(100):
+            mujoco.mj_step(model, data)
+    else:
+        mujoco.mj_forward(model, data)
 
     # Initialize retargeter
     retargeter = Retargeter.from_yaml(str(config_file), args.hand)
@@ -283,6 +301,12 @@ def main():
         input_type = "camera"
 
     print(f"Input: {input_type}")
+    if qpos_servo_mode:
+        print(f"Control mode: qpos servo (alpha={qpos_servo_alpha})")
+    elif actuator_mode:
+        print("Control mode: actuator position")
+    else:
+        print("Control mode: direct qpos")
 
     # Launch viewer
     viewer = mujoco.viewer.launch_passive(model, data)
@@ -303,14 +327,14 @@ def main():
     OFFSET_FK = np.array([0, 0, 0])           # FK at center (robot model position)
 
     # Shared state
-    latest_ctrl = np.zeros(model.nu, dtype=np.float32)
+    latest_target = np.zeros(target_len, dtype=np.float32)
     latest_mediapipe_kp = None
     latest_qpos = None
     data_lock = threading.Lock()
     stop_event = threading.Event()
 
     def input_thread_fn():
-        nonlocal latest_ctrl, latest_mediapipe_kp, latest_qpos
+        nonlocal latest_mediapipe_kp, latest_qpos
         while not stop_event.is_set():
             try:
                 fingers_data = input_device.get_fingers_data()
@@ -330,24 +354,39 @@ def main():
             # Retarget
             qpos = retargeter.optimizer.solve(mediapipe_kp)
 
-            # Map to MuJoCo ctrl
+            # Map to MuJoCo target
             if hand_cfg.get("needs_menagerie_mapping"):
-                ctrl = map_urdf_to_mujoco_menagerie(qpos)
+                target = map_urdf_to_mujoco_menagerie(qpos)
             elif "qpos_mapping" in hand_cfg:
-                ctrl = qpos[hand_cfg["qpos_mapping"]]
+                target = qpos[hand_cfg["qpos_mapping"]]
             else:
-                ctrl = qpos
+                target = qpos
+
+            target = np.asarray(target, dtype=np.float32)
 
             with data_lock:
-                if len(ctrl) == model.nu:
-                    latest_ctrl[:] = ctrl
-                else:
-                    min_len = min(len(ctrl), model.nu)
-                    latest_ctrl[:min_len] = ctrl[:min_len]
+                n = min(len(target), target_len)
+                latest_target[:n] = target[:n]
                 latest_mediapipe_kp = mediapipe_kp.copy()
                 latest_qpos = qpos.copy()
 
     input_thread = threading.Thread(target=input_thread_fn, daemon=True)
+
+    # Build rotation matrix from base_quat (aligns pinocchio frame with MuJoCo model)
+    base_quat = hand_cfg.get("base_quat")
+    if base_quat is not None:
+        from scipy.spatial.transform import Rotation
+        # MuJoCo quat is (w, x, y, z), scipy expects (x, y, z, w)
+        base_rot = Rotation.from_quat([base_quat[1], base_quat[2], base_quat[3], base_quat[0]])
+        base_rot_matrix = base_rot.as_matrix()
+    else:
+        base_rot_matrix = None
+
+    def rotate_points(pts):
+        """Rotate skeleton points to match MuJoCo model orientation."""
+        if base_rot_matrix is None:
+            return pts
+        return pts @ base_rot_matrix.T
 
     print("=" * 60)
     print("Debug Skeleton Viewer")
@@ -361,13 +400,22 @@ def main():
 
         while viewer.is_running():
             with data_lock:
-                data.ctrl[:] = latest_ctrl
+                target_copy = latest_target.copy()
                 mp_kp = latest_mediapipe_kp.copy() if latest_mediapipe_kp is not None else None
                 qpos_copy = latest_qpos.copy() if latest_qpos is not None else None
 
-            # Step physics
-            for _ in range(10):
-                mujoco.mj_step(model, data)
+            # Apply control
+            if direct_qpos_mode:
+                data.qpos[:target_len] = target_copy
+                mujoco.mj_forward(model, data)
+            elif qpos_servo_mode:
+                data.qpos[:target_len] += float(qpos_servo_alpha) * (target_copy - data.qpos[:target_len])
+                data.qvel[:] = 0.0
+                mujoco.mj_forward(model, data)
+            elif actuator_mode:
+                data.ctrl[:] = target_copy
+                for _ in range(10):
+                    mujoco.mj_step(model, data)
 
             # Draw debug skeletons
             viewer.user_scn.ngeom = 0  # clear previous frame
@@ -375,17 +423,17 @@ def main():
             if mp_kp is not None and qpos_copy is not None:
                 # 1. Raw MediaPipe skeleton (blue) - offset to left
                 raw_pts, raw_conns = build_raw_skeleton(mp_kp, optimizer)
-                draw_skeleton(viewer.user_scn, raw_pts, raw_conns, COLOR_RAW,
+                draw_skeleton(viewer.user_scn, rotate_points(raw_pts), raw_conns, COLOR_RAW,
                               radius=0.0015, offset=OFFSET_RAW)
 
                 # 2. Scaled target skeleton (green) - at robot position
                 scaled_pts, scaled_conns = build_scaled_skeleton(mp_kp, optimizer)
-                draw_skeleton(viewer.user_scn, scaled_pts, scaled_conns, COLOR_SCALED,
+                draw_skeleton(viewer.user_scn, rotate_points(scaled_pts), scaled_conns, COLOR_SCALED,
                               radius=0.0015, offset=OFFSET_SCALED)
 
                 # 3. Robot FK skeleton (red) - at robot position
                 fk_pts, fk_conns = get_robot_fk_skeleton(optimizer, qpos_copy)
-                draw_skeleton(viewer.user_scn, fk_pts, fk_conns, COLOR_FK,
+                draw_skeleton(viewer.user_scn, rotate_points(fk_pts), fk_conns, COLOR_FK,
                               radius=0.002, offset=OFFSET_FK)
 
             viewer.sync()
