@@ -5,12 +5,12 @@
     python test/benchmark_frames.py
 
     # 指定配置 & 帧号
-    python test/benchmark_frames.py --config config/shadow_hand.yaml
-    python test/benchmark_frames.py --config config/wuji_hand.yaml
+    python test/benchmark_frames.py --robots shadow
+    python test/benchmark_frames.py --robots wuji
     python test/benchmark_frames.py --frames 40 80 215
 
     # 同时跑多个配置做对比
-    python test/benchmark_frames.py --configs config/shadow_hand.yaml config/wuji_hand.yaml
+    python test/benchmark_frames.py --robots shadow wuji_hand
 
 输出目录结构 (example/output/benchmark/):
     shadow_hand/
@@ -47,121 +47,11 @@ if str(EXAMPLE_DIR) not in sys.path:
 
 from qsq_retargeting import Retargeter
 from qsq_retargeting.mediapipe import apply_mediapipe_transformations
+from input.landmark_utils import landmarks_to_array, process_landmarks
+from teleop_sim import ROBOT_HAND_CONFIGS, apply_qpos_to_mujoco
 
 # 默认测试帧
 DEFAULT_FRAMES = [40, 80, 215, 304, 417, 582, 642]
-
-# ── 与 video.py 一致的 landmark 预处理 ──────────────────────────────
-_REFERENCE_WRIST_TO_MIDDLE_MCP = 0.092
-_REFERENCE_SEGMENT_LENGTHS = {
-    "thumb": [0.0505, 0.0318, 0.0302],
-    "index": [0.0418, 0.0243, 0.0223],
-    "middle": [0.0489, 0.0289, 0.0227],
-    "ring": [0.0422, 0.0274, 0.0227],
-    "pinky": [0.0343, 0.0195, 0.0201],
-}
-_FINGER_INDICES = {
-    "thumb": [1, 2, 3, 4],
-    "index": [5, 6, 7, 8],
-    "middle": [9, 10, 11, 12],
-    "ring": [13, 14, 15, 16],
-    "pinky": [17, 18, 19, 20],
-}
-
-
-def _correct_segment_lengths(kp):
-    kp_c = kp.copy()
-    for name, idx in _FINGER_INDICES.items():
-        ref = _REFERENCE_SEGMENT_LENGTHS[name]
-        mcp, pip, dip, tip = idx
-        base = kp_c[mcp].copy()
-        for i, (a, b, rl) in enumerate([(mcp, pip, ref[0]), (pip, dip, ref[1]), (dip, tip, ref[2])]):
-            seg = kp[b] - kp[a]
-            n = np.linalg.norm(seg)
-            if n > 1e-6:
-                kp_c[b] = (base if i == 0 else kp_c[a]) + seg / n * rl
-    return kp_c
-
-
-def process_landmarks(kp, depth_scale=1.25):
-    kp = kp - kp[0:1]
-    d = np.linalg.norm(kp[9])
-    if d < 1e-6:
-        return kp
-    kp = kp * (_REFERENCE_WRIST_TO_MIDDLE_MCP / d)
-    kp = _correct_segment_lengths(kp)
-    kp[:, 2] *= depth_scale
-    return kp
-
-
-def landmarks_to_array(hand_landmarks, w, h):
-    kp = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark], dtype=np.float32)
-    kp[:, 0] *= w
-    kp[:, 1] *= h
-    kp[:, 2] *= w * 2.5
-    return kp
-
-
-# ── 与 teleop_sim.py 保持一致的机器人手配置 ──────────────────────────
-
-ROBOT_HAND_CONFIGS = {
-    "shadow_hand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "shadow_hand" / f"scene_{side}.xml"),
-        "needs_menagerie_mapping": True,
-    },
-    "wuji_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "wuji_hand" / "right.xml"),
-    },
-    "allegro_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "allegro_hand" / "scene_right.xml"),
-        "qpos_mapping": [0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 4, 5, 6, 7],
-    },
-    "inspire_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "inspire_hand" / "inspire_hand_right_mujoco.xml"),
-        "qpos_mapping": [8, 9, 10, 11, 0, 1, 2, 3, 6, 7, 4, 5],
-    },
-    "ability_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "ability_hand" / "ability_hand_right_mujoco.xml"),
-        "qpos_mapping": [8, 9, 0, 1, 2, 3, 6, 7, 4, 5],
-    },
-    "leap_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "leap_hand" / "leap_hand_right_mujoco.xml"),
-        "qpos_mapping": [0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 4, 5, 6, 7],
-    },
-    "svh_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "schunk_hand" / "schunk_svh_hand_right_mujoco.xml"),
-        "qpos_mapping": [0, 1, 2, 3, 8, 13, 14, 15, 16, 9, 10, 11, 12, 4, 5, 6, 7, 17, 18, 19],
-    },
-    "linkerhand_l21": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "linkerhand_l21" / f"linkerhand_l21_{side}_mujoco.xml"),
-        "qpos_mapping": [0, 1, 2, 3, 4, 5, 9, 10, 11, 6, 7, 8, 12, 13, 14, 15, 16],
-        "qpos_servo_alpha": 0.2,
-    },
-    "rohand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "rohand" / f"rohand_{side}_mujoco.xml"),
-        "qpos_mapping": [3, 4, 1, 2, 0, 13, 14, 11, 12, 10, 18, 19, 16, 17, 15, 8, 9, 6, 7, 5, 20, 21, 23, 24, 22],
-        "qpos_servo_alpha": 0.18,
-        "base_quat": (0.7071068, 0, 0.7071068, 0),
-    },
-    "unitree_dex5_hand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "unitree_dex5_hand" / f"unitree_dex5_hand_{side}_mujoco.xml"),
-        "qpos_mapping": [16, 17, 18, 19, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        "qpos_servo_alpha": 0.2,
-        "base_quat": (0.7071068, 0.7071068, 0, 0),
-    },
-}
-
-
-def map_urdf_to_mujoco_menagerie(qpos):
-    ctrl = np.zeros(20, dtype=np.float32)
-    ctrl[0], ctrl[1] = 0.0, 0.0
-    ctrl[2] = qpos[17]; ctrl[3] = qpos[18]; ctrl[4] = qpos[19]
-    ctrl[5] = qpos[20]; ctrl[6] = qpos[21]
-    ctrl[7] = qpos[0]; ctrl[8] = qpos[1]; ctrl[9] = qpos[2] + qpos[3]
-    ctrl[10] = qpos[9]; ctrl[11] = qpos[10]; ctrl[12] = qpos[11] + qpos[12]
-    ctrl[13] = qpos[13]; ctrl[14] = qpos[14]; ctrl[15] = qpos[15] + qpos[16]
-    ctrl[16] = qpos[4]; ctrl[17] = qpos[5]; ctrl[18] = qpos[6]; ctrl[19] = qpos[7] + qpos[8]
-    return ctrl
 
 
 # ── 每种手的正面渲染相机参数 ─────────────────────────────────────────
@@ -199,34 +89,6 @@ def render_mujoco_frame(model, data, cam_cfg, width=1280, height=720):
     return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
 
-def apply_qpos_to_mujoco(model, data, qpos, hand_cfg):
-    """将 retarget 输出的 qpos 映射到 MuJoCo 并步进仿真。"""
-    if hand_cfg.get("needs_menagerie_mapping"):
-        ctrl = map_urdf_to_mujoco_menagerie(qpos)
-    elif "qpos_mapping" in hand_cfg:
-        ctrl = qpos[hand_cfg["qpos_mapping"]]
-    else:
-        ctrl = qpos
-    ctrl = np.asarray(ctrl, dtype=np.float32)
-
-    qpos_servo_alpha = hand_cfg.get("qpos_servo_alpha")
-    if qpos_servo_alpha is not None:
-        # servo 模式：直接设置 qpos
-        n = min(len(ctrl), model.nq)
-        data.qpos[:n] = ctrl[:n]
-        data.qvel[:] = 0.0
-        mujoco.mj_forward(model, data)
-    elif model.nu > 0:
-        # actuator 模式
-        n = min(len(ctrl), model.nu)
-        data.ctrl[:n] = ctrl[:n]
-        for _ in range(200):
-            mujoco.mj_step(model, data)
-    else:
-        # direct qpos 模式
-        n = min(len(ctrl), model.nq)
-        data.qpos[:n] = ctrl[:n]
-        mujoco.mj_forward(model, data)
 
 
 # ── 从视频连续跑 retargeting，在目标帧保存结果 ─────────────────────
@@ -405,21 +267,32 @@ def main():
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"])
     parser.add_argument("--frames", type=int, nargs="+", default=DEFAULT_FRAMES,
                         help=f"测试帧号列表 (默认: {DEFAULT_FRAMES})")
-    parser.add_argument("--configs", type=str, nargs="+",
-                        default=["config/shadow_hand.yaml"],
-                        help="配置文件列表 (相对于 example/)")
+    parser.add_argument("--configs", type=str, nargs="+", default=None,
+                        help="配置文件列表 (相对于 example/，覆盖 --robots)")
+    parser.add_argument("--robots", type=str, nargs="+", default=["shadow"],
+                        help="灵巧手列表 (默认: shadow)")
     parser.add_argument("--output", type=str,
                         default=str(EXAMPLE_DIR / "output" / "benchmark"),
                         help="输出目录")
     parser.add_argument("--depth-scale", type=float, default=1.25)
     args = parser.parse_args()
 
+    robot_name_map = {
+        "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
+        "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
+        "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
+        "unitree_dex5": "unitree_dex5_hand",
+    }
+    configs = args.configs if args.configs else [
+        f"config/mediapipe/mediapipe_{robot_name_map.get(r, r)}.yaml" for r in args.robots
+    ]
+
     out_dir = Path(args.output)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 逐配置运行 benchmark（每个配置从头连续跑视频）
     all_results = []
-    for cfg in args.configs:
+    for cfg in configs:
         result = run_benchmark(
             cfg, args.video, args.frames, args.hand, out_dir, args.depth_scale)
         all_results.append(result)

@@ -22,7 +22,7 @@ import numpy as np
 
 
 def _get_example_dir() -> Path:
-    """Get the example directory (parent of input_devices)."""
+    """Get the example directory (parent of input)."""
     return Path(__file__).resolve().parents[1]
 
 

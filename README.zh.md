@@ -46,21 +46,26 @@
 
 ```text
 ├── qsq_retargeting/
-│   ├── opt/                          # 优化器实现
-│   │   ├── base.py                   # 基础优化器（FK/雅可比）
-│   │   └── adaptive_analytical.py    # 自适应优化器（解析梯度）
-│   └── shadow_hand_menagerie/        # Shadow Hand URDF（MuJoCo Menagerie）
-│       ├── left_hand_mj.urdf
-│       └── right_hand_mj.urdf
+│   ├── retarget.py                        # 高层统一接口
+│   ├── robot.py                           # Pinocchio 机器人包装
+│   ├── mediapipe.py                       # MediaPipe 坐标变换
+│   └── optimizer/                         # 优化器实现
+│       ├── base_optimizer.py              # 基础优化器（FK/雅可比）
+│       ├── analytical_optimizer.py        # 自适应优化器（解析梯度）
+│       ├── robot_configs.py               # 机器人 link/URDF 配置
+│       └── utils.py                       # TimingStats, LPFilter, Huber 损失
 ├── example/
-│   ├── teleop_sim.py                 # MuJoCo 仿真示例
-│   ├── teleop_real.py                # 真机控制
-│   ├── test/                         # 调试与可视化工具
-│   │   ├── debug_skeleton.py         # 对比输入/缩放/FK 骨架
-│   │   └── visualize_scaling.py      # 可视化缩放对关键点的影响
-│   ├── input_devices/                # 输入设备模块
-│   ├── config/                       # YAML 配置文件
-│   └── data/                         # 示例录制数据
+│   ├── teleop_sim.py                      # MuJoCo 仿真示例
+│   ├── teleop_real.py                     # 真机控制
+│   ├── input/                             # 输入设备模块
+│   │   ├── landmark_utils.py              # 共享 MediaPipe 关键点处理
+│   │   ├── camera.py / video.py / ...     # 各输入设备
+│   ├── test/                              # 调试与可视化工具
+│   ├── config/                            # YAML 配置文件（按输入源分类）
+│   │   ├── avp/                           # Apple Vision Pro 配置
+│   │   ├── quest3/                        # Meta Quest 3 配置
+│   │   └── mediapipe/                     # MediaPipe（摄像头/视频/回放）配置
+│   └── data/                              # 示例录制数据
 └── requirements.txt
 ```
 
@@ -108,7 +113,7 @@ cd example
 python teleop_sim.py --play data/avp1.pkl --hand right
 
 # 笔记本摄像头实时遥操作（MediaPipe）
-python teleop_sim.py --input camera --hand right --config config/adaptive_analytical_camera.yaml
+python teleop_sim.py --input camera --hand right
 
 # Vision Pro 实时遥操作
 python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
@@ -131,7 +136,8 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--config` | 自动选择 | 配置文件（根据输入设备自动选择） |
+| `--robot` | `shadow` | 灵巧手类型（如 `wuji`、`allegro`、`inspire`） |
+| `--config` | 自动选择 | 配置文件（覆盖 `--robot`） |
 | `--hand` | `left`（sim）/ `right`（real） | 手的方向（`left`/`right`） |
 | `--input` | - | 输入类型（`visionpro`/`quest3`/`camera`/`mediapipe_replay`） |
 | `--play FILE` | - | 回放录制（`--input mediapipe_replay` 的快捷方式） |
@@ -158,13 +164,13 @@ sudo chmod a+rw /dev/ttyUSB0
 cd example
 
 # 摄像头输入
-python test/debug_skeleton.py --config config/leap_hand.yaml --input camera
+python test/debug_skeleton.py --robot leap --input camera
 
 # 视频文件输入
-python test/debug_skeleton.py --config config/leap_hand.yaml --video data/right.mp4
+python test/debug_skeleton.py --robot leap --video data/right.mp4
 
 # 回放录制数据
-python test/debug_skeleton.py --config config/shadow_hand_menagerie.yaml --play data/avp1.pkl
+python test/debug_skeleton.py --robot shadow --play data/avp1.pkl
 ```
 
 #### visualize_scaling.py
@@ -175,10 +181,10 @@ python test/debug_skeleton.py --config config/shadow_hand_menagerie.yaml --play 
 cd example
 
 # 回放录制数据
-python test/visualize_scaling.py --config config/allegro_hand.yaml --play data/avp1.pkl --hand right
+python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
 
 # 视频文件输入
-python test/visualize_scaling.py --config config/leap_hand.yaml --video data/right.mp4 --hand right
+python test/visualize_scaling.py --robot leap --video data/right.mp4 --hand right
 ```
 
 ## 配置说明
@@ -240,7 +246,7 @@ retarget:
 from qsq_retargeting import Retargeter
 
 # 从配置文件加载
-retargeter = Retargeter.from_yaml("config/shadow_hand_menagerie.yaml", hand_side="right")
+retargeter = Retargeter.from_yaml("config/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
 
 # 重定向：(21, 3) MediaPipe 关键点 -> 关节角度
 qpos = retargeter.retarget(raw_keypoints)

@@ -6,9 +6,9 @@ Shows three hand skeletons side-by-side in the MuJoCo viewer:
   - Red:   Robot FK skeleton (retargeting result)
 
 Usage:
-    python debug_skeleton.py --config config/leap_hand.yaml
-    python debug_skeleton.py --config config/leap_hand.yaml --video data/right.mp4
-    python debug_skeleton.py --config config/leap_hand.yaml --input camera
+    python debug_skeleton.py --robot leap
+    python debug_skeleton.py --robot leap --video data/right.mp4
+    python debug_skeleton.py --robot leap --input camera
 """
 
 import argparse
@@ -31,12 +31,10 @@ if str(EXAMPLE_ROOT) not in sys.path:
 
 from qsq_retargeting import Retargeter
 from qsq_retargeting.mediapipe import apply_mediapipe_transformations
-from qsq_retargeting.opt.base import BaseOptimizer
-from input_devices.camera import Camera
-from input_devices.video import Video
-from input_devices.mediapipe_replay import MediaPipeReplay
-
-# Import teleop_sim configs for qpos_mapping
+from qsq_retargeting.optimizer.base_optimizer import BaseOptimizer
+from input.camera import Camera
+from input.video import Video
+from input.mediapipe_replay import MediaPipeReplay
 from teleop_sim import ROBOT_HAND_CONFIGS, map_urdf_to_mujoco_menagerie
 
 # MediaPipe hand connections (pairs of landmark indices)
@@ -228,7 +226,12 @@ def build_raw_skeleton(mediapipe_kp, optimizer):
 
 def main():
     parser = argparse.ArgumentParser(description="Debug skeleton visualization")
-    parser.add_argument("--config", default="config/leap_hand.yaml", help="Config YAML path")
+    parser.add_argument("--config", default=None, help="Config YAML path (overrides --robot)")
+    parser.add_argument("--robot", default="leap",
+                        choices=["shadow", "wuji", "allegro", "leap",
+                                 "inspire", "ability", "svh", "rohand",
+                                 "linkerhand_l21", "unitree_dex5"],
+                        help="Robot hand type (default: leap)")
     parser.add_argument("--hand", default="right", choices=["left", "right"])
     parser.add_argument("--input", default="camera", choices=["camera", "video", "replay"])
     parser.add_argument("--video", default="", help="Video file path")
@@ -237,7 +240,15 @@ def main():
     parser.add_argument("--speed", type=float, default=1.0)
     args = parser.parse_args()
 
-    config_file = EXAMPLE_ROOT / args.config
+    robot_name_map = {
+        "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
+        "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
+        "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
+        "unitree_dex5": "unitree_dex5_hand",
+    }
+    robot_file = robot_name_map.get(args.robot, args.robot)
+    config_path = args.config if args.config else f"config/mediapipe/mediapipe_{robot_file}.yaml"
+    config_file = EXAMPLE_ROOT / config_path
     with open(config_file, 'r') as f:
         config = yaml.safe_load(f)
 

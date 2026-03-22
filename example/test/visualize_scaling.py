@@ -5,9 +5,9 @@ skeleton used by the optimizer, so you can see how scaling/segment_scaling
 affect the target keypoints.
 
 Usage:
-    python visualize_scaling.py --config config/allegro_hand.yaml --play data/avp1.pkl --hand right
-    python visualize_scaling.py --config config/allegro_hand.yaml --video data/right.mp4 --hand right
-    python visualize_scaling.py --config config/wuji_hand.yaml --play data/avp1.pkl --hand right
+    python visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
+    python visualize_scaling.py --robot allegro --video data/right.mp4 --hand right
+    python visualize_scaling.py --robot wuji --play data/avp1.pkl --hand right
 """
 
 import argparse
@@ -27,7 +27,7 @@ if str(EXAMPLE_ROOT) not in sys.path:
 
 from qsq_retargeting import Retargeter
 from qsq_retargeting.mediapipe import apply_mediapipe_transformations
-from qsq_retargeting.opt.base import M_TO_CM
+from qsq_retargeting.optimizer.base_optimizer import M_TO_CM
 
 # MediaPipe hand connections
 MP_CONNECTIONS = [
@@ -144,7 +144,7 @@ def visualize_matplotlib(frames_raw, config_path, hand_side):
     robot_config = config.get('robot', {})
     robot_type = robot_config.get('type', 'shadow_hand')
 
-    from qsq_retargeting.opt.base import BaseOptimizer
+    from qsq_retargeting.optimizer.base_optimizer import BaseOptimizer
     robot_defaults = BaseOptimizer.ROBOT_CONFIGS.get(robot_type, {})
     num_fingers = robot_defaults.get('num_fingers', 5)
 
@@ -298,13 +298,26 @@ def visualize_matplotlib(frames_raw, config_path, hand_side):
 
 def main():
     parser = argparse.ArgumentParser(description='Visualize scaling effect on hand skeleton')
-    parser.add_argument('--config', type=str, required=True, help='YAML config file')
+    parser.add_argument('--config', type=str, default=None, help='YAML config file (overrides --robot)')
+    parser.add_argument('--robot', type=str, default='allegro',
+                        choices=['shadow', 'wuji', 'allegro', 'leap',
+                                 'inspire', 'ability', 'svh', 'rohand',
+                                 'linkerhand_l21', 'unitree_dex5'],
+                        help='Robot hand type (default: allegro)')
     parser.add_argument('--hand', type=str, default='right', choices=['left', 'right'])
     parser.add_argument('--play', type=str, default=None, help='Pickle file with recorded data')
     parser.add_argument('--video', type=str, default=None, help='MP4 video file')
     args = parser.parse_args()
 
-    config_path = EXAMPLE_ROOT / args.config
+    robot_name_map = {
+        "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
+        "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
+        "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
+        "unitree_dex5": "unitree_dex5_hand",
+    }
+    robot_file = robot_name_map.get(args.robot, args.robot)
+    cfg = args.config if args.config else f"config/mediapipe/mediapipe_{robot_file}.yaml"
+    config_path = EXAMPLE_ROOT / cfg
 
     if args.play:
         pkl_path = EXAMPLE_ROOT / args.play

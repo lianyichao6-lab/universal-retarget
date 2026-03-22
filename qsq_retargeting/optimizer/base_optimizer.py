@@ -1,164 +1,32 @@
-"""Base classes and utilities for hand retargeting optimizers."""
+"""Base class for hand retargeting optimizers."""
 
 from __future__ import annotations
 
 import time
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import nlopt
 import numpy as np
 import yaml
 
 from ..robot import RobotWrapper
-
-
-@dataclass
-class TimingStats:
-    """Timing statistics for optimizer performance analysis."""
-    preprocess_ms: float = 0.0
-    fk_ms: float = 0.0
-    jacobian_ms: float = 0.0
-    gradient_ms: float = 0.0
-    nlopt_ms: float = 0.0
-    total_ms: float = 0.0
-    call_count: int = 0
-    iter_counts: List[int] = field(default_factory=list)
-    # Per-frame iteration losses: list of lists, each inner list is losses per iteration
-    iter_losses: List[List[float]] = field(default_factory=list)
-    # Current frame's iteration losses (temporary storage during optimization)
-    _current_iter_losses: List[float] = field(default_factory=list)
-
-    def reset(self):
-        """Reset all timing statistics."""
-        self.preprocess_ms = 0.0
-        self.fk_ms = 0.0
-        self.jacobian_ms = 0.0
-        self.gradient_ms = 0.0
-        self.nlopt_ms = 0.0
-        self.total_ms = 0.0
-        self.call_count = 0
-        self.iter_counts = []
-        self.iter_losses = []
-        self._current_iter_losses = []
-
-    def start_frame(self):
-        """Start recording for a new frame."""
-        self._current_iter_losses = []
-
-    def record_iter_loss(self, loss: float):
-        """Record loss for current iteration."""
-        self._current_iter_losses.append(loss)
-
-    def end_frame(self, num_evals: int):
-        """End recording for current frame."""
-        self.iter_counts.append(num_evals)
-        self.iter_losses.append(self._current_iter_losses.copy())
-        self._current_iter_losses = []
-
-    def get_last_iter_losses(self) -> List[float]:
-        """Get iteration losses for the last frame."""
-        if self.iter_losses:
-            return self.iter_losses[-1]
-        return []
-
-    def to_dict(self) -> Dict[str, float]:
-        """Convert to dictionary."""
-        return {
-            'preprocess_ms': self.preprocess_ms,
-            'fk_ms': self.fk_ms,
-            'jacobian_ms': self.jacobian_ms,
-            'gradient_ms': self.gradient_ms,
-            'nlopt_ms': self.nlopt_ms,
-            'total_ms': self.total_ms,
-            'call_count': self.call_count,
-        }
-
-    def get_avg(self) -> Dict[str, float]:
-        """Get average timing per call."""
-        if self.call_count == 0:
-            return self.to_dict()
-        return {
-            'preprocess_ms': self.preprocess_ms / self.call_count,
-            'fk_ms': self.fk_ms / self.call_count,
-            'jacobian_ms': self.jacobian_ms / self.call_count,
-            'gradient_ms': self.gradient_ms / self.call_count,
-            'nlopt_ms': self.nlopt_ms / self.call_count,
-            'total_ms': self.total_ms / self.call_count,
-            'call_count': self.call_count,
-        }
-
-    def get_iter_stats(self) -> Dict[str, float]:
-        """Get iteration count statistics."""
-        if not self.iter_counts:
-            return {}
-        arr = np.array(self.iter_counts)
-        return {
-            'min': int(np.min(arr)),
-            'max': int(np.max(arr)),
-            'mean': float(np.mean(arr)),
-            'std': float(np.std(arr)),
-            'median': float(np.median(arr)),
-            'p90': float(np.percentile(arr, 90)),
-            'p99': float(np.percentile(arr, 99)),
-        }
+from .robot_configs import ROBOT_CONFIGS as _ROBOT_CONFIGS
+from .utils import (
+    M_TO_CM,
+    CM_TO_M,
+    TimingStats,
+    LPFilter,
+    huber_loss_np,
+    huber_loss_grad_np,
+)
 
 
 # Project root for asset path resolution
 _THIS_FILE = Path(__file__).resolve()
 _PROJECT_ROOT = _THIS_FILE.parent.parent.parent
-
-# Unit conversion: internal computations use cm
-M_TO_CM = 100.0
-CM_TO_M = 0.01
-
-
-def huber_loss_np(x: np.ndarray, delta: float = 2.0) -> np.ndarray:
-    """Huber loss function (smooth L1 loss)."""
-    abs_x = np.abs(x)
-    return np.where(
-        abs_x <= delta,
-        0.5 * x ** 2,
-        delta * (abs_x - 0.5 * delta)
-    )
-
-
-def huber_loss_grad_np(x: np.ndarray, delta: float = 2.0) -> np.ndarray:
-    """Gradient of Huber loss w.r.t. x (numpy version)."""
-    abs_x = np.abs(x)
-    return np.where(abs_x <= delta, x, delta * np.sign(x))
-
-
-class LPFilter:
-    """Low-pass filter for smoothing joint positions."""
-
-    def __init__(self, alpha: float):
-        """Initialize filter.
-
-        Args:
-            alpha: Filter coefficient (0 < alpha <= 1).
-                   Smaller = smoother but more latency.
-        """
-        self.alpha = alpha
-        self.y = None
-        self.is_init = False
-
-    def next(self, x: np.ndarray) -> np.ndarray:
-        """Apply filter to new value."""
-        if not self.is_init:
-            self.y = x.copy()
-            self.is_init = True
-            return self.y.copy()
-        self.y = self.y + self.alpha * (x - self.y)
-        return self.y.copy()
-
-    def reset(self):
-        """Reset filter state."""
-        self.y = None
-        self.is_init = False
 
 
 class BaseOptimizer(ABC):
@@ -174,144 +42,7 @@ class BaseOptimizer(ABC):
     MP_PIP_INDICES = [2, 6, 10, 14, 18]  # PIP joints (thumb uses MCP=2)
     MP_DIP_INDICES = [3, 7, 11, 15, 19]  # DIP joints
 
-    # Default link names for different robot hands
-    ROBOT_CONFIGS = {
-        # Shadow Hand (MuJoCo Menagerie style, rh_/lh_ prefix) - high quality meshes
-        # Uses custom URDF that exactly matches MuJoCo Menagerie joint axes
-        'shadow_hand': {
-            'origin_link': 'rh_palm',  # Will be lh_palm for left hand
-            'tip_links': ['rh_thtip', 'rh_fftip', 'rh_mftip', 'rh_rftip', 'rh_lftip'],
-            'link1_names': ['rh_thproximal', 'rh_ffproximal', 'rh_mfproximal', 'rh_rfproximal', 'rh_lfproximal'],
-            'link3_names': ['rh_thmiddle', 'rh_ffmiddle', 'rh_mfmiddle', 'rh_rfmiddle', 'rh_lfmiddle'],
-            'link4_names': ['rh_thdistal', 'rh_ffdistal', 'rh_mfdistal', 'rh_rfdistal', 'rh_lfdistal'],
-            'urdf_subdir': 'assets/shadow_hand',
-            'urdf_file': {'right': 'right_hand_mj.urdf', 'left': 'left_hand_mj.urdf'},
-            'mjcf_subdir': 'assets/shadow_hand',
-            'mjcf_file': {'right': 'scene_right.xml', 'left': 'scene_left.xml'},
-            'num_fingers': 5,
-        },
-        # Wuji Hand (5 fingers x 4 joints = 20 DOF)
-        'wuji_hand': {
-            'origin_link': 'right_palm_link',
-            'tip_links': ['right_finger1_tip_link', 'right_finger2_tip_link', 'right_finger3_tip_link', 'right_finger4_tip_link', 'right_finger5_tip_link'],
-            'link1_names': ['right_finger1_link1', 'right_finger2_link1', 'right_finger3_link1', 'right_finger4_link1', 'right_finger5_link1'],
-            'link3_names': ['right_finger1_link3', 'right_finger2_link3', 'right_finger3_link3', 'right_finger4_link3', 'right_finger5_link3'],
-            'link4_names': ['right_finger1_link4', 'right_finger2_link4', 'right_finger3_link4', 'right_finger4_link4', 'right_finger5_link4'],
-            'num_fingers': 5,
-        },
-        # Allegro Hand (4 fingers: thumb, index, middle, ring - no pinky)
-        # Finger order: thumb (link_12~15), index (link_0~3), middle (link_4~7), ring (link_8~11)
-        'allegro_hand': {
-            'origin_link': 'base_link',
-            'tip_links': ['link_15.0_tip', 'link_3.0_tip', 'link_7.0_tip', 'link_11.0_tip'],
-            'link1_names': ['link_12.0', 'link_0.0', 'link_4.0', 'link_8.0'],
-            'link3_names': ['link_13.0', 'link_1.0', 'link_5.0', 'link_9.0'],
-            'link4_names': ['link_14.0', 'link_2.0', 'link_6.0', 'link_10.0'],
-            'num_fingers': 4,
-        },
-        # Inspire Hand (5 fingers, 2-DOF per non-thumb finger)
-        # Non-thumb: proximal → intermediate → tip(fixed), so link3=proximal(PIP), link4=intermediate(DIP)
-        'inspire_hand': {
-            'origin_link': 'hand_base_link',
-            'tip_links': ['thumb_tip', 'index_tip', 'middle_tip', 'ring_tip', 'pinky_tip'],
-            'link1_names': ['thumb_proximal', 'index_proximal', 'middle_proximal', 'ring_proximal', 'pinky_proximal'],
-            'link3_names': ['thumb_proximal', 'index_proximal', 'middle_proximal', 'ring_proximal', 'pinky_proximal'],
-            'link4_names': ['thumb_intermediate', 'index_intermediate', 'middle_intermediate', 'ring_intermediate', 'pinky_intermediate'],
-            'num_fingers': 5,
-        },
-        # Ability Hand (5 fingers, 2 links each)
-        'ability_hand': {
-            'origin_link': 'base',
-            'tip_links': ['thumb_tip', 'index_tip', 'middle_tip', 'ring_tip', 'pinky_tip'],
-            'link1_names': ['thumb_L1', 'index_L1', 'middle_L1', 'ring_L1', 'pinky_L1'],
-            'link3_names': ['thumb_L1', 'index_L1', 'middle_L1', 'ring_L1', 'pinky_L1'],
-            'link4_names': ['thumb_L2', 'index_L2', 'middle_L2', 'ring_L2', 'pinky_L2'],
-            'num_fingers': 5,
-        },
-        # Leap Hand (4 fingers + thumb, no pinky)
-        'leap_hand': {
-            'origin_link': 'base',
-            'tip_links': ['thumb_tip_head', 'index_tip_head', 'middle_tip_head', 'ring_tip_head'],
-            'link1_names': ['thumb_pip', 'pip', 'pip_2', 'pip_3'],
-            'link3_names': ['thumb_dip', 'dip', 'dip_2', 'dip_3'],
-            'link4_names': ['thumb_fingertip', 'fingertip', 'fingertip_2', 'fingertip_3'],
-            'num_fingers': 4,
-        },
-        # SVH Hand (5 fingers)
-        'svh_hand': {
-            'origin_link': 'right_hand_base_link',
-            'tip_links': ['thtip', 'fftip', 'mftip', 'rftip', 'lftip'],
-            'link1_names': ['right_hand_z', 'right_hand_l', 'right_hand_k', 'right_hand_j', 'right_hand_i'],
-            'link3_names': ['right_hand_a', 'right_hand_p', 'right_hand_o', 'right_hand_n', 'right_hand_m'],
-            'link4_names': ['right_hand_b', 'right_hand_t', 'right_hand_s', 'right_hand_r', 'right_hand_q'],
-            'num_fingers': 5,
-        },
-        # LinkerHand L21
-        'linkerhand_l21': {
-            'origin_link': 'hand_base_link',
-            'tip_links': ['thumb_distal', 'index_middle', 'middle_middle', 'ring_middle', 'pinky_middle'],
-            'link1_names': ['thumb_metacarpals', 'index_metacarpals', 'middle_metacarpals', 'ring_metacarpals', 'pinky_metacarpals'],
-            'link3_names': ['thumb_metacarpals', 'index_proximal', 'middle_proximal', 'ring_proximal', 'pinky_proximal'],
-            'link4_names': ['thumb_distal', 'index_middle', 'middle_middle', 'ring_middle', 'pinky_middle'],
-            'link3_offsets': [
-                [0.018, 0.000, 0.000],
-                [0.000, 0.000, 0.022],
-                [0.000, 0.000, 0.022],
-                [0.000, 0.000, 0.022],
-                [0.000, 0.000, 0.022],
-            ],
-            'tip_offsets': [
-                [0.040, 0.000, 0.000],
-                [0.000, 0.000, 0.044],
-                [0.000, 0.000, 0.044],
-                [0.000, 0.000, 0.044],
-                [0.000, 0.000, 0.044],
-            ],
-            'link4_offsets': [
-                [0.023, 0.000, 0.000],
-                [0.000, 0.000, 0.022],
-                [0.000, 0.000, 0.022],
-                [0.000, 0.000, 0.022],
-                [0.000, 0.000, 0.022],
-            ],
-            'urdf_subdir': 'assets/linkerhand_l21',
-            'urdf_file': {
-                'right': 'right/linkerhand_l21_right_vis.urdf',
-                'left': 'left/linkerhand_l21_left_vis.urdf',
-            },
-            'num_fingers': 5,
-            'neutral_qpos': [0.0] * 17,
-        },
-        # ROHand
-        'rohand': {
-            'origin_link': 'base_link',
-            'tip_links': ['th_distal_link', 'if_distal_link', 'mf_distal_link', 'rf_distal_link', 'lf_distal_link'],
-            'link1_names': ['th_root_link', 'if_slider_abpart_link', 'mf_slider_abpart_link', 'rf_slider_abpart_link', 'lf_slider_abpart_link'],
-            'link3_names': ['th_root_link', 'if_slider_abpart_link', 'mf_slider_abpart_link', 'rf_slider_abpart_link', 'lf_slider_abpart_link'],
-            'link4_names': ['th_proximal_link', 'if_proximal_link', 'mf_proximal_link', 'rf_proximal_link', 'lf_proximal_link'],
-            'urdf_subdir': 'assets/rohand',
-            'urdf_file': {
-                'right': 'right/rohand_right_vis.urdf',
-                'left': 'left/rohand_left_vis.urdf',
-            },
-            'num_fingers': 5,
-        },
-        # Unitree Dex5
-        'unitree_dex5_hand': {
-            'origin_link': 'base_link00',
-            'tip_links': ['Link_14R', 'Link_24R', 'Link_34R', 'Link_44R', 'Link_54R'],
-            'link1_names': ['Link_11R', 'Link_21R', 'Link_31R', 'Link_41R', 'Link_51R'],
-            'link3_names': ['Link_12R', 'Link_22R', 'Link_32R', 'Link_42R', 'Link_52R'],
-            'link4_names': ['Link_13R', 'Link_23R', 'Link_33R', 'Link_43R', 'Link_53R'],
-            'urdf_subdir': 'assets/unitree_dex5_hand',
-            'urdf_file': {
-                'right': 'right/Dex5-URDF-R.urdf',
-                'left': 'left/Dex5-URDF-L.urdf',
-            },
-            'num_fingers': 5,
-            'neutral_qpos': [0.0] * 20,
-        },
-    }
+    ROBOT_CONFIGS = _ROBOT_CONFIGS
 
     def __init__(self, config: dict):
         """Initialize optimizer from configuration dict.
@@ -635,7 +366,7 @@ class BaseOptimizer(ABC):
         Returns:
             Optimizer instance
         """
-        from .adaptive_analytical import AdaptiveOptimizerAnalytical
+        from .analytical_optimizer import AdaptiveOptimizerAnalytical
 
         opt_type = config.get('optimizer', {}).get('type', 'AdaptiveOptimizerAnalytical')
 

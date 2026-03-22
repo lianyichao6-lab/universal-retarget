@@ -7,7 +7,8 @@ from typing import Optional
 
 import numpy as np
 
-from .base import BaseOptimizer, M_TO_CM, TimingStats, huber_loss_np, huber_loss_grad_np
+from .base_optimizer import BaseOptimizer
+from .utils import M_TO_CM, TimingStats, huber_loss_np, huber_loss_grad_np
 
 
 class AdaptiveOptimizerAnalytical(BaseOptimizer):

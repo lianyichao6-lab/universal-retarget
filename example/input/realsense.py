@@ -13,36 +13,15 @@ import numpy as np
 import mediapipe as mp
 import pyrealsense2 as rs
 
-# Reference finger segment lengths (meters) from AVP stereo tracking data.
-_REFERENCE_SEGMENT_LENGTHS = {
-    'thumb':  [0.0505, 0.0318, 0.0302],
-    'index':  [0.0418, 0.0243, 0.0223],
-    'middle': [0.0489, 0.0289, 0.0227],
-    'ring':   [0.0422, 0.0274, 0.0227],
-    'pinky':  [0.0343, 0.0195, 0.0201],
-}
-
-# MediaPipe landmark index groups per finger: [MCP, PIP, DIP, TIP]
-_FINGER_INDICES = {
-    'thumb':  [1, 2, 3, 4],
-    'index':  [5, 6, 7, 8],
-    'middle': [9, 10, 11, 12],
-    'ring':   [13, 14, 15, 16],
-    'pinky':  [17, 18, 19, 20],
-}
+from .landmark_utils import (
+    HAND_CONNECTIONS,
+    landmarks_to_array,
+    process_landmarks,
+)
 
 
 class Realsense:
     """Read live RealSense RGB frames and extract hand landmarks via MediaPipe."""
-
-    _HAND_CONNECTIONS = [
-        (0,1),(1,2),(2,3),(3,4),
-        (0,5),(5,6),(6,7),(7,8),
-        (0,9),(9,10),(10,11),(11,12),
-        (0,13),(13,14),(14,15),(15,16),
-        (0,17),(17,18),(18,19),(19,20),
-        (5,9),(9,13),(13,17),
-    ]
 
     def __init__(
         self,
@@ -108,16 +87,21 @@ class Realsense:
             ):
                 label = hand_cls.classification[0].label
                 if label == self._expected_mp_label:
-                    kp = self._landmarks_to_array(hand_lm)
+                    kp = landmarks_to_array(hand_lm, self.frame_width, self.frame_height, z_scale=self.z_scale)
                     raw_lm = [(lm.x, lm.y) for lm in hand_lm.landmark]
                     break
 
             if kp is None and results.multi_hand_landmarks:
-                kp = self._landmarks_to_array(results.multi_hand_landmarks[0])
+                kp = landmarks_to_array(results.multi_hand_landmarks[0], self.frame_width, self.frame_height, z_scale=self.z_scale)
                 raw_lm = [(lm.x, lm.y) for lm in results.multi_hand_landmarks[0].landmark]
 
         if kp is not None:
-            kp = self._process_landmarks(kp)
+            kp = process_landmarks(
+                kp,
+                depth_scale=1.0,
+                correct_segments=self.correct_segments,
+                reference_wrist_to_mid_mcp=self._reference_wrist_to_mid_mcp,
+            )
             self._last_valid_kp = kp
             self._last_valid_raw = raw_lm
         else:
@@ -134,57 +118,12 @@ class Realsense:
         result[f"{self.hand_side}_fingers"] = kp
         return result
 
-    def _landmarks_to_array(self, hand_landmarks) -> np.ndarray:
-        kp = np.array(
-            [[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark],
-            dtype=np.float32,
-        )
-        kp[:, 0] *= self.frame_width
-        kp[:, 1] *= self.frame_height
-        kp[:, 2] *= self.frame_width * self.z_scale
-        return kp
-
-    def _process_landmarks(self, kp: np.ndarray) -> np.ndarray:
-        kp = kp - kp[0:1, :]
-        dist = np.linalg.norm(kp[9])
-        if dist < 1e-6:
-            return kp
-        scale = self._reference_wrist_to_mid_mcp / dist
-        kp = kp * scale
-        if self.correct_segments:
-            kp = self._correct_segment_lengths(kp)
-        return kp
-
-    def _correct_segment_lengths(self, kp: np.ndarray) -> np.ndarray:
-        kp_corrected = kp.copy()
-        for finger_name, indices in _FINGER_INDICES.items():
-            ref_lengths = _REFERENCE_SEGMENT_LENGTHS[finger_name]
-            mcp_i, pip_i, dip_i, tip_i = indices
-            base = kp_corrected[mcp_i].copy()
-
-            seg1 = kp[pip_i] - kp[mcp_i]
-            seg1_len = np.linalg.norm(seg1)
-            if seg1_len > 1e-6:
-                kp_corrected[pip_i] = base + (seg1 / seg1_len) * ref_lengths[0]
-
-            seg2 = kp[dip_i] - kp[pip_i]
-            seg2_len = np.linalg.norm(seg2)
-            if seg2_len > 1e-6:
-                kp_corrected[dip_i] = kp_corrected[pip_i] + (seg2 / seg2_len) * ref_lengths[1]
-
-            seg3 = kp[tip_i] - kp[dip_i]
-            seg3_len = np.linalg.norm(seg3)
-            if seg3_len > 1e-6:
-                kp_corrected[tip_i] = kp_corrected[dip_i] + (seg3 / seg3_len) * ref_lengths[2]
-
-        return kp_corrected
-
     def _show_video_frame(self, frame: np.ndarray, raw_lm):
         display = frame.copy()
         if raw_lm is not None:
             h, w = display.shape[:2]
             pts = [(int(x * w), int(y * h)) for x, y in raw_lm]
-            for s, e in self._HAND_CONNECTIONS:
+            for s, e in HAND_CONNECTIONS:
                 cv2.line(display, pts[s], pts[e], (0, 255, 0), 2)
             for i, pt in enumerate(pts):
                 cv2.circle(display, pt, 4, (0, 0, 255), -1)

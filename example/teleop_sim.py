@@ -26,12 +26,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from qsq_retargeting import Retargeter
-from input_devices.camera import Camera
-from input_devices.mediapipe_replay import MediaPipeReplay
-from input_devices.quest3 import Quest3
-from input_devices.realsense import Realsense
-from input_devices.video import Video
-from input_devices.visionpro import VisionPro
+from input.camera import Camera
+from input.mediapipe_replay import MediaPipeReplay
+from input.quest3 import Quest3
+from input.realsense import Realsense
+from input.video import Video
+from input.visionpro import VisionPro
 
 
 ROBOT_HAND_CONFIGS = {
@@ -82,30 +82,6 @@ ROBOT_HAND_CONFIGS = {
 }
 
 
-def _resolve_example_path(path_str: str | None) -> Path | None:
-    if not path_str:
-        return None
-    path = Path(path_str)
-    if not path.is_absolute():
-        path = Path(__file__).parent / path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def _apply_camera_config(
-    camera,
-    cam_cfg: dict,
-    azimuth: float | None = None,
-    elevation: float | None = None,
-    distance: float | None = None,
-    lookat: list[float] | None = None,
-):
-    camera.azimuth = cam_cfg.get("azimuth", 135) if azimuth is None else azimuth
-    camera.elevation = cam_cfg.get("elevation", -20) if elevation is None else elevation
-    camera.distance = cam_cfg.get("distance", 0.5) if distance is None else distance
-    camera.lookat[:] = cam_cfg.get("lookat", [0, 0, 0.05]) if lookat is None else lookat
-
-
 def map_urdf_to_mujoco_menagerie(qpos: np.ndarray) -> np.ndarray:
     """Map URDF joint angles (22 DoF) to MuJoCo Menagerie actuators (20 DoF)."""
     ctrl = np.zeros(20, dtype=np.float32)
@@ -132,13 +108,14 @@ def map_urdf_to_mujoco_menagerie(qpos: np.ndarray) -> np.ndarray:
     return ctrl
 
 
-def _retarget_to_target(
+def retarget_to_mujoco_target(
     fingers_data: dict,
     hand_side: str,
     retargeter: Retargeter,
     hand_cfg: dict,
     target_len: int,
 ):
+    """Retarget hand tracking input and map to MuJoCo control target."""
     fingers_pose = fingers_data[f"{hand_side}_fingers"]
     if np.allclose(fingers_pose, 0):
         return None
@@ -161,9 +138,60 @@ def _retarget_to_target(
     return target
 
 
+def apply_qpos_to_mujoco(model, data, qpos, hand_cfg):
+    """Apply retarget output qpos to MuJoCo model and step simulation."""
+    if hand_cfg.get("needs_menagerie_mapping"):
+        ctrl = map_urdf_to_mujoco_menagerie(qpos)
+    elif "qpos_mapping" in hand_cfg:
+        ctrl = qpos[hand_cfg["qpos_mapping"]]
+    else:
+        ctrl = qpos
+    ctrl = np.asarray(ctrl, dtype=np.float32)
+
+    qpos_servo_alpha = hand_cfg.get("qpos_servo_alpha")
+    if qpos_servo_alpha is not None:
+        n = min(len(ctrl), model.nq)
+        data.qpos[:n] = ctrl[:n]
+        data.qvel[:] = 0.0
+        mujoco.mj_forward(model, data)
+    elif model.nu > 0:
+        n = min(len(ctrl), model.nu)
+        data.ctrl[:n] = ctrl[:n]
+        for _ in range(200):
+            mujoco.mj_step(model, data)
+    else:
+        n = min(len(ctrl), model.nq)
+        data.qpos[:n] = ctrl[:n]
+        mujoco.mj_forward(model, data)
+
+
+def _resolve_example_path(path_str: str | None) -> Path | None:
+    if not path_str:
+        return None
+    path = Path(path_str)
+    if not path.is_absolute():
+        path = Path(__file__).parent / path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _apply_camera_config(
+    camera,
+    cam_cfg: dict,
+    azimuth: float | None = None,
+    elevation: float | None = None,
+    distance: float | None = None,
+    lookat: list[float] | None = None,
+):
+    camera.azimuth = cam_cfg.get("azimuth", 135) if azimuth is None else azimuth
+    camera.elevation = cam_cfg.get("elevation", -20) if elevation is None else elevation
+    camera.distance = cam_cfg.get("distance", 0.5) if distance is None else distance
+    camera.lookat[:] = cam_cfg.get("lookat", [0, 0, 0.05]) if lookat is None else lookat
+
+
 def run_teleop(
     hand_side: str = "right",
-    config_path: str = "config/adaptive_analytical_avp.yaml",
+    config_path: str = "config/mediapipe/mediapipe_shadow_hand.yaml",
     input_device_type: str = "mediapipe_replay",
     mediapipe_replay_path: str = "",
     video_path: str = "",
@@ -349,7 +377,7 @@ def run_teleop(
                 fingers_data = input_device.get_fingers_data()
             except Exception:
                 break
-            target = _retarget_to_target(
+            target = retarget_to_mujoco_target(
                 fingers_data=fingers_data,
                 hand_side=hand_side,
                 retargeter=retargeter,
@@ -401,7 +429,7 @@ def run_teleop(
 
             if synchronous_input:
                 fingers_data = input_device.get_fingers_data()
-                target = _retarget_to_target(
+                target = retarget_to_mujoco_target(
                     fingers_data=fingers_data,
                     hand_side=hand_side,
                     retargeter=retargeter,
@@ -514,7 +542,12 @@ def main():
     )
 
     parser.add_argument("--config", type=str, default=None,
-                        help="Path to YAML configuration file (default: auto-select based on input device)")
+                        help="Path to YAML configuration file (overrides --robot)")
+    parser.add_argument("--robot", type=str, default="shadow",
+                        choices=["shadow", "wuji", "allegro", "leap",
+                                 "inspire", "ability", "svh", "rohand",
+                                 "linkerhand_l21", "unitree_dex5"],
+                        help="Robot hand type (default: shadow)")
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"],
                         help="Hand side (default: right)")
 
@@ -593,8 +626,19 @@ def main():
 
     config_path = args.config
     if config_path is None:
-        config_map = {"quest3": "config/adaptive_analytical_quest3.yaml"}
-        config_path = config_map.get(input_device_type, "config/adaptive_analytical_avp.yaml")
+        robot_name_map = {
+            "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
+            "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
+            "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
+            "unitree_dex5": "unitree_dex5_hand",
+        }
+        input_to_dir = {
+            "quest3": "quest3",
+            "visionpro": "avp",
+        }
+        config_dir = input_to_dir.get(input_device_type, "mediapipe")
+        robot_file = robot_name_map.get(args.robot, args.robot)
+        config_path = f"config/{config_dir}/{config_dir}_{robot_file}.yaml"
 
     log = run_teleop(
         hand_side=args.hand,

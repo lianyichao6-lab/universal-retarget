@@ -9,12 +9,12 @@ Main classes:
 Example:
     from qsq_retargeting import Retargeter
 
-    retargeter = Retargeter.from_yaml("config/shadow_hand.yaml", hand_side="right")
+    retargeter = Retargeter.from_yaml("config/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
     qpos = retargeter.retarget(raw_keypoints)  # (21, 3) -> (22,)
 """
 
 from .retarget import Retargeter
-from .opt import BaseOptimizer, LPFilter
+from .optimizer import BaseOptimizer, LPFilter
 from .mediapipe import apply_mediapipe_transformations
 
 __all__ = [

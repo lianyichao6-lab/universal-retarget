@@ -46,21 +46,26 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 
 ```text
 ├── qsq_retargeting/
-│   ├── opt/                          # Optimizer implementations
-│   │   ├── base.py                   # Base optimizer with FK/Jacobian
-│   │   └── adaptive_analytical.py    # Adaptive optimizer with analytical gradients
-│   └── shadow_hand_menagerie/        # Shadow Hand URDF for MuJoCo Menagerie
-│       ├── left_hand_mj.urdf
-│       └── right_hand_mj.urdf
+│   ├── retarget.py                        # High-level unified interface
+│   ├── robot.py                           # Pinocchio robot wrapper
+│   ├── mediapipe.py                       # MediaPipe coordinate transforms
+│   └── optimizer/                         # Optimizer implementations
+│       ├── base_optimizer.py              # Base optimizer with FK/Jacobian
+│       ├── analytical_optimizer.py        # Adaptive optimizer with analytical gradients
+│       ├── robot_configs.py               # Robot link/URDF configurations
+│       └── utils.py                       # TimingStats, LPFilter, Huber loss
 ├── example/
-│   ├── teleop_sim.py                 # MuJoCo simulation demo
-│   ├── teleop_real.py                # Real hardware control
-│   ├── test/                         # Debug & visualization tools
-│   │   ├── debug_skeleton.py         # Compare input/scaled/FK skeletons
-│   │   └── visualize_scaling.py      # Visualize scaling effect on keypoints
-│   ├── input_devices/                # Input device modules
-│   ├── config/                       # YAML configurations
-│   └── data/                         # Sample recordings
+│   ├── teleop_sim.py                      # MuJoCo simulation demo
+│   ├── teleop_real.py                     # Real hardware control
+│   ├── input/                             # Input device modules
+│   │   ├── landmark_utils.py              # Shared MediaPipe landmark processing
+│   │   ├── camera.py / video.py / ...     # Input devices
+│   ├── test/                              # Debug & visualization tools
+│   ├── config/                            # YAML configurations (by input source)
+│   │   ├── avp/                           # Apple Vision Pro configs
+│   │   ├── quest3/                        # Meta Quest 3 configs
+│   │   └���─ mediapipe/                     # MediaPipe (camera/video/replay) configs
+│   └── data/                              # Sample recordings
 └── requirements.txt
 ```
 
@@ -108,7 +113,7 @@ cd example
 python teleop_sim.py --play data/avp1.pkl --hand right
 
 # Real-time with laptop camera (MediaPipe)
-python teleop_sim.py --input camera --hand right --config config/adaptive_analytical_camera.yaml
+python teleop_sim.py --input camera --hand right
 
 # Real-time with Vision Pro
 python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
@@ -131,7 +136,8 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--config` | auto-select | Configuration file (auto-selects based on input device) |
+| `--robot` | `shadow` | Robot hand type (e.g. `wuji`, `allegro`, `inspire`) |
+| `--config` | auto-select | Configuration file (overrides `--robot`) |
 | `--hand` | `left` (sim) / `right` (real) | Hand side (`left`/`right`) |
 | `--input` | - | Input type (`visionpro`/`quest3`/`camera`/`mediapipe_replay`) |
 | `--play FILE` | - | Replay recording (shortcut for `--input mediapipe_replay`) |
@@ -158,13 +164,13 @@ Compare three hand skeletons in the MuJoCo viewer to debug retargeting issues:
 cd example
 
 # With camera input
-python test/debug_skeleton.py --config config/leap_hand.yaml --input camera
+python test/debug_skeleton.py --robot leap --input camera
 
 # With video file
-python test/debug_skeleton.py --config config/leap_hand.yaml --video data/right.mp4
+python test/debug_skeleton.py --robot leap --video data/right.mp4
 
 # With recorded data
-python test/debug_skeleton.py --config config/shadow_hand_menagerie.yaml --play data/avp1.pkl
+python test/debug_skeleton.py --robot shadow --play data/avp1.pkl
 ```
 
 #### visualize_scaling.py
@@ -175,10 +181,10 @@ Visualize how `scaling` and `segment_scaling` parameters affect MediaPipe keypoi
 cd example
 
 # With recorded data
-python test/visualize_scaling.py --config config/allegro_hand.yaml --play data/avp1.pkl --hand right
+python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
 
 # With video file
-python test/visualize_scaling.py --config config/leap_hand.yaml --video data/right.mp4 --hand right
+python test/visualize_scaling.py --robot leap --video data/right.mp4 --hand right
 ```
 
 ## Configuration
@@ -240,7 +246,7 @@ retarget:
 from qsq_retargeting import Retargeter
 
 # Load from config file
-retargeter = Retargeter.from_yaml("config/shadow_hand_menagerie.yaml", hand_side="right")
+retargeter = Retargeter.from_yaml("config/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
 
 # Retarget: (21, 3) MediaPipe keypoints -> joint angles
 qpos = retargeter.retarget(raw_keypoints)

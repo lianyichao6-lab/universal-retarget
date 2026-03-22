@@ -40,6 +40,6 @@ retarget:
 
 render:
   camera:
-    azimuth: 0
+    azimuth: 180
     elevation: -20
     distance: 0.5

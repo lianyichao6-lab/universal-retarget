@@ -1,8 +1,8 @@
 """跑到指定帧后打开 MuJoCo 交互窗口，手动截图。
 
 用法:
-    python test/view_frame.py --config config/shadow_hand.yaml --frame 40
-    python test/view_frame.py --config config/wuji_hand.yaml --frame 215
+    python test/view_frame.py --robot shadow --frame 40
+    python test/view_frame.py --robot wuji --frame 215
 """
 
 import argparse
@@ -25,125 +25,18 @@ if str(EXAMPLE_DIR) not in sys.path:
     sys.path.insert(0, str(EXAMPLE_DIR))
 
 from qsq_retargeting import Retargeter
-
-# ── landmark 预处理 (与 video.py 一致) ───────────────────────────────
-_REFERENCE_WRIST_TO_MIDDLE_MCP = 0.092
-_REFERENCE_SEGMENT_LENGTHS = {
-    "thumb": [0.0505, 0.0318, 0.0302], "index": [0.0418, 0.0243, 0.0223],
-    "middle": [0.0489, 0.0289, 0.0227], "ring": [0.0422, 0.0274, 0.0227],
-    "pinky": [0.0343, 0.0195, 0.0201],
-}
-_FINGER_INDICES = {
-    "thumb": [1,2,3,4], "index": [5,6,7,8], "middle": [9,10,11,12],
-    "ring": [13,14,15,16], "pinky": [17,18,19,20],
-}
-
-def _correct_segment_lengths(kp):
-    kp_c = kp.copy()
-    for name, idx in _FINGER_INDICES.items():
-        ref = _REFERENCE_SEGMENT_LENGTHS[name]
-        mcp, pip, dip, tip = idx
-        base = kp_c[mcp].copy()
-        for i, (a, b, rl) in enumerate([(mcp,pip,ref[0]),(pip,dip,ref[1]),(dip,tip,ref[2])]):
-            seg = kp[b] - kp[a]; n = np.linalg.norm(seg)
-            if n > 1e-6:
-                kp_c[b] = (base if i == 0 else kp_c[a]) + seg / n * rl
-    return kp_c
-
-def process_landmarks(kp, depth_scale=1.25):
-    kp = kp - kp[0:1]; d = np.linalg.norm(kp[9])
-    if d < 1e-6: return kp
-    kp = kp * (_REFERENCE_WRIST_TO_MIDDLE_MCP / d)
-    kp = _correct_segment_lengths(kp); kp[:, 2] *= depth_scale
-    return kp
-
-def landmarks_to_array(hand_landmarks, w, h):
-    kp = np.array([[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark], dtype=np.float32)
-    kp[:, 0] *= w; kp[:, 1] *= h; kp[:, 2] *= w * 2.5
-    return kp
-
-# ── 机器人手配置 (与 teleop_sim.py 一致) ─────────────────────────────
-ROBOT_HAND_CONFIGS = {
-    "shadow_hand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "shadow_hand" / f"scene_{side}.xml"),
-        "needs_menagerie_mapping": True,
-    },
-    "wuji_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "wuji_hand" / "right.xml"),
-    },
-    "allegro_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "allegro_hand" / "scene_right.xml"),
-        "qpos_mapping": [0,1,2,3,8,9,10,11,12,13,14,15,4,5,6,7],
-    },
-    "inspire_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "inspire_hand" / "inspire_hand_right_mujoco.xml"),
-        "qpos_mapping": [8,9,10,11,0,1,2,3,6,7,4,5],
-    },
-    "ability_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "ability_hand" / "ability_hand_right_mujoco.xml"),
-        "qpos_mapping": [8,9,0,1,2,3,6,7,4,5],
-    },
-    "leap_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "leap_hand" / "leap_hand_right_mujoco.xml"),
-        "qpos_mapping": [0,1,2,3,8,9,10,11,12,13,14,15,4,5,6,7],
-    },
-    "svh_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "schunk_hand" / "schunk_svh_hand_right_mujoco.xml"),
-        "qpos_mapping": [0,1,2,3,8,13,14,15,16,9,10,11,12,4,5,6,7,17,18,19],
-    },
-    "linkerhand_l21": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "linkerhand_l21" / f"linkerhand_l21_{side}_mujoco.xml"),
-        "qpos_mapping": [0,1,2,3,4,5,9,10,11,6,7,8,12,13,14,15,16],
-        "qpos_servo_alpha": 0.2,
-    },
-    "rohand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "rohand" / f"rohand_{side}_mujoco.xml"),
-        "qpos_mapping": [3,4,1,2,0,13,14,11,12,10,18,19,16,17,15,8,9,6,7,5,20,21,23,24,22],
-        "qpos_servo_alpha": 0.18,
-    },
-    "unitree_dex5_hand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "unitree_dex5_hand" / f"unitree_dex5_hand_{side}_mujoco.xml"),
-        "qpos_mapping": [16,17,18,19,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
-        "qpos_servo_alpha": 0.2,
-    },
-}
-
-def map_urdf_to_mujoco_menagerie(qpos):
-    ctrl = np.zeros(20, dtype=np.float32)
-    ctrl[2]=qpos[17]; ctrl[3]=qpos[18]; ctrl[4]=qpos[19]
-    ctrl[5]=qpos[20]; ctrl[6]=qpos[21]
-    ctrl[7]=qpos[0]; ctrl[8]=qpos[1]; ctrl[9]=qpos[2]+qpos[3]
-    ctrl[10]=qpos[9]; ctrl[11]=qpos[10]; ctrl[12]=qpos[11]+qpos[12]
-    ctrl[13]=qpos[13]; ctrl[14]=qpos[14]; ctrl[15]=qpos[15]+qpos[16]
-    ctrl[16]=qpos[4]; ctrl[17]=qpos[5]; ctrl[18]=qpos[6]; ctrl[19]=qpos[7]+qpos[8]
-    return ctrl
-
-def apply_qpos_to_mujoco(model, data, qpos, hand_cfg):
-    if hand_cfg.get("needs_menagerie_mapping"):
-        ctrl = map_urdf_to_mujoco_menagerie(qpos)
-    elif "qpos_mapping" in hand_cfg:
-        ctrl = qpos[hand_cfg["qpos_mapping"]]
-    else:
-        ctrl = qpos
-    ctrl = np.asarray(ctrl, dtype=np.float32)
-    alpha = hand_cfg.get("qpos_servo_alpha")
-    if alpha is not None:
-        n = min(len(ctrl), model.nq)
-        data.qpos[:n] = ctrl[:n]; data.qvel[:] = 0.0
-        mujoco.mj_forward(model, data)
-    elif model.nu > 0:
-        n = min(len(ctrl), model.nu)
-        data.ctrl[:n] = ctrl[:n]
-        for _ in range(200): mujoco.mj_step(model, data)
-    else:
-        n = min(len(ctrl), model.nq)
-        data.qpos[:n] = ctrl[:n]
-        mujoco.mj_forward(model, data)
+from input.landmark_utils import landmarks_to_array, process_landmarks
+from teleop_sim import ROBOT_HAND_CONFIGS, apply_qpos_to_mujoco
 
 
 def main():
     parser = argparse.ArgumentParser(description="跑到指定帧，打开 MuJoCo 窗口截图")
-    parser.add_argument("--config", type=str, required=True, help="配置文件 (相对于 example/)")
+    parser.add_argument("--config", type=str, default=None, help="配置文件 (相对于 example/，覆盖 --robot)")
+    parser.add_argument("--robot", type=str, default="shadow",
+                        choices=["shadow", "wuji", "allegro", "leap",
+                                 "inspire", "ability", "svh", "rohand",
+                                 "linkerhand_l21", "unitree_dex5"],
+                        help="灵巧手类型 (默认: shadow)")
     parser.add_argument("--frame", type=int, required=True, help="目标帧号")
     parser.add_argument("--video", type=str, default=str(EXAMPLE_DIR / "data" / "right.mp4"))
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"])
@@ -151,7 +44,15 @@ def main():
     args = parser.parse_args()
 
     # 加载配置
-    config_file = EXAMPLE_DIR / args.config
+    robot_name_map = {
+        "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
+        "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
+        "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
+        "unitree_dex5": "unitree_dex5_hand",
+    }
+    robot_file = robot_name_map.get(args.robot, args.robot)
+    config_path = args.config if args.config else f"config/mediapipe/mediapipe_{robot_file}.yaml"
+    config_file = EXAMPLE_DIR / config_path
     with open(config_file, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
     robot_type = config.get("robot", {}).get("type", "shadow_hand")

@@ -1,5 +1,4 @@
-# Shadow Hand Configuration for Camera Input (MediaPipe)
-# Uses high-quality meshes from MuJoCo Menagerie
+# AdaptiveOptimizerAnalytical Configuration for Quest 3 (HTS) data
 # Adaptive blend: TipDirVec when pinching, FullHandVec otherwise
 # Loss: L = Σ (α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i) + norm_delta * ||Δq||²
 # Uses Huber loss + analytical gradients + NLopt SLSQP
@@ -7,9 +6,9 @@
 optimizer:
   type: "AdaptiveOptimizerAnalytical"
 
-# Robot configuration for Shadow Hand (rh_ prefix)
 robot:
-  type: "shadow_hand"
+  type: "wuji_hand"
+  urdf_path: "/home/hand/gxnu/qsq-retargeting/assets/wuji_hand/right.urdf"
 
 retarget:
   # Huber loss thresholds
@@ -21,22 +20,21 @@ retarget:
 
   # TipDirVec parameters
   w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
-  w_dir: 5.0                   # Tip direction weight (link4 → tip vectors)
-  scaling: 0.81                # Scale MediaPipe to match Shadow Hand size (MP is ~24% larger)
+  w_dir: 10.0                  # Tip direction weight (link4 → tip vectors)
+  scaling: 1.0                 # Global MediaPipe scaling parameter
   project_tip_dir: false       # Whether to project tip direction
 
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
-
-  # Per-finger segment scaling [PIP, DIP, TIP]
   segment_scaling:
     thumb:  [1.0, 1.0, 1.0]
-    index:  [1.0, 1.0, 1.0]
+    index:  [1.0, 1.03, 1.05]
     middle: [1.0, 1.0, 1.0]
     ring:   [1.0, 1.0, 1.0]
-    pinky:  [1.0, 1.0, 1.0]
+    pinky:  [1.05, 1.15, 1.15]
 
   # Pinch distance thresholds (cm) for each finger
+  # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)
   pinch_thresholds:
     index:  { d1: 2.0, d2: 4.0 }
     middle: { d1: 2.0, d2: 4.0 }
@@ -44,22 +42,13 @@ retarget:
     pinky:  { d1: 2.0, d2: 4.0 }
 
   # MediaPipe rotation adjustment (degrees)
-  # Camera input: tuned for webcam coordinate alignment
   mediapipe_rotation:
-    x: -10.0
-    y: -20.0
-    z: -90.0
-
-  # Clamp joint lower bounds to prevent hyperextension
-  # Pattern matches joint names containing the key, sets minimum lower bound
-  clamp_joint_lower:
-    "J3": 0.0                   # Prevent MCP hyperextension for FF/MF/RF/LF
-
-  # Low-pass filter coefficient (0~1, smaller=smoother)
-  lp_alpha: 0.4
+    x: -7.0
+    y: 0.0
+    z: 0.0
 
 render:
   camera:
-    azimuth: 0
+    azimuth: 135
     elevation: -20
     distance: 0.5

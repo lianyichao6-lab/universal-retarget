@@ -1,4 +1,4 @@
-# Shadow Hand Configuration for Retargeting
+# Shadow Hand Configuration for Retargeting (Default)
 # Uses high-quality meshes from MuJoCo Menagerie
 # Adaptive blend: TipDirVec when pinching, FullHandVec otherwise
 # Loss: L = Σ (α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i) + norm_delta * ||Δq||²
@@ -10,11 +10,6 @@ optimizer:
 # Robot configuration for Shadow Hand (rh_ prefix)
 robot:
   type: "shadow_hand"
-  # Link names (matching shadow_hand_description/urdf/right_rh.urdf with rh_ prefix):
-  # - rh_palm, rh_thtip/rh_fftip/rh_mftip/rh_rftip/rh_lftip
-  # - rh_thproximal/rh_ffproximal/rh_mfproximal/rh_rfproximal/rh_lfproximal
-  # - rh_thmiddle/rh_ffmiddle/rh_mfmiddle/rh_rfmiddle/rh_lfmiddle
-  # - rh_thdistal/rh_ffdistal/rh_mfdistal/rh_rfdistal/rh_lfdistal
 
 retarget:
   # Huber loss thresholds
@@ -27,8 +22,6 @@ retarget:
   # TipDirVec parameters
   w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
   w_dir: 5.0                   # Tip direction weight (link4 → tip vectors)
-                               # Note: High w_dir conflicts with pinch optimization
-                               # Use 5.0 for better pinch accuracy, 10.0 for finger direction
   scaling: 0.81                # Scale MediaPipe to match Shadow Hand size (MP is ~24% larger)
   project_tip_dir: false       # Whether to project tip direction
 
@@ -36,7 +29,6 @@ retarget:
   w_full_hand: 1.0             # Full hand vec weight
 
   # Per-finger segment scaling [PIP, DIP, TIP]
-  # Adjust based on Shadow Hand kinematics
   segment_scaling:
     thumb:  [1.0, 1.0, 1.0]
     index:  [1.0, 1.0, 1.0]
@@ -45,7 +37,6 @@ retarget:
     pinky:  [1.0, 1.0, 1.0]
 
   # Pinch distance thresholds (cm) for each finger
-  # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)
   pinch_thresholds:
     index:  { d1: 2.0, d2: 4.0 }
     middle: { d1: 2.0, d2: 4.0 }
@@ -68,6 +59,6 @@ retarget:
 
 render:
   camera:
-    azimuth: 0
-    elevation: -20
-    distance: 0.5
+    azimuth: 180
+    elevation: 0.0
+    distance: 1.0

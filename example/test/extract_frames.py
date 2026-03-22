@@ -25,94 +25,11 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+EXAMPLE_DIR = Path(__file__).resolve().parents[1]
+if str(EXAMPLE_DIR) not in sys.path:
+    sys.path.insert(0, str(EXAMPLE_DIR))
 
-# MediaPipe 手部骨架连接
-_HAND_CONNECTIONS = [
-    (0, 1), (1, 2), (2, 3), (3, 4),
-    (0, 5), (5, 6), (6, 7), (7, 8),
-    (0, 9), (9, 10), (10, 11), (11, 12),
-    (0, 13), (13, 14), (14, 15), (15, 16),
-    (0, 17), (17, 18), (18, 19), (19, 20),
-    (5, 9), (9, 13), (13, 17),
-]
-
-# 与 video.py 保持一致的参考值
-_REFERENCE_WRIST_TO_MIDDLE_MCP = 0.092
-_REFERENCE_SEGMENT_LENGTHS = {
-    "thumb":  [0.0505, 0.0318, 0.0302],
-    "index":  [0.0418, 0.0243, 0.0223],
-    "middle": [0.0489, 0.0289, 0.0227],
-    "ring":   [0.0422, 0.0274, 0.0227],
-    "pinky":  [0.0343, 0.0195, 0.0201],
-}
-_FINGER_INDICES = {
-    "thumb":  [1, 2, 3, 4],
-    "index":  [5, 6, 7, 8],
-    "middle": [9, 10, 11, 12],
-    "ring":   [13, 14, 15, 16],
-    "pinky":  [17, 18, 19, 20],
-}
-
-
-def _correct_segment_lengths(kp: np.ndarray) -> np.ndarray:
-    kp_corrected = kp.copy()
-    for finger_name, indices in _FINGER_INDICES.items():
-        ref_lengths = _REFERENCE_SEGMENT_LENGTHS[finger_name]
-        mcp_i, pip_i, dip_i, tip_i = indices
-        base = kp_corrected[mcp_i].copy()
-
-        seg1 = kp[pip_i] - kp[mcp_i]
-        seg1_len = np.linalg.norm(seg1)
-        if seg1_len > 1e-6:
-            kp_corrected[pip_i] = base + (seg1 / seg1_len) * ref_lengths[0]
-
-        seg2 = kp[dip_i] - kp[pip_i]
-        seg2_len = np.linalg.norm(seg2)
-        if seg2_len > 1e-6:
-            kp_corrected[dip_i] = kp_corrected[pip_i] + (seg2 / seg2_len) * ref_lengths[1]
-
-        seg3 = kp[tip_i] - kp[dip_i]
-        seg3_len = np.linalg.norm(seg3)
-        if seg3_len > 1e-6:
-            kp_corrected[tip_i] = kp_corrected[dip_i] + (seg3 / seg3_len) * ref_lengths[2]
-    return kp_corrected
-
-
-def process_landmarks(kp: np.ndarray, depth_scale: float = 1.25) -> np.ndarray:
-    """与 video.py 一致的 landmark 后处理：归一化 + 段长矫正 + 深度缩放。"""
-    kp = kp - kp[0:1, :]
-    dist = np.linalg.norm(kp[9])
-    if dist < 1e-6:
-        return kp
-    scale = _REFERENCE_WRIST_TO_MIDDLE_MCP / dist
-    kp = kp * scale
-    kp = _correct_segment_lengths(kp)
-    kp[:, 2] *= depth_scale
-    return kp
-
-
-def landmarks_to_array(hand_landmarks, w: int, h: int) -> np.ndarray:
-    kp = np.array(
-        [[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark],
-        dtype=np.float32,
-    )
-    kp[:, 0] *= w
-    kp[:, 1] *= h
-    kp[:, 2] *= w * 2.5
-    return kp
-
-
-def draw_skeleton(frame: np.ndarray, raw_lm, color=(0, 255, 0)):
-    """在帧上绘制手部骨架。"""
-    h, w = frame.shape[:2]
-    pts = [(int(x * w), int(y * h)) for x, y in raw_lm]
-    for s, e in _HAND_CONNECTIONS:
-        cv2.line(frame, pts[s], pts[e], color, 2)
-    for pt in pts:
-        cv2.circle(frame, pt, 4, (0, 0, 255), -1)
+from input.landmark_utils import landmarks_to_array, process_landmarks, draw_skeleton
 
 
 def main():

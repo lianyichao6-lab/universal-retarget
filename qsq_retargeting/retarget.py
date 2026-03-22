@@ -7,7 +7,7 @@ Provides a high-level interface that handles:
 - Low-pass filtering
 
 Usage:
-    retargeter = Retargeter.from_yaml("config/adaptive_manus.yaml", hand_side="right")
+    retargeter = Retargeter.from_yaml("config/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
     qpos = retargeter.retarget(raw_keypoints)  # (21, 3) -> (20,)
 """
 
@@ -19,7 +19,7 @@ from typing import Optional, Tuple
 import numpy as np
 import yaml
 
-from .opt import BaseOptimizer, LPFilter
+from .optimizer import BaseOptimizer, LPFilter
 from .mediapipe import apply_mediapipe_transformations
 
 

@@ -19,13 +19,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from qsq_retargeting import Retargeter
-from input_devices.visionpro import VisionPro
-from input_devices.mediapipe_replay import MediaPipeReplay
+from input.visionpro import VisionPro
+from input.mediapipe_replay import MediaPipeReplay
 
 
 def run_teleop(
     hand_side: str = "right",
-    config_path: str = "config/adaptive_analytical_avp.yaml",
+    config_path: str = "config/mediapipe/mediapipe_shadow_hand.yaml",
     input_device_type: str = "mediapipe_replay",
     visionpro_ip: str = "192.168.50.127",
     mediapipe_replay_path: str = "data/avp1.pkl",
@@ -190,8 +190,13 @@ Examples:
         """,
     )
 
-    parser.add_argument("--config", type=str, default="config/adaptive_analytical_avp.yaml",
-                        help="Path to YAML configuration file")
+    parser.add_argument("--config", type=str, default=None,
+                        help="Path to YAML configuration file (overrides --robot)")
+    parser.add_argument("--robot", type=str, default="shadow",
+                        choices=["shadow", "wuji", "allegro", "leap",
+                                 "inspire", "ability", "svh", "rohand",
+                                 "linkerhand_l21", "unitree_dex5"],
+                        help="Robot hand type (default: shadow)")
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"],
                         help="Hand side (default: right)")
 
@@ -224,9 +229,24 @@ Examples:
         input_device_type = "mediapipe_replay"
         mediapipe_replay_path = "data/avp1.pkl"
 
+    config_path = args.config
+    if config_path is None:
+        robot_name_map = {
+            "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
+            "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
+            "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
+            "unitree_dex5": "unitree_dex5_hand",
+        }
+        input_to_dir = {
+            "visionpro": "avp",
+        }
+        config_dir = input_to_dir.get(input_device_type, "mediapipe")
+        robot_file = robot_name_map.get(args.robot, args.robot)
+        config_path = f"config/{config_dir}/{config_dir}_{robot_file}.yaml"
+
     log = run_teleop(
         hand_side=args.hand,
-        config_path=args.config,
+        config_path=config_path,
         input_device_type=input_device_type,
         visionpro_ip=args.ip,
         mediapipe_replay_path=mediapipe_replay_path,
