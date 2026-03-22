@@ -192,9 +192,9 @@ def _apply_camera_config(
 def run_teleop(
     hand_side: str = "right",
     config_path: str = "config/mediapipe/mediapipe_shadow_hand.yaml",
-    input_device_type: str = "mediapipe_replay",
+    input_device_type: str = "video",
     mediapipe_replay_path: str = "",
-    video_path: str = "",
+    video_path: str = "data/right.mp4",
     visionpro_ip: str = "192.168.50.127",
     quest3_port: int = 9000,
     quest3_protocol: str = "udp",
@@ -618,11 +618,13 @@ def main():
         mediapipe_replay_path = args.play
 
     if input_device_type is None:
-        input_device_type = "mediapipe_replay"
-        mediapipe_replay_path = "data/avp1.pkl"
+        input_device_type = "video"
+        video_path = "data/right.mp4"
 
     if input_device_type == "mediapipe_replay" and not mediapipe_replay_path:
         parser.error("--play FILE is required for mediapipe_replay mode")
+    if input_device_type == "video" and not video_path:
+        parser.error("--video FILE is required for video mode")
 
     config_path = args.config
     if config_path is None:

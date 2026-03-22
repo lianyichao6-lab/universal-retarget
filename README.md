@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-High-precision hand pose retargeting system. Based on adaptive analytical optimization with support for Shadow Hand (MuJoCo Menagerie) and Apple Vision Pro hand tracking for real-time teleoperation.
+High-precision hand pose retargeting system. Based on adaptive analytical optimization, with support for multiple dexterous hands and multiple hand-tracking input sources for simulation and teleoperation.
 
 ## Demo
 
@@ -32,15 +32,24 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 
 ## Supported Robots
 
-| Robot | Config File | Description |
-|-------|-------------|-------------|
-| **Shadow Hand** | `shadow_hand_menagerie.yaml` | Shadow Hand with MuJoCo Menagerie meshes (default) |
-| **Wuji Hand** | `wuji_hand.yaml` | Wuji Hand 5-finger 20 DOF |
-| **Allegro Hand** | `allegro_hand.yaml` | Allegro Hand 4-finger 16 DOF |
-| **Inspire Hand** | `inspire_hand.yaml` | Inspire Hand 5-finger with mimic joints |
-| **Ability Hand** | `ability_hand.yaml` | Ability Hand 5-finger with mimic joints |
-| **Leap Hand** | `leap_hand.yaml` | Leap Hand 4-finger 16 DOF |
-| **SVH Hand** | `svh_hand.yaml` | Schunk SVH Hand 5-finger with mimic joints |
+Config files are grouped by input source:
+
+- `example/config/mediapipe/mediapipe_<robot>.yaml` for camera / video / replay input
+- `example/config/avp/avp_<robot>.yaml` for Apple Vision Pro input
+- `example/config/quest3/quest3_<robot>.yaml` for Meta Quest 3 input
+
+| Robot | `--robot` value | Config suffix | Description |
+|-------|------------------|---------------|-------------|
+| **Shadow Hand** | `shadow` | `shadow_hand` | Shadow Hand with MuJoCo Menagerie meshes (default sim target) |
+| **Wuji Hand** | `wuji` | `wuji_hand` | Wuji Hand, 5 fingers / 20 DOF |
+| **Allegro Hand** | `allegro` | `allegro_hand` | Allegro Hand, 4 fingers / 16 DOF |
+| **Inspire Hand** | `inspire` | `inspire_hand` | Inspire Hand with mimic joints |
+| **Ability Hand** | `ability` | `ability_hand` | Ability Hand with mimic joints |
+| **Leap Hand** | `leap` | `leap_hand` | Leap Hand, 4 fingers / 16 DOF |
+| **SVH Hand** | `svh` | `svh_hand` | Schunk SVH Hand with mimic joints |
+| **LinkerHand L21** | `linkerhand_l21` | `linkerhand_l21` | LinkerHand L21 |
+| **ROHand** | `rohand` | `rohand` | ROHand |
+| **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 
 ## Repository Structure
 
@@ -64,8 +73,9 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 │   ├── config/                            # YAML configurations (by input source)
 │   │   ├── avp/                           # Apple Vision Pro configs
 │   │   ├── quest3/                        # Meta Quest 3 configs
-│   │   └���─ mediapipe/                     # MediaPipe (camera/video/replay) configs
+│   │   └── mediapipe/                     # MediaPipe (camera/video/replay) configs
 │   └── data/                              # Sample recordings
+├── assets/                                # Robot URDF / MuJoCo assets
 └── requirements.txt
 ```
 
@@ -99,34 +109,58 @@ conda install -c conda-forge pinocchio
 
 **macOS MuJoCo**: Use `mjpython` instead of `python`:
 ```bash
-mjpython example/teleop_sim.py --play example/data/avp1.pkl
+mjpython example/teleop_sim.py --video example/data/right.mp4
 ```
 
 ## Quick Start
 
-### Shadow Hand (Default)
+The repository currently includes:
+
+- `example/data/right.mp4`: sample input video
+- `example/data/avp1.pkl`: optional recorded hand-tracking replay
+
+### Simulation
 
 ```bash
 cd example
 
-# Replay recorded data
-python teleop_sim.py --play data/avp1.pkl --hand right
+# Run the included sample video
+python teleop_sim.py --video data/right.mp4 --robot shadow --hand right
+
+# Replay the optional sample recording
+python teleop_sim.py --play data/avp1.pkl --robot shadow --hand right
 
 # Real-time with laptop camera (MediaPipe)
-python teleop_sim.py --input camera --hand right
+python teleop_sim.py --input camera --robot shadow --hand right
 
 # Real-time with Vision Pro
-python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
+python teleop_sim.py --input visionpro --robot shadow --ip <vision-pro-ip> --hand right
 
 # Real-time with Quest 3 (via Hand Tracking Streamer)
-python teleop_sim.py --input quest3 --port 9000 --hand right
+python teleop_sim.py --input quest3 --robot shadow --port 9000 --hand right
+
+# Real-time with RealSense
+python teleop_sim.py --realsense --robot shadow --hand right --show-video
+
+# Replay your own recording (.pkl)
+python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 ```
 
 ### Real Hardware
 
+`teleop_real.py` currently sends `5 x 4` joint targets through `wujihandpy`, so it is intended for **Wuji Hand hardware**. It supports `visionpro` and `mediapipe_replay` input.
+
 ```bash
 cd example
-python teleop_real.py --play data/avp1.pkl --hand right
+
+# Live Vision Pro -> Wuji Hand
+python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand right
+
+# Replay the optional sample recording -> Wuji Hand
+python teleop_real.py --robot wuji --play data/avp1.pkl --hand right
+
+# Replay your own recording -> Wuji Hand
+python teleop_real.py --robot wuji --play path/to/record.pkl --hand right
 
 # Linux USB permission
 sudo chmod a+rw /dev/ttyUSB0
@@ -136,10 +170,12 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--robot` | `shadow` | Robot hand type (e.g. `wuji`, `allegro`, `inspire`) |
+| `--robot` | `shadow` (sim) / `wuji` (real) | Robot hand type |
 | `--config` | auto-select | Configuration file (overrides `--robot`) |
-| `--hand` | `left` (sim) / `right` (real) | Hand side (`left`/`right`) |
-| `--input` | - | Input type (`visionpro`/`quest3`/`camera`/`mediapipe_replay`) |
+| `--hand` | `right` | Hand side (`left`/`right`) |
+| `--input` | - | `teleop_sim.py`: `visionpro` / `quest3` / `camera` / `realsense` / `video` / `mediapipe_replay` |
+| `--input` | - | `teleop_real.py`: `visionpro` / `mediapipe_replay` |
+| `--realsense` | off | Shortcut for `--input realsense` |
 | `--play FILE` | - | Replay recording (shortcut for `--input mediapipe_replay`) |
 | `--video FILE` | - | Video file input with MediaPipe hand detection |
 | `--ip` | `192.168.50.127` | Vision Pro IP |
@@ -148,7 +184,12 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--speed` | `1.0` | Playback speed |
 | `--record` | - | Record input data |
 | `--output FILE` | - | Output file path for recording |
+| `--show-video` | off | Show RGB / landmark preview for supported inputs |
+| `--video-depth-scale` | `1.25` | Extra depth scaling for `--video` mode |
 | `--no-loop` | - | Disable looping for replay |
+| `--headless` | off | Run simulation without GUI viewer |
+| `--save-sim FILE` | - | Save offscreen simulation video |
+| `--save-qpos FILE` | - | Save target / simulated qpos trajectory |
 
 ### Debug & Visualization Tools
 
@@ -169,8 +210,11 @@ python test/debug_skeleton.py --robot leap --input camera
 # With video file
 python test/debug_skeleton.py --robot leap --video data/right.mp4
 
-# With recorded data
+# With optional sample recording
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl
+
+# With your own recorded data
+python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
 ```
 
 #### visualize_scaling.py
@@ -180,11 +224,14 @@ Visualize how `scaling` and `segment_scaling` parameters affect MediaPipe keypoi
 ```bash
 cd example
 
-# With recorded data
-python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
-
 # With video file
 python test/visualize_scaling.py --robot leap --video data/right.mp4 --hand right
+
+# With optional sample recording
+python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
+
+# With your own recorded data
+python test/visualize_scaling.py --robot allegro --play path/to/record.pkl --hand right
 ```
 
 ## Configuration
@@ -196,7 +243,7 @@ optimizer:
   type: "AdaptiveOptimizerAnalytical"
 
 robot:
-  type: "shadow_hand_menagerie"
+  type: "shadow_hand"
 
 retarget:
   # Loss weights

@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-高精度手部姿态重定向系统。基于自适应解析优化，支持 Shadow Hand（MuJoCo Menagerie），支持 Apple Vision Pro 手部追踪实时遥操作。
+高精度手部姿态重定向系统。基于自适应解析优化，支持多种灵巧手模型和多种手部追踪输入源，可用于仿真与遥操作。
 
 ## 演示
 
@@ -32,15 +32,24 @@
 
 ## 支持的机器人
 
-| 机器人 | 配置文件 | 说明 |
-|--------|----------|------|
-| **Shadow Hand** | `shadow_hand_menagerie.yaml` | Shadow Hand + MuJoCo Menagerie 高精度模型（默认） |
-| **Wuji Hand** | `wuji_hand.yaml` | 无极灵巧手 5 指 20 自由度 |
-| **Allegro Hand** | `allegro_hand.yaml` | Allegro Hand 4 指 16 自由度 |
-| **Inspire Hand** | `inspire_hand.yaml` | 因时灵巧手 5 指（含 mimic 关节） |
-| **Ability Hand** | `ability_hand.yaml` | Ability Hand 5 指（含 mimic 关节） |
-| **Leap Hand** | `leap_hand.yaml` | Leap Hand 4 指 16 自由度 |
-| **SVH Hand** | `svh_hand.yaml` | Schunk SVH Hand 5 指（含 mimic 关节） |
+配置文件现在按输入源分类：
+
+- `example/config/mediapipe/mediapipe_<robot>.yaml`：摄像头 / 视频 / 回放
+- `example/config/avp/avp_<robot>.yaml`：Apple Vision Pro
+- `example/config/quest3/quest3_<robot>.yaml`：Meta Quest 3
+
+| 机器人 | `--robot` 参数 | 配置后缀 | 说明 |
+|--------|----------------|----------|------|
+| **Shadow Hand** | `shadow` | `shadow_hand` | Shadow Hand + MuJoCo Menagerie 模型（默认仿真目标） |
+| **Wuji Hand** | `wuji` | `wuji_hand` | 无极灵巧手，5 指 / 20 自由度 |
+| **Allegro Hand** | `allegro` | `allegro_hand` | Allegro Hand，4 指 / 16 自由度 |
+| **Inspire Hand** | `inspire` | `inspire_hand` | 因时灵巧手，含 mimic 关节 |
+| **Ability Hand** | `ability` | `ability_hand` | Ability Hand，含 mimic 关节 |
+| **Leap Hand** | `leap` | `leap_hand` | Leap Hand，4 指 / 16 自由度 |
+| **SVH Hand** | `svh` | `svh_hand` | Schunk SVH Hand，含 mimic 关节 |
+| **LinkerHand L21** | `linkerhand_l21` | `linkerhand_l21` | LinkerHand L21 |
+| **ROHand** | `rohand` | `rohand` | ROHand |
+| **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 
 ## 仓库结构
 
@@ -66,6 +75,7 @@
 │   │   ├── quest3/                        # Meta Quest 3 配置
 │   │   └── mediapipe/                     # MediaPipe（摄像头/视频/回放）配置
 │   └── data/                              # 示例录制数据
+├── assets/                                # 机器人 URDF / MuJoCo 资源
 └── requirements.txt
 ```
 
@@ -99,34 +109,58 @@ conda install -c conda-forge pinocchio
 
 **macOS MuJoCo**：仿真脚本使用 `mjpython` 代替 `python`：
 ```bash
-mjpython example/teleop_sim.py --play example/data/avp1.pkl
+mjpython example/teleop_sim.py --video example/data/right.mp4
 ```
 
 ## 快速开始
 
-### Shadow Hand（默认）
+仓库当前自带两个示例输入：
+
+- `example/data/right.mp4`：示例视频输入
+- `example/data/avp1.pkl`：可选的录制回放输入
+
+### 仿真
 
 ```bash
 cd example
 
-# 回放录制数据
-python teleop_sim.py --play data/avp1.pkl --hand right
+# 运行仓库自带示例视频
+python teleop_sim.py --video data/right.mp4 --robot shadow --hand right
+
+# 回放可选示例录制数据
+python teleop_sim.py --play data/avp1.pkl --robot shadow --hand right
 
 # 笔记本摄像头实时遥操作（MediaPipe）
-python teleop_sim.py --input camera --hand right
+python teleop_sim.py --input camera --robot shadow --hand right
 
 # Vision Pro 实时遥操作
-python teleop_sim.py --input visionpro --ip <vision-pro-ip> --hand right
+python teleop_sim.py --input visionpro --robot shadow --ip <vision-pro-ip> --hand right
 
 # Quest 3 实时遥操作（通过 Hand Tracking Streamer）
-python teleop_sim.py --input quest3 --port 9000 --hand right
+python teleop_sim.py --input quest3 --robot shadow --port 9000 --hand right
+
+# RealSense 实时遥操作
+python teleop_sim.py --realsense --robot shadow --hand right --show-video
+
+# 回放你自己的录制文件（.pkl）
+python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 ```
 
 ### 真机控制
 
+`teleop_real.py` 当前通过 `wujihandpy` 发送 `5 x 4` 关节目标，因此它面向的是 **Wuji Hand 真机**。当前支持 `visionpro` 和 `mediapipe_replay` 两种输入。
+
 ```bash
 cd example
-python teleop_real.py --play data/avp1.pkl --hand right
+
+# Vision Pro -> Wuji Hand
+python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand right
+
+# 回放可选示例录制数据 -> Wuji Hand
+python teleop_real.py --robot wuji --play data/avp1.pkl --hand right
+
+# 你自己的录制文件 -> Wuji Hand
+python teleop_real.py --robot wuji --play path/to/record.pkl --hand right
 
 # Linux USB 权限
 sudo chmod a+rw /dev/ttyUSB0
@@ -136,10 +170,12 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--robot` | `shadow` | 灵巧手类型（如 `wuji`、`allegro`、`inspire`） |
+| `--robot` | `shadow`（sim）/ `wuji`（real） | 灵巧手类型 |
 | `--config` | 自动选择 | 配置文件（覆盖 `--robot`） |
-| `--hand` | `left`（sim）/ `right`（real） | 手的方向（`left`/`right`） |
-| `--input` | - | 输入类型（`visionpro`/`quest3`/`camera`/`mediapipe_replay`） |
+| `--hand` | `right` | 手的方向（`left`/`right`） |
+| `--input` | - | `teleop_sim.py`：`visionpro` / `quest3` / `camera` / `realsense` / `video` / `mediapipe_replay` |
+| `--input` | - | `teleop_real.py`：`visionpro` / `mediapipe_replay` |
+| `--realsense` | 关闭 | `--input realsense` 的快捷方式 |
 | `--play FILE` | - | 回放录制（`--input mediapipe_replay` 的快捷方式） |
 | `--video FILE` | - | 视频文件输入（MediaPipe 手部检测） |
 | `--ip` | `192.168.50.127` | Vision Pro IP |
@@ -148,13 +184,18 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--speed` | `1.0` | 播放速度 |
 | `--record` | - | 录制输入数据 |
 | `--output FILE` | - | 录制输出文件路径 |
+| `--show-video` | 关闭 | 显示 RGB / 关键点预览 |
+| `--video-depth-scale` | `1.25` | `--video` 模式下额外深度缩放 |
 | `--no-loop` | - | 禁用回放循环 |
+| `--headless` | 关闭 | 无 GUI 运行仿真 |
+| `--save-sim FILE` | - | 保存离屏仿真视频 |
+| `--save-qpos FILE` | - | 保存目标 / 仿真 qpos 轨迹 |
 
 ### 调试与可视化工具
 
 #### debug_skeleton.py
 
-在 MuJoCo 查看器中对比三���骨架，用于调试重定向问题：
+在 MuJoCo 查看器中对比三套骨架，用于调试重定向问题：
 
 - **蓝色**：原始 MediaPipe 骨架（坐标变换后，未缩放）
 - **绿色**：缩放后的目标骨架（优化器的匹配目标）
@@ -169,8 +210,11 @@ python test/debug_skeleton.py --robot leap --input camera
 # 视频文件输入
 python test/debug_skeleton.py --robot leap --video data/right.mp4
 
-# 回放录制数据
+# 使用可选示例录制数据
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl
+
+# 你自己的录制数据
+python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
 ```
 
 #### visualize_scaling.py
@@ -180,11 +224,14 @@ python test/debug_skeleton.py --robot shadow --play data/avp1.pkl
 ```bash
 cd example
 
-# 回放录制数据
-python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
-
 # 视频文件输入
 python test/visualize_scaling.py --robot leap --video data/right.mp4 --hand right
+
+# 使用可选示例录制数据
+python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
+
+# 你自己的录制数据
+python test/visualize_scaling.py --robot allegro --play path/to/record.pkl --hand right
 ```
 
 ## 配置说明
@@ -196,7 +243,7 @@ optimizer:
   type: "AdaptiveOptimizerAnalytical"
 
 robot:
-  type: "shadow_hand_menagerie"
+  type: "shadow_hand"
 
 retarget:
   # 损失权重

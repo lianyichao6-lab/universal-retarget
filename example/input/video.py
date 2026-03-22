@@ -8,6 +8,8 @@ Usage:
     python teleop_sim.py --video data/right.mp4 --hand right --show-video
 """
 
+from pathlib import Path
+
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -39,7 +41,12 @@ class Video:
         self.correct_segments = correct_segments
         self.depth_scale = float(depth_scale)
 
-        self._cap = cv2.VideoCapture(video_path)
+        video_path = Path(video_path)
+        if not video_path.is_absolute():
+            video_path = Path(__file__).resolve().parents[1] / video_path
+
+        self.video_path = video_path
+        self._cap = cv2.VideoCapture(str(self.video_path))
         if not self._cap.isOpened():
             raise RuntimeError(f"Cannot open video: {video_path}")
 

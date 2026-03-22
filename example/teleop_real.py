@@ -25,7 +25,7 @@ from input.mediapipe_replay import MediaPipeReplay
 
 def run_teleop(
     hand_side: str = "right",
-    config_path: str = "config/mediapipe/mediapipe_shadow_hand.yaml",
+    config_path: str = "config/mediapipe/mediapipe_wuji_hand.yaml",
     input_device_type: str = "mediapipe_replay",
     visionpro_ip: str = "192.168.50.127",
     mediapipe_replay_path: str = "data/avp1.pkl",
@@ -176,7 +176,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Simple run with default (replay data/avp1.pkl)
+  # Simple run with default (Wuji Hand + replay data/avp1.pkl)
   python teleop_real.py
 
   # Replay MediaPipe recording
@@ -192,11 +192,9 @@ Examples:
 
     parser.add_argument("--config", type=str, default=None,
                         help="Path to YAML configuration file (overrides --robot)")
-    parser.add_argument("--robot", type=str, default="shadow",
-                        choices=["shadow", "wuji", "allegro", "leap",
-                                 "inspire", "ability", "svh", "rohand",
-                                 "linkerhand_l21", "unitree_dex5"],
-                        help="Robot hand type (default: shadow)")
+    parser.add_argument("--robot", type=str, default="wuji",
+                        choices=["wuji"],
+                        help="Robot hand type (real hardware script currently supports Wuji only)")
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"],
                         help="Hand side (default: right)")
 
@@ -231,18 +229,11 @@ Examples:
 
     config_path = args.config
     if config_path is None:
-        robot_name_map = {
-            "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
-            "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
-            "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-            "unitree_dex5": "unitree_dex5_hand",
-        }
         input_to_dir = {
             "visionpro": "avp",
         }
         config_dir = input_to_dir.get(input_device_type, "mediapipe")
-        robot_file = robot_name_map.get(args.robot, args.robot)
-        config_path = f"config/{config_dir}/{config_dir}_{robot_file}.yaml"
+        config_path = f"config/{config_dir}/{config_dir}_wuji_hand.yaml"
 
     log = run_teleop(
         hand_side=args.hand,
