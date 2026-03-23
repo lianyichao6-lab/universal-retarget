@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anydexretarget"
-version = "0.2.0"
+version = "0.1.0"
 description = "High-precision hand pose retargeting system with adaptive analytical optimization for multiple dexterous hands"
 readme = "README.md"
 requires-python = ">=3.10"
