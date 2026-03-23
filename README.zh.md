@@ -358,7 +358,7 @@ L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + norm_delta · ||
 ```bibtex
 @software{anydexretarget2025,
   title={AnyDexRetarget},
-  author={QSQ},
+  author={Shiquan Qiu},
   year={2025},
   url={https://gitee.com/gx_robot/AnyDexRetarget},
 }

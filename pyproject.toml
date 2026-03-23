@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "QSQ", email = "932851972@qq.com"},
+    {name = "Shiquan Qiu", email = "932851972@qq.com"},
 ]
 keywords = ["retargeting", "dexterous-hand", "teleoperation", "hand-tracking", "mujoco"]
 classifiers = [

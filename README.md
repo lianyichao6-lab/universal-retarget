@@ -358,7 +358,7 @@ Where `dᵢ` is thumb-to-finger distance.
 ```bibtex
 @software{anydexretarget2025,
   title={AnyDexRetarget},
-  author={QSQ},
+  author={Shiquan Qiu},
   year={2025},
   url={https://gitee.com/gx_robot/AnyDexRetarget},
 }
