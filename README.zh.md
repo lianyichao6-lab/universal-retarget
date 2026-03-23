@@ -10,6 +10,14 @@
 
 [![演示视频](assets/demo_cover.png)](https://www.bilibili.com/video/BV1YfFXzXEwr)
 
+### 仿真重定向
+
+https://github.com/qqsq12321/AnyDexRetarget/raw/master/assets/videos/sim_retarget.mp4
+
+### Quest 3 手臂遥操作
+
+https://github.com/qqsq12321/AnyDexRetarget/raw/master/assets/videos/quest_hand_arm.mp4
+
 ## 特性
 
 - **Shadow Hand 支持**：Shadow Hand + MuJoCo Menagerie 高精度模型

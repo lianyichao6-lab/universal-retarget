@@ -10,6 +10,14 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 
 [![Demo Video](assets/demo_cover.png)](https://www.bilibili.com/video/BV1YfFXzXEwr)
 
+### Simulation Retargeting
+
+https://github.com/qqsq12321/AnyDexRetarget/raw/master/assets/videos/sim_retarget.mp4
+
+### Quest 3 Hand-Arm Teleoperation
+
+https://github.com/qqsq12321/AnyDexRetarget/raw/master/assets/videos/quest_hand_arm.mp4
+
 ## Features
 
 - **Shadow Hand Support**: Shadow Hand with MuJoCo Menagerie high-quality meshes
