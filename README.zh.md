@@ -12,11 +12,11 @@
 
 ### 仿真重定向
 
-https://github.com/qqsq12321/AnyDexRetarget/raw/master/assets/videos/sim_retarget.mp4
+https://github.com/user-attachments/assets/d895b484-9fbc-4831-bd84-65863fbbf2ca
 
 ### Quest 3 手臂遥操作
 
-https://github.com/qqsq12321/AnyDexRetarget/raw/master/assets/videos/quest_hand_arm.mp4
+https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 
 ## 特性
 
