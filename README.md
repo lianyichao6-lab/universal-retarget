@@ -91,6 +91,7 @@ Config files are grouped by input source:
 
 - Python >= 3.10
 - (Optional) Apple Vision Pro with [Tracking Streamer](https://apps.apple.com/us/app/tracking-streamer/id6478969032) app
+- (Optional) Meta Quest 3 with [Hand Tracking Streamer](https://github.com/wengmister/hand-tracking-streamer) app
 
 ### Install
 
