@@ -25,9 +25,9 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(EXAMPLE_ROOT) not in sys.path:
     sys.path.insert(0, str(EXAMPLE_ROOT))
 
-from qsq_retargeting import Retargeter
-from qsq_retargeting.mediapipe import apply_mediapipe_transformations
-from qsq_retargeting.optimizer.base_optimizer import M_TO_CM
+from anydexretarget import Retargeter
+from anydexretarget.mediapipe import apply_mediapipe_transformations
+from anydexretarget.optimizer.base_optimizer import M_TO_CM
 
 # MediaPipe hand connections
 MP_CONNECTIONS = [
@@ -144,7 +144,7 @@ def visualize_matplotlib(frames_raw, config_path, hand_side):
     robot_config = config.get('robot', {})
     robot_type = robot_config.get('type', 'shadow_hand')
 
-    from qsq_retargeting.optimizer.base_optimizer import BaseOptimizer
+    from anydexretarget.optimizer.base_optimizer import BaseOptimizer
     robot_defaults = BaseOptimizer.ROBOT_CONFIGS.get(robot_type, {})
     num_fingers = robot_defaults.get('num_fingers', 5)
 

@@ -2,7 +2,7 @@
 
 import numpy as np
 from avp_stream import VisionProStreamer
-from qsq_retargeting.mediapipe import MediaPipeSmoother
+from anydexretarget.mediapipe import MediaPipeSmoother
 
 # VisionPro 25 joints to MediaPipe 21 landmarks mapping
 VP_TO_MEDIAPIPE = (

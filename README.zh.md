@@ -1,6 +1,6 @@
 中文 | [English](README.md)
 
-# qsq-retargeting
+# AnyDexRetarget
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -54,7 +54,7 @@
 ## 仓库结构
 
 ```text
-├── qsq_retargeting/
+├── anydexretarget/
 │   ├── retarget.py                        # 高层统一接口
 │   ├── robot.py                           # Pinocchio 机器人包装
 │   ├── mediapipe.py                       # MediaPipe 坐标变换
@@ -89,8 +89,8 @@
 ### 安装步骤
 
 ```bash
-git clone https://gitee.com/gx_robot/qsq-retargeting.git
-cd qsq-retargeting
+git clone https://gitee.com/gx_robot/AnyDexRetarget.git
+cd AnyDexRetarget
 
 # 通过 conda 安装 pinocchio（推荐，预编译二进制包）
 conda install -c conda-forge pinocchio
@@ -148,7 +148,7 @@ python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 
 ### 真机控制
 
-`teleop_real.py` 当前通过 `wujihandpy` 发送 `5 x 4` 关节目标，因此它面向的是 **Wuji Hand 真机**。当前支持 `visionpro` 和 `mediapipe_replay` 两种输入。
+`teleop_real.py` 以 **Wuji Hand** 为示例，演示真机遥操作。它通过 `wujihandpy` 发送 `5 x 4` 关节目标，你可以参考其控制循环适配其他灵巧手。当前支持 `visionpro` 和 `mediapipe_replay` 两种输入。
 
 ```bash
 cd example
@@ -290,7 +290,7 @@ retarget:
 ### 基本用法
 
 ```python
-from qsq_retargeting import Retargeter
+from anydexretarget import Retargeter
 
 # 从配置文件加载
 retargeter = Retargeter.from_yaml("config/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
@@ -349,11 +349,11 @@ L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + norm_delta · ||
 ## 引用
 
 ```bibtex
-@software{qsq2025retargeting,
-  title={Hand Retargeting},
+@software{anydexretarget2025,
+  title={AnyDexRetarget},
   author={QSQ},
   year={2025},
-  url={https://gitee.com/gx_robot/qsq-retargeting},
+  url={https://gitee.com/gx_robot/AnyDexRetarget},
 }
 ```
 
@@ -368,4 +368,4 @@ L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + norm_delta · ||
 
 ## 联系方式
 
-如有问题，请在 [Gitee](https://gitee.com/gx_robot/qsq-retargeting/issues) 上提交 issue 或通过 932851972@qq.com 联系作者。
+如有问题，请在 [Gitee](https://gitee.com/gx_robot/AnyDexRetarget/issues) 上提交 issue 或通过 932851972@qq.com 联系作者。

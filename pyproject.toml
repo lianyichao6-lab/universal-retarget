@@ -3,7 +3,7 @@ requires = ["setuptools>=64.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "qsq-retargeting"
+name = "anydexretarget"
 version = "0.2.0"
 description = "High-precision hand pose retargeting system for WujiHand using Wuji Retargeting algorithm"
 readme = "README.md"
@@ -16,11 +16,11 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["qsq_retargeting"]
+packages = ["anydexretarget"]
 
 # Important: Ensure URDF and STL files are included in the package
 [tool.setuptools.package-data]
-"qsq_retargeting" = [
+"anydexretarget" = [
     "urdf/*.urdf",
     "meshes/**/*.STL",
 ]

@@ -1,14 +1,14 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="qsq-retargeting",
+    name="anydexretarget",
     version="0.2.0",
     description="High-precision hand pose retargeting system for Shadow Hand using adaptive analytical optimization",
     python_requires=">=3.10",
     license="MIT",
     packages=find_packages(),
     package_data={
-        "qsq_retargeting": [],
+        "anydexretarget": [],
     },
     include_package_data=True,
     install_requires=[

@@ -6,7 +6,7 @@ optimizer:
 
 robot:
   type: "allegro_hand"
-  urdf_path: "/home/hand/gxnu/qsq-retargeting/assets/allegro_hand/allegro_hand_right.urdf"
+  urdf_path: "assets/allegro_hand/allegro_hand_right.urdf"
 
 retarget:
   huber_delta: 2.0

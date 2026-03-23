@@ -24,7 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(EXAMPLE_DIR) not in sys.path:
     sys.path.insert(0, str(EXAMPLE_DIR))
 
-from qsq_retargeting import Retargeter
+from anydexretarget import Retargeter
 from input.landmark_utils import landmarks_to_array, process_landmarks
 from teleop_sim import ROBOT_HAND_CONFIGS, apply_qpos_to_mujoco
 

@@ -6,7 +6,7 @@ optimizer:
 
 robot:
   type: "ability_hand"
-  urdf_path: "/home/hand/gxnu/qsq-retargeting/assets/ability_hand/ability_hand_right.urdf"
+  urdf_path: "assets/ability_hand/ability_hand_right.urdf"
 
 retarget:
   huber_delta: 2.0

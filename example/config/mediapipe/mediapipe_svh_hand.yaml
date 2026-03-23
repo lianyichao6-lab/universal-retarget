@@ -6,7 +6,7 @@ optimizer:
 
 robot:
   type: "svh_hand"
-  urdf_path: "/home/hand/gxnu/qsq-retargeting/assets/schunk_hand/schunk_svh_hand_right.urdf"
+  urdf_path: "assets/schunk_hand/schunk_svh_hand_right.urdf"
 
 retarget:
   huber_delta: 2.0

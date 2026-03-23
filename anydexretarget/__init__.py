@@ -1,13 +1,13 @@
-"""QSQ Hand Retargeting Module.
+"""AnyDexRetarget - Hand Pose Retargeting Module.
 
-Provides hand pose retargeting from MediaPipe format to Shadow Hand joint angles.
+Provides hand pose retargeting from MediaPipe format to dexterous robot hand joint angles.
 
 Main classes:
 - Retargeter: High-level unified interface (recommended)
 - BaseOptimizer: Low-level optimizer access
 
 Example:
-    from qsq_retargeting import Retargeter
+    from anydexretarget import Retargeter
 
     retargeter = Retargeter.from_yaml("config/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
     qpos = retargeter.retarget(raw_keypoints)  # (21, 3) -> (22,)

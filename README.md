@@ -1,6 +1,6 @@
 [中文](README.zh.md) | English
 
-# qsq-retargeting
+# AnyDexRetarget
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -54,7 +54,7 @@ Config files are grouped by input source:
 ## Repository Structure
 
 ```text
-├── qsq_retargeting/
+├── anydexretarget/
 │   ├── retarget.py                        # High-level unified interface
 │   ├── robot.py                           # Pinocchio robot wrapper
 │   ├── mediapipe.py                       # MediaPipe coordinate transforms
@@ -89,8 +89,8 @@ Config files are grouped by input source:
 ### Install
 
 ```bash
-git clone https://gitee.com/gx_robot/qsq-retargeting.git
-cd qsq-retargeting
+git clone https://gitee.com/gx_robot/AnyDexRetarget.git
+cd AnyDexRetarget
 
 # Install pinocchio via conda (recommended, pre-built binaries)
 conda install -c conda-forge pinocchio
@@ -148,7 +148,7 @@ python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 
 ### Real Hardware
 
-`teleop_real.py` currently sends `5 x 4` joint targets through `wujihandpy`, so it is intended for **Wuji Hand hardware**. It supports `visionpro` and `mediapipe_replay` input.
+`teleop_real.py` demonstrates real hardware teleoperation using **Wuji Hand** as an example. It sends `5 x 4` joint targets through `wujihandpy`. You can adapt the control loop for other robot hands. It supports `visionpro` and `mediapipe_replay` input.
 
 ```bash
 cd example
@@ -290,7 +290,7 @@ retarget:
 ### Basic Usage
 
 ```python
-from qsq_retargeting import Retargeter
+from anydexretarget import Retargeter
 
 # Load from config file
 retargeter = Retargeter.from_yaml("config/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
@@ -349,11 +349,11 @@ Where `dᵢ` is thumb-to-finger distance.
 ## Citation
 
 ```bibtex
-@software{qsq2025retargeting,
-  title={Hand Retargeting},
+@software{anydexretarget2025,
+  title={AnyDexRetarget},
   author={QSQ},
   year={2025},
-  url={https://gitee.com/gx_robot/qsq-retargeting},
+  url={https://gitee.com/gx_robot/AnyDexRetarget},
 }
 ```
 
@@ -368,4 +368,4 @@ Where `dᵢ` is thumb-to-finger distance.
 
 ## Contact
 
-For questions, please open an issue on [Gitee](https://gitee.com/gx_robot/qsq-retargeting/issues) or contact the author via 932851972@qq.com.
+For questions, please open an issue on [Gitee](https://gitee.com/gx_robot/AnyDexRetarget/issues) or contact the author via 932851972@qq.com.

@@ -19,7 +19,7 @@ from typing import Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
-from qsq_retargeting.mediapipe import MediaPipeSmoother
+from anydexretarget.mediapipe import MediaPipeSmoother
 
 logger = logging.getLogger(__name__)
 

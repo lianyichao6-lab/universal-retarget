@@ -8,7 +8,7 @@ optimizer:
 
 robot:
   type: "wuji_hand"
-  urdf_path: "/home/hand/gxnu/qsq-retargeting/assets/wuji_hand/right.urdf"
+  urdf_path: "assets/wuji_hand/right.urdf"
 
 retarget:
   # Huber loss thresholds

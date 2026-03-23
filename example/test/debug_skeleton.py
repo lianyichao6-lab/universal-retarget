@@ -29,9 +29,9 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(EXAMPLE_ROOT) not in sys.path:
     sys.path.insert(0, str(EXAMPLE_ROOT))
 
-from qsq_retargeting import Retargeter
-from qsq_retargeting.mediapipe import apply_mediapipe_transformations
-from qsq_retargeting.optimizer.base_optimizer import BaseOptimizer
+from anydexretarget import Retargeter
+from anydexretarget.mediapipe import apply_mediapipe_transformations
+from anydexretarget.optimizer.base_optimizer import BaseOptimizer
 from input.camera import Camera
 from input.video import Video
 from input.mediapipe_replay import MediaPipeReplay
