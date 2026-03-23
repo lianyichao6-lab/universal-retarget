@@ -10,7 +10,7 @@
 
 ### 仿真重定向
 
-https://github.com/user-attachments/assets/d895b484-9fbc-4831-bd84-65863fbbf2ca
+https://github.com/user-attachments/assets/0950b2b0-ecd4-4270-abf6-5729dc05c6cb
 
 ### Quest 3 手臂遥操作
 
