@@ -8,8 +8,6 @@
 
 ## 演示
 
-[![演示视频](assets/demo_cover.png)](https://www.bilibili.com/video/BV1YfFXzXEwr)
-
 ### 仿真重定向
 
 https://github.com/user-attachments/assets/d895b484-9fbc-4831-bd84-65863fbbf2ca

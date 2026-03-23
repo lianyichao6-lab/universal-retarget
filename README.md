@@ -8,8 +8,6 @@ High-precision hand pose retargeting system. Based on adaptive analytical optimi
 
 ## Demo
 
-[![Demo Video](assets/demo_cover.png)](https://www.bilibili.com/video/BV1YfFXzXEwr)
-
 ### Simulation Retargeting
 
 https://github.com/user-attachments/assets/d895b484-9fbc-4831-bd84-65863fbbf2ca
