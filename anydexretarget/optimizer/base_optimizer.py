@@ -372,6 +372,9 @@ class BaseOptimizer(ABC):
 
         if opt_type == 'AdaptiveOptimizerAnalytical':
             return AdaptiveOptimizerAnalytical(config)
+        elif opt_type == 'KeyVectorOptimizer':
+            from .key_vector_optimizer import KeyVectorOptimizer
+            return KeyVectorOptimizer(config)
         else:
             raise ValueError(f"Unknown optimizer type: {opt_type}")
 

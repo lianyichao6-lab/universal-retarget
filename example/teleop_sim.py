@@ -542,7 +542,10 @@ def main():
     )
 
     parser.add_argument("--config", type=str, default=None,
-                        help="Path to YAML configuration file (overrides --robot)")
+                        help="Path to YAML configuration file (overrides --robot and --optimizer)")
+    parser.add_argument("--optimizer", type=str, default="adaptive",
+                        choices=["adaptive", "vector"],
+                        help="Optimizer type: adaptive (default) or vector (KeyVectorOptimizer)")
     parser.add_argument("--robot", type=str, default="shadow",
                         choices=["shadow", "wuji", "allegro", "leap",
                                  "inspire", "ability", "svh", "rohand",
@@ -640,7 +643,7 @@ def main():
         }
         config_dir = input_to_dir.get(input_device_type, "mediapipe")
         robot_file = robot_name_map.get(args.robot, args.robot)
-        config_path = f"config/{config_dir}/{config_dir}_{robot_file}.yaml"
+        config_path = f"config/{args.optimizer}/{config_dir}/{config_dir}_{robot_file}.yaml"
 
     log = run_teleop(
         hand_side=args.hand,

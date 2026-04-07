@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-高精度手部姿态重定向系统。基于自适应解析优化，支持多种灵巧手模型和多种手部追踪输入源，可用于仿真与遥操作。
+高精度手部姿态重定向系统。支持两种优化器（**Adaptive** 和 **KeyVector**），多种灵巧手模型和多种手部追踪输入源，可用于仿真与遥操作。
 
 ## 演示
 
@@ -19,6 +19,7 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 ## 特性
 
 - **Shadow Hand 支持**：Shadow Hand + MuJoCo Menagerie 高精度模型
+- **两种优化器**：`adaptive`（对指感知，默认）和 `vector`（关键向量匹配）
 - **高精度对指**：自适应优化，精确的拇指-手指接触
 - **实时性能**：解析梯度 + NLopt SLSQP（~2ms/帧）
 - **多输入源**：Apple Vision Pro、Meta Quest 3、笔记本摄像头（MediaPipe）、录制数据回放
@@ -38,11 +39,19 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 
 ## 支持的机器人
 
-配置文件现在按输入源分类：
+配置文件按**优化器类型**和**输入源**分类：
 
-- `example/config/mediapipe/mediapipe_<robot>.yaml`：摄像头 / 视频 / 回放
-- `example/config/avp/avp_<robot>.yaml`：Apple Vision Pro
-- `example/config/quest3/quest3_<robot>.yaml`：Meta Quest 3
+```
+example/config/
+├── adaptive/          # AdaptiveOptimizerAnalytical（默认）
+│   ├── mediapipe/     # 摄像头 / 视频 / 回放
+│   ├── avp/           # Apple Vision Pro
+│   └── quest3/        # Meta Quest 3
+└── vector/            # KeyVectorOptimizer
+    ├── mediapipe/
+    ├── avp/
+    └── quest3/
+```
 
 | 机器人 | `--robot` 参数 | 配置后缀 | 说明 |
 |--------|----------------|----------|------|
@@ -57,6 +66,8 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 
+> vector 优化器目前提供 `shadow_hand` 和 `wuji_hand` 的配置，其他机器人仅支持 `adaptive`。
+
 ## 仓库结构
 
 ```text
@@ -66,7 +77,8 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 │   ├── mediapipe.py                       # MediaPipe 坐标变换
 │   └── optimizer/                         # 优化器实现
 │       ├── base_optimizer.py              # 基础优化器（FK/雅可比）
-│       ├── analytical_optimizer.py        # 自适应优化器（解析梯度）
+│       ├── analytical_optimizer.py        # AdaptiveOptimizerAnalytical
+│       ├── key_vector_optimizer.py        # KeyVectorOptimizer
 │       ├── robot_configs.py               # 机器人 link/URDF 配置
 │       └── utils.py                       # TimingStats, LPFilter, Huber 损失
 ├── example/
@@ -76,10 +88,15 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 │   │   ├── landmark_utils.py              # 共享 MediaPipe 关键点处理
 │   │   ├── camera.py / video.py / ...     # 各输入设备
 │   ├── test/                              # 调试与可视化工具
-│   ├── config/                            # YAML 配置文件（按输入源分类）
-│   │   ├── avp/                           # Apple Vision Pro 配置
-│   │   ├── quest3/                        # Meta Quest 3 配置
-│   │   └── mediapipe/                     # MediaPipe（摄像头/视频/回放）配置
+│   ├── config/
+│   │   ├── adaptive/                      # AdaptiveOptimizerAnalytical 配置
+│   │   │   ├── avp/                       # Apple Vision Pro
+│   │   │   ├── quest3/                    # Meta Quest 3
+│   │   │   └── mediapipe/                 # MediaPipe（摄像头/视频/回放）
+│   │   └── vector/                        # KeyVectorOptimizer 配置
+│   │       ├── avp/
+│   │       ├── quest3/
+│   │       └── mediapipe/
 │   └── data/                              # 示例录制数据
 ├── assets/                                # 机器人 URDF / MuJoCo 资源
 └── requirements.txt
@@ -131,8 +148,11 @@ mjpython example/teleop_sim.py --video example/data/right.mp4
 ```bash
 cd example
 
-# 运行仓库自带示例视频
+# 运行仓库自带示例视频（adaptive 优化器，默认）
 python teleop_sim.py --video data/right.mp4 --robot shadow --hand right
+
+# 切换到 KeyVector 优化器
+python teleop_sim.py --video data/right.mp4 --robot shadow --hand right --optimizer vector
 
 # 回放可选示例录制数据
 python teleop_sim.py --play data/avp1.pkl --robot shadow --hand right
@@ -155,19 +175,19 @@ python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 
 ### 真机控制
 
-`teleop_real.py` 以 **Wuji Hand** 为示例，演示真机遥操作。它通过 `wujihandpy` 发送 `5 x 4` 关节目标，你可以参考其控制循环适配其他灵巧手。当前支持 `visionpro` 和 `mediapipe_replay` 两种输入。
+`teleop_real.py` 以 **Wuji Hand** 为示例，演示真机遥操作。它通过 `wujihandpy` 发送 `5 x 4` 关节目标，你可以参考其控制循环适配其他灵巧手。
 
 ```bash
 cd example
 
-# Vision Pro -> Wuji Hand
+# Vision Pro -> Wuji Hand（adaptive）
 python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand right
+
+# Vision Pro -> Wuji Hand（vector 优化器）
+python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand right --optimizer vector
 
 # 回放可选示例录制数据 -> Wuji Hand
 python teleop_real.py --robot wuji --play data/avp1.pkl --hand right
-
-# 你自己的录制文件 -> Wuji Hand
-python teleop_real.py --robot wuji --play path/to/record.pkl --hand right
 
 # Linux USB 权限
 sudo chmod a+rw /dev/ttyUSB0
@@ -178,7 +198,8 @@ sudo chmod a+rw /dev/ttyUSB0
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
 | `--robot` | `shadow`（sim）/ `wuji`（real） | 灵巧手类型 |
-| `--config` | 自动选择 | 配置文件（覆盖 `--robot`） |
+| `--optimizer` | `adaptive` | 优化器类型：`adaptive` 或 `vector` |
+| `--config` | 自动选择 | 配置文件（覆盖 `--robot` 和 `--optimizer`） |
 | `--hand` | `right` | 手的方向（`left`/`right`） |
 | `--input` | - | `teleop_sim.py`：`visionpro` / `quest3` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--input` | - | `teleop_real.py`：`visionpro` / `mediapipe_replay` |
@@ -217,8 +238,9 @@ python test/debug_skeleton.py --robot leap --input camera
 # 视频文件输入
 python test/debug_skeleton.py --robot leap --video data/right.mp4
 
-# 使用可选示例录制数据
-python test/debug_skeleton.py --robot shadow --play data/avp1.pkl
+# 使用可选示例录制数据，对比两种优化器
+python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer adaptive
+python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer vector
 
 # 你自己的录制数据
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
@@ -226,24 +248,18 @@ python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
 
 #### visualize_scaling.py
 
-可视化 `scaling` 和 `segment_scaling` 参数对 MediaPipe 关键点的影响。在 matplotlib 3D 图中对比原始骨架和缩放后的目标骨架。
+可视化 `scaling` 和 `segment_scaling` 参数对 MediaPipe 关键点的影响。
 
 ```bash
 cd example
 
-# 视频文件输入
 python test/visualize_scaling.py --robot leap --video data/right.mp4 --hand right
-
-# 使用可选示例录制数据
 python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
-
-# 你自己的录制数据
-python test/visualize_scaling.py --robot allegro --play path/to/record.pkl --hand right
 ```
 
 ## 配置说明
 
-### 配置文件结构
+### Adaptive 优化器配置
 
 ```yaml
 optimizer:
@@ -285,12 +301,46 @@ retarget:
   lp_alpha: 0.4
 ```
 
+### KeyVector 优化器配置
+
+```yaml
+optimizer:
+  type: "KeyVectorOptimizer"
+
+robot:
+  type: "wuji_hand"
+  urdf_path: "assets/wuji_hand/right.urdf"
+
+retarget:
+  huber_delta: 2.0
+  norm_delta: 0.04
+  lp_alpha: 0.4
+
+  # 每项：机器人（origin_link -> task_link）匹配 MediaPipe（origin_kp -> task_kp）关键点对
+  # scale：将人手向量缩放以匹配机器人手部尺寸
+  key_vectors:
+    - {origin: right_palm_link, task: right_finger1_link3,    origin_kp: 0, task_kp:  2, scale: 1.0}
+    - {origin: right_palm_link, task: right_finger1_link4,    origin_kp: 0, task_kp:  3, scale: 1.0}
+    - {origin: right_palm_link, task: right_finger1_tip_link, origin_kp: 0, task_kp:  4, scale: 1.0}
+    # ... （共 15 个向量：每指 3 个）
+
+  mediapipe_rotation:
+    x: -5.0
+    y: -5.0
+    z: 0.0
+```
+
 ### 关键参数
 
-| 参数 | 说明 |
-|------|------|
-| `scaling` | 手部尺寸比例。Shadow Hand ≈ 0.81 |
-| `mediapipe_rotation.z` | 坐标系对齐。Shadow Hand = -90° |
+| 参数 | 优化器 | 说明 |
+|------|--------|------|
+| `scaling` | adaptive | 手部尺寸比例。Shadow Hand ≈ 0.81 |
+| `w_pos` / `w_dir` / `w_full_hand` | adaptive | 损失项权重 |
+| `pinch_thresholds` | adaptive | 对指检测距离阈值（cm） |
+| `key_vectors[i].scale` | vector | 每向量缩放以匹配机器人手部尺寸 |
+| `mediapipe_rotation` | 两者 | 坐标系对齐（角度） |
+| `norm_delta` | 两者 | 速度正则化权重 |
+| `lp_alpha` | 两者 | 低通滤波系数（0~1） |
 
 ## API 参考
 
@@ -300,7 +350,7 @@ retarget:
 from anydexretarget import Retargeter
 
 # 从配置文件加载
-retargeter = Retargeter.from_yaml("config/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
+retargeter = Retargeter.from_yaml("config/adaptive/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
 
 # 重定向：(21, 3) MediaPipe 关键点 -> 关节角度
 qpos = retargeter.retarget(raw_keypoints)
@@ -308,7 +358,7 @@ qpos = retargeter.retarget(raw_keypoints)
 # 带详细输出
 qpos, info = retargeter.retarget_verbose(raw_keypoints)
 print(f"Cost: {info['cost']:.4f}")
-print(f"Pinch alphas: {info['pinch_alphas']}")
+print(f"Pinch alphas: {info.get('pinch_alphas')}")  # 仅 adaptive
 ```
 
 ### 高级用法
@@ -322,36 +372,43 @@ cost = optimizer.compute_cost(qpos, mediapipe_keypoints)
 
 # 获取计时统计
 stats = optimizer.get_timing_stats()
-print(f"平均耗时: {stats.avg_total_ms:.2f} ms")
+print(f"平均耗时: {stats.get_avg()['total_ms']:.2f} ms")
 ```
 
 ## 优化器详解
 
-### 优化公式
+### AdaptiveOptimizerAnalytical
 
-```
-min_q  L(q) + λ||q - q_prev||²
-s.t.   q_min ≤ q ≤ q_max
-```
+基于拇指到手指距离，在 TipDirVec（对指）和 FullHandVec（张开）之间自适应混合。
 
-### 损失函数
-
+**损失函数：**
 ```
-L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + norm_delta · ||Δq||²
+L = Σᵢ [αᵢ · (w_pos·L_pos + w_dir·L_dir) + (1-αᵢ) · w_full·L_full] + norm_delta·||Δq||²
 ```
 
-- **L_tip_dir_vec**：位置 + 方向匹配（用于对指手势）
-- **L_full_hand**：全手向量匹配（用于张开手势）
-
-### 自适应混合
-
+**自适应混合：**
 ```
 αᵢ = 0.7    如果 dᵢ < d1  (对指 → TipDirVec 模式)
 αᵢ = 0.0    如果 dᵢ > d2  (张开 → FullHandVec 模式)
 αᵢ = 插值   其他情况
 ```
 
-其中 `dᵢ` 是拇指到手指的距离。
+其中 `dᵢ` 是拇指到手指指尖的距离。
+
+### KeyVectorOptimizer
+
+最小化 N 个机器人 link 对向量与对应的缩放后 MediaPipe 关键点向量之间的平均 Huber 距离。参考：[dex-retargeting](https://github.com/dexsuite/dex-retargeting) VectorOptimizer。
+
+**损失函数：**
+```
+L = (1/N) · Σᵢ Huber(‖[FK(task_i) - FK(origin_i)] - scale_i·(mp[task_kp_i] - mp[origin_kp_i])‖)
+  + norm_delta · ‖q - q_prev‖²
+```
+
+**适用场景：**
+- 行为更简单、更可预测
+- 无对指检测——适合不需要精确手指接触的任务
+- 易于自定义：在 YAML 中增删向量或调整每向量缩放
 
 ## 引用
 

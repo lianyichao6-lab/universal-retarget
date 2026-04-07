@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-High-precision hand pose retargeting system. Based on adaptive analytical optimization, with support for multiple dexterous hands and multiple hand-tracking input sources for simulation and teleoperation.
+High-precision hand pose retargeting system. Supports two optimizers (**Adaptive** and **KeyVector**), multiple dexterous hands, and multiple hand-tracking input sources for simulation and teleoperation.
 
 ## Demo
 
@@ -19,6 +19,7 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 ## Features
 
 - **Shadow Hand Support**: Shadow Hand with MuJoCo Menagerie high-quality meshes
+- **Two Optimizers**: `adaptive` (pinch-aware, default) and `vector` (key-vector matching)
 - **High-Precision Pinch**: Adaptive optimization for accurate finger-to-thumb contact
 - **Real-time Performance**: Analytical gradients + NLopt SLSQP (~2ms per frame)
 - **Multiple Input Sources**: Apple Vision Pro, Meta Quest 3, laptop camera (MediaPipe), recorded data replay
@@ -38,11 +39,19 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 
 ## Supported Robots
 
-Config files are grouped by input source:
+Config files are organized by **optimizer type** and **input source**:
 
-- `example/config/mediapipe/mediapipe_<robot>.yaml` for camera / video / replay input
-- `example/config/avp/avp_<robot>.yaml` for Apple Vision Pro input
-- `example/config/quest3/quest3_<robot>.yaml` for Meta Quest 3 input
+```
+example/config/
+├── adaptive/          # AdaptiveOptimizerAnalytical (default)
+│   ├── mediapipe/     # camera / video / replay input
+│   ├── avp/           # Apple Vision Pro input
+│   └── quest3/        # Meta Quest 3 input
+└── vector/            # KeyVectorOptimizer
+    ├── mediapipe/
+    ├── avp/
+    └── quest3/
+```
 
 | Robot | `--robot` value | Config suffix | Description |
 |-------|------------------|---------------|-------------|
@@ -57,6 +66,8 @@ Config files are grouped by input source:
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 
+> Vector optimizer configs are currently provided for `shadow_hand` and `wuji_hand`. Other robots use `adaptive` only.
+
 ## Repository Structure
 
 ```text
@@ -66,7 +77,8 @@ Config files are grouped by input source:
 │   ├── mediapipe.py                       # MediaPipe coordinate transforms
 │   └── optimizer/                         # Optimizer implementations
 │       ├── base_optimizer.py              # Base optimizer with FK/Jacobian
-│       ├── analytical_optimizer.py        # Adaptive optimizer with analytical gradients
+│       ├── analytical_optimizer.py        # AdaptiveOptimizerAnalytical
+│       ├── key_vector_optimizer.py        # KeyVectorOptimizer
 │       ├── robot_configs.py               # Robot link/URDF configurations
 │       └── utils.py                       # TimingStats, LPFilter, Huber loss
 ├── example/
@@ -76,10 +88,15 @@ Config files are grouped by input source:
 │   │   ├── landmark_utils.py              # Shared MediaPipe landmark processing
 │   │   ├── camera.py / video.py / ...     # Input devices
 │   ├── test/                              # Debug & visualization tools
-│   ├── config/                            # YAML configurations (by input source)
-│   │   ├── avp/                           # Apple Vision Pro configs
-│   │   ├── quest3/                        # Meta Quest 3 configs
-│   │   └── mediapipe/                     # MediaPipe (camera/video/replay) configs
+│   ├── config/
+│   │   ├── adaptive/                      # AdaptiveOptimizerAnalytical configs
+│   │   │   ├── avp/                       # Apple Vision Pro
+│   │   │   ├── quest3/                    # Meta Quest 3
+│   │   │   └── mediapipe/                 # Camera / video / replay
+│   │   └── vector/                        # KeyVectorOptimizer configs
+│   │       ├── avp/
+│   │       ├── quest3/
+│   │       └── mediapipe/
 │   └── data/                              # Sample recordings
 ├── assets/                                # Robot URDF / MuJoCo assets
 └── requirements.txt
@@ -131,8 +148,11 @@ The repository currently includes:
 ```bash
 cd example
 
-# Run the included sample video
+# Run the included sample video (adaptive optimizer, default)
 python teleop_sim.py --video data/right.mp4 --robot shadow --hand right
+
+# Switch to KeyVector optimizer
+python teleop_sim.py --video data/right.mp4 --robot shadow --hand right --optimizer vector
 
 # Replay the optional sample recording
 python teleop_sim.py --play data/avp1.pkl --robot shadow --hand right
@@ -155,19 +175,19 @@ python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 
 ### Real Hardware
 
-`teleop_real.py` demonstrates real hardware teleoperation using **Wuji Hand** as an example. It sends `5 x 4` joint targets through `wujihandpy`. You can adapt the control loop for other robot hands. It supports `visionpro` and `mediapipe_replay` input.
+`teleop_real.py` demonstrates real hardware teleoperation using **Wuji Hand** as an example. It sends `5 x 4` joint targets through `wujihandpy`. You can adapt the control loop for other robot hands.
 
 ```bash
 cd example
 
-# Live Vision Pro -> Wuji Hand
+# Live Vision Pro -> Wuji Hand (adaptive)
 python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand right
+
+# Live Vision Pro -> Wuji Hand (vector optimizer)
+python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand right --optimizer vector
 
 # Replay the optional sample recording -> Wuji Hand
 python teleop_real.py --robot wuji --play data/avp1.pkl --hand right
-
-# Replay your own recording -> Wuji Hand
-python teleop_real.py --robot wuji --play path/to/record.pkl --hand right
 
 # Linux USB permission
 sudo chmod a+rw /dev/ttyUSB0
@@ -178,7 +198,8 @@ sudo chmod a+rw /dev/ttyUSB0
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--robot` | `shadow` (sim) / `wuji` (real) | Robot hand type |
-| `--config` | auto-select | Configuration file (overrides `--robot`) |
+| `--optimizer` | `adaptive` | Optimizer type: `adaptive` or `vector` |
+| `--config` | auto-select | Configuration file (overrides `--robot` and `--optimizer`) |
 | `--hand` | `right` | Hand side (`left`/`right`) |
 | `--input` | - | `teleop_sim.py`: `visionpro` / `quest3` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--input` | - | `teleop_real.py`: `visionpro` / `mediapipe_replay` |
@@ -217,8 +238,9 @@ python test/debug_skeleton.py --robot leap --input camera
 # With video file
 python test/debug_skeleton.py --robot leap --video data/right.mp4
 
-# With optional sample recording
-python test/debug_skeleton.py --robot shadow --play data/avp1.pkl
+# With optional sample recording, compare optimizers
+python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer adaptive
+python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer vector
 
 # With your own recorded data
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
@@ -226,24 +248,18 @@ python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
 
 #### visualize_scaling.py
 
-Visualize how `scaling` and `segment_scaling` parameters affect MediaPipe keypoints. Shows the original skeleton vs the scaled target skeleton in a matplotlib 3D plot.
+Visualize how `scaling` and `segment_scaling` parameters affect MediaPipe keypoints.
 
 ```bash
 cd example
 
-# With video file
 python test/visualize_scaling.py --robot leap --video data/right.mp4 --hand right
-
-# With optional sample recording
 python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
-
-# With your own recorded data
-python test/visualize_scaling.py --robot allegro --play path/to/record.pkl --hand right
 ```
 
 ## Configuration
 
-### Config File Structure
+### Adaptive Optimizer Config
 
 ```yaml
 optimizer:
@@ -285,12 +301,46 @@ retarget:
   lp_alpha: 0.4
 ```
 
+### KeyVector Optimizer Config
+
+```yaml
+optimizer:
+  type: "KeyVectorOptimizer"
+
+robot:
+  type: "wuji_hand"
+  urdf_path: "assets/wuji_hand/right.urdf"
+
+retarget:
+  huber_delta: 2.0
+  norm_delta: 0.04
+  lp_alpha: 0.4
+
+  # Each entry: robot (origin_link -> task_link) matched to (origin_kp -> task_kp) MediaPipe pair
+  # scale: shrink/expand the human vector to match robot hand size
+  key_vectors:
+    - {origin: right_palm_link, task: right_finger1_link3,    origin_kp: 0, task_kp:  2, scale: 1.0}
+    - {origin: right_palm_link, task: right_finger1_link4,    origin_kp: 0, task_kp:  3, scale: 1.0}
+    - {origin: right_palm_link, task: right_finger1_tip_link, origin_kp: 0, task_kp:  4, scale: 1.0}
+    # ... (15 vectors total: 3 per finger)
+
+  mediapipe_rotation:
+    x: -5.0
+    y: -5.0
+    z: 0.0
+```
+
 ### Key Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `scaling` | Hand size ratio. Shadow Hand ≈ 0.81 |
-| `mediapipe_rotation.z` | Coordinate alignment. Shadow Hand = -90° |
+| Parameter | Optimizer | Description |
+|-----------|-----------|-------------|
+| `scaling` | adaptive | Hand size ratio. Shadow Hand ≈ 0.81 |
+| `w_pos` / `w_dir` / `w_full_hand` | adaptive | Loss term weights |
+| `pinch_thresholds` | adaptive | Distance thresholds for pinch detection (cm) |
+| `key_vectors[i].scale` | vector | Per-vector scale to match robot hand size |
+| `mediapipe_rotation` | both | Coordinate alignment (degrees) |
+| `norm_delta` | both | Velocity regularization weight |
+| `lp_alpha` | both | Low-pass filter coefficient (0~1) |
 
 ## API Reference
 
@@ -300,7 +350,7 @@ retarget:
 from anydexretarget import Retargeter
 
 # Load from config file
-retargeter = Retargeter.from_yaml("config/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
+retargeter = Retargeter.from_yaml("config/adaptive/mediapipe/mediapipe_shadow_hand.yaml", hand_side="right")
 
 # Retarget: (21, 3) MediaPipe keypoints -> joint angles
 qpos = retargeter.retarget(raw_keypoints)
@@ -308,7 +358,7 @@ qpos = retargeter.retarget(raw_keypoints)
 # With verbose output
 qpos, info = retargeter.retarget_verbose(raw_keypoints)
 print(f"Cost: {info['cost']:.4f}")
-print(f"Pinch alphas: {info['pinch_alphas']}")
+print(f"Pinch alphas: {info.get('pinch_alphas')}")  # adaptive only
 ```
 
 ### Advanced Usage
@@ -322,36 +372,43 @@ cost = optimizer.compute_cost(qpos, mediapipe_keypoints)
 
 # Get timing statistics
 stats = optimizer.get_timing_stats()
-print(f"Average time: {stats.avg_total_ms:.2f} ms")
+print(f"Average time: {stats.get_avg()['total_ms']:.2f} ms")
 ```
 
 ## Optimizer Details
 
-### Optimization Formulation
+### AdaptiveOptimizerAnalytical
 
-```
-min_q  L(q) + λ||q - q_prev||²
-s.t.   q_min ≤ q ≤ q_max
-```
+Adaptive blending between TipDirVec (pinch) and FullHandVec (open hand) based on thumb-to-finger distance.
 
-### Loss Function
-
+**Loss function:**
 ```
-L = Σᵢ [αᵢ · L_tip_dir_vec + (1-αᵢ) · L_full_hand] + norm_delta · ||Δq||²
+L = Σᵢ [αᵢ · (w_pos·L_pos + w_dir·L_dir) + (1-αᵢ) · w_full·L_full] + norm_delta·||Δq||²
 ```
 
-- **L_tip_dir_vec**: Position + direction matching (for pinch gestures)
-- **L_full_hand**: Full hand vector matching (for open hand)
-
-### Adaptive Blending
-
+**Adaptive blending:**
 ```
 αᵢ = 0.7    if dᵢ < d1  (pinching → TipDirVec mode)
 αᵢ = 0.0    if dᵢ > d2  (open → FullHandVec mode)
 αᵢ = lerp   otherwise
 ```
 
-Where `dᵢ` is thumb-to-finger distance.
+Where `dᵢ` is thumb-to-finger tip distance.
+
+### KeyVectorOptimizer
+
+Minimizes the mean Huber distance between N robot link-pair vectors and the corresponding scaled MediaPipe keypoint vectors. Reference: [dex-retargeting](https://github.com/dexsuite/dex-retargeting) VectorOptimizer.
+
+**Loss function:**
+```
+L = (1/N) · Σᵢ Huber(‖[FK(task_i) - FK(origin_i)] - scale_i·(mp[task_kp_i] - mp[origin_kp_i])‖)
+  + norm_delta · ‖q - q_prev‖²
+```
+
+**When to use:**
+- Simpler, more predictable behavior
+- No pinch detection — better for tasks not requiring precise finger contact
+- Easily customizable: add/remove vectors or adjust per-vector scale in YAML
 
 ## Citation
 

@@ -267,8 +267,11 @@ def main():
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"])
     parser.add_argument("--frames", type=int, nargs="+", default=DEFAULT_FRAMES,
                         help=f"测试帧号列表 (默认: {DEFAULT_FRAMES})")
+    parser.add_argument("--optimizer", type=str, default="adaptive",
+                        choices=["adaptive", "vector"],
+                        help="优化器类型: adaptive (默认) 或 vector (KeyVectorOptimizer)")
     parser.add_argument("--configs", type=str, nargs="+", default=None,
-                        help="配置文件列表 (相对于 example/，覆盖 --robots)")
+                        help="配置文件列表 (相对于 example/，覆盖 --robots 和 --optimizer)")
     parser.add_argument("--robots", type=str, nargs="+", default=["shadow"],
                         help="灵巧手列表 (默认: shadow)")
     parser.add_argument("--output", type=str,
@@ -284,7 +287,8 @@ def main():
         "unitree_dex5": "unitree_dex5_hand",
     }
     configs = args.configs if args.configs else [
-        f"config/mediapipe/mediapipe_{robot_name_map.get(r, r)}.yaml" for r in args.robots
+        f"config/{args.optimizer}/mediapipe/mediapipe_{robot_name_map.get(r, r)}.yaml"
+        for r in args.robots
     ]
 
     out_dir = Path(args.output)

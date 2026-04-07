@@ -1,4 +1,5 @@
 """Debug visualization: compare MediaPipe input, scaled target, and retargeted FK skeletons.
+比较初始输入数据，经过scaling之后的，跟经过retargeted之后的骨架
 
 Shows three hand skeletons side-by-side in the MuJoCo viewer:
   - Blue:  Raw MediaPipe skeleton (after coordinate transform, before scaling)
@@ -226,7 +227,10 @@ def build_raw_skeleton(mediapipe_kp, optimizer):
 
 def main():
     parser = argparse.ArgumentParser(description="Debug skeleton visualization")
-    parser.add_argument("--config", default=None, help="Config YAML path (overrides --robot)")
+    parser.add_argument("--config", default=None, help="Config YAML path (overrides --robot and --optimizer)")
+    parser.add_argument("--optimizer", default="adaptive",
+                        choices=["adaptive", "vector"],
+                        help="Optimizer type: adaptive (default) or vector (KeyVectorOptimizer)")
     parser.add_argument("--robot", default="leap",
                         choices=["shadow", "wuji", "allegro", "leap",
                                  "inspire", "ability", "svh", "rohand",
@@ -247,7 +251,7 @@ def main():
         "unitree_dex5": "unitree_dex5_hand",
     }
     robot_file = robot_name_map.get(args.robot, args.robot)
-    config_path = args.config if args.config else f"config/mediapipe/mediapipe_{robot_file}.yaml"
+    config_path = args.config if args.config else f"config/{args.optimizer}/mediapipe/mediapipe_{robot_file}.yaml"
     config_file = EXAMPLE_ROOT / config_path
     with open(config_file, 'r') as f:
         config = yaml.safe_load(f)

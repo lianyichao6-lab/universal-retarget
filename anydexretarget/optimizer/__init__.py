@@ -14,11 +14,13 @@ from .utils import (
     CM_TO_M,
 )
 from .analytical_optimizer import AdaptiveOptimizerAnalytical
+from .key_vector_optimizer import KeyVectorOptimizer
 
 
 __all__ = [
     "BaseOptimizer",
     "AdaptiveOptimizerAnalytical",
+    "KeyVectorOptimizer",
     "LPFilter",
     "TimingStats",
     "M_TO_CM",
