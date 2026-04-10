@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 - **两种优化器**：`adaptive`（对指感知，默认）和 `vector`（关键向量匹配）
 - **高精度对指**：自适应优化，精确的拇指-手指接触
 - **实时性能**：解析梯度 + NLopt SLSQP（~2ms/帧）
-- **多输入源**：Apple Vision Pro、Meta Quest 3、笔记本摄像头（MediaPipe）、录制数据回放
+- **多输入源**：Apple Vision Pro、Meta Quest 3、Noitom PNS-G 动捕手套、笔记本摄像头（MediaPipe）、录制数据回放
 
 ## 目录
 
@@ -46,11 +46,13 @@ example/config/
 ├── adaptive/          # AdaptiveOptimizerAnalytical（默认）
 │   ├── mediapipe/     # 摄像头 / 视频 / 回放
 │   ├── avp/           # Apple Vision Pro
-│   └── quest3/        # Meta Quest 3
+│   ├── quest3/        # Meta Quest 3
+│   └── noitom/        # Noitom PNS-G 动捕手套
 └── vector/            # KeyVectorOptimizer
     ├── mediapipe/
     ├── avp/
-    └── quest3/
+    ├── quest3/
+    └── noitom/
 ```
 
 | 机器人 | `--robot` 参数 | 配置后缀 | 说明 |
@@ -66,7 +68,14 @@ example/config/
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 
-> vector 优化器目前提供 `shadow_hand` 和 `wuji_hand` 的配置，其他机器人仅支持 `adaptive`。
+> vector 优化器目前提供 `shadow_hand`、`wuji_hand` 和 `inspire_hand` 的配置，其他机器人仅支持 `adaptive`。
+
+> **Noitom 配置说明：** 目前仅对 `shadow_hand`、`wuji_hand`、`inspire_hand` 进行了大致的 Noitom 参数匹配。如需精调人手与灵巧手之间的映射精度，建议运行 `debug_skeleton.py` 可视化三套骨架进行对比：**蓝色** = 原始输入、**绿色** = scaling 后的目标、**红色** = 重定向后的 FK 结果。根据骨架大小差异调整对应 YAML 配置文件中的参数（`scaling`、`segment_scaling`、`key_vectors[].scale` 等）。
+>
+> ```bash
+> cd example
+> python test/debug_skeleton.py --robot inspire --input noitom --noitom-local-ip 192.168.5.25
+> ```
 
 ## 仓库结构
 
@@ -87,16 +96,21 @@ example/config/
 │   ├── input/                             # 输入设备模块
 │   │   ├── landmark_utils.py              # 共享 MediaPipe 关键点处理
 │   │   ├── camera.py / video.py / ...     # 各输入设备
+│   │   └── noitom.py                      # Noitom PNS-G 手套输入
 │   ├── test/                              # 调试与可视化工具
+│   │   ├── debug_skeleton.py              # 三骨架对比查看器
+│   │   └── calibrate_noitom.py            # Noitom segment_scaling 标定
 │   ├── config/
 │   │   ├── adaptive/                      # AdaptiveOptimizerAnalytical 配置
 │   │   │   ├── avp/                       # Apple Vision Pro
 │   │   │   ├── quest3/                    # Meta Quest 3
-│   │   │   └── mediapipe/                 # MediaPipe（摄像头/视频/回放）
+│   │   │   ├── mediapipe/                 # MediaPipe（摄像头/视频/回放）
+│   │   │   └── noitom/                    # Noitom PNS-G 手套
 │   │   └── vector/                        # KeyVectorOptimizer 配置
 │   │       ├── avp/
 │   │       ├── quest3/
-│   │       └── mediapipe/
+│   │       ├── mediapipe/
+│   │       └── noitom/
 │   └── data/                              # 示例录制数据
 ├── assets/                                # 机器人 URDF / MuJoCo 资源
 └── requirements.txt
@@ -109,6 +123,7 @@ example/config/
 - Python >= 3.10
 - （可选）Apple Vision Pro + [Tracking Streamer](https://apps.apple.com/us/app/tracking-streamer/id6478969032) 应用
 - （可选）Meta Quest 3 + [Hand Tracking Streamer](https://github.com/wengmister/hand-tracking-streamer) 应用
+- （可选）Noitom PNS-G 动捕手套 + [Axis Studio](https://www.noitom.com.cn/axis-studio)（Windows）
 
 ### 安装步骤
 
@@ -169,6 +184,9 @@ python teleop_sim.py --input quest3 --robot shadow --port 9000 --hand right
 # RealSense 实时遥操作
 python teleop_sim.py --realsense --robot shadow --hand right --show-video
 
+# Noitom PNS-G 手套
+python teleop_sim.py --input noitom --robot inspire --hand right --noitom-local-ip 192.168.5.25
+
 # 回放你自己的录制文件（.pkl）
 python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 ```
@@ -186,6 +204,9 @@ python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand
 # Vision Pro -> Wuji Hand（vector 优化器）
 python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand right --optimizer vector
 
+# Noitom PNS-G 手套 -> Inspire Hand
+python teleop_real.py --robot inspire --input noitom --hand right --noitom-local-ip 192.168.5.25
+
 # 回放可选示例录制数据 -> Wuji Hand
 python teleop_real.py --robot wuji --play data/avp1.pkl --hand right
 
@@ -201,14 +222,18 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--optimizer` | `adaptive` | 优化器类型：`adaptive` 或 `vector` |
 | `--config` | 自动选择 | 配置文件（覆盖 `--robot` 和 `--optimizer`） |
 | `--hand` | `right` | 手的方向（`left`/`right`） |
-| `--input` | - | `teleop_sim.py`：`visionpro` / `quest3` / `camera` / `realsense` / `video` / `mediapipe_replay` |
-| `--input` | - | `teleop_real.py`：`visionpro` / `mediapipe_replay` |
+| `--input` | - | `teleop_sim.py`：`visionpro` / `quest3` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
+| `--input` | - | `teleop_real.py`：`visionpro` / `noitom` / `mediapipe_replay` |
 | `--realsense` | 关闭 | `--input realsense` 的快捷方式 |
 | `--play FILE` | - | 回放录制（`--input mediapipe_replay` 的快捷方式） |
 | `--video FILE` | - | 视频文件输入（MediaPipe 手部检测） |
 | `--ip` | `192.168.50.127` | Vision Pro IP |
 | `--port` | `9000` | Quest 3 HTS 监听端口 |
 | `--protocol` | `udp` | Quest 3 HTS 传输协议（`udp`/`tcp`） |
+| `--noitom-local-ip` | `192.168.5.25` | Noitom：本机 IP |
+| `--noitom-local-port` | `8000` | Noitom：本机 UDP 端口 |
+| `--noitom-server-ip` | `192.168.5.33` | Noitom：Axis Studio IP（Windows） |
+| `--noitom-server-port` | `9000` | Noitom：Axis Studio 端口 |
 | `--speed` | `1.0` | 播放速度 |
 | `--record` | - | 录制输入数据 |
 | `--output FILE` | - | 录制输出文件路径 |
@@ -242,8 +267,28 @@ python test/debug_skeleton.py --robot leap --video data/right.mp4
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer adaptive
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer vector
 
+# Noitom PNS-G 手套
+python test/debug_skeleton.py --robot inspire --input noitom --noitom-local-ip 192.168.5.25
+
+# Noitom + KeyVector 优化器
+python test/debug_skeleton.py --robot inspire --input noitom --optimizer vector --noitom-local-ip 192.168.5.25
+
 # 你自己的录制数据
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
+```
+
+#### calibrate_noitom.py
+
+标定 Noitom 输入的 `segment_scaling`。用户伸直所有手指保持不动，采集数据后计算机器人 FK 与人手骨骼距离的比值。
+
+```bash
+cd example
+
+# 标定并输出推荐的 segment_scaling
+python test/calibrate_noitom.py --robot inspire --noitom-local-ip 192.168.5.25
+
+# 标定并直接写回配置文件
+python test/calibrate_noitom.py --robot inspire --noitom-local-ip 192.168.5.25 --write
 ```
 
 #### visualize_scaling.py

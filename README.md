@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 - **Two Optimizers**: `adaptive` (pinch-aware, default) and `vector` (key-vector matching)
 - **High-Precision Pinch**: Adaptive optimization for accurate finger-to-thumb contact
 - **Real-time Performance**: Analytical gradients + NLopt SLSQP (~2ms per frame)
-- **Multiple Input Sources**: Apple Vision Pro, Meta Quest 3, laptop camera (MediaPipe), recorded data replay
+- **Multiple Input Sources**: Apple Vision Pro, Meta Quest 3, Noitom PNS-G gloves, laptop camera (MediaPipe), recorded data replay
 
 ## Table of Contents
 
@@ -46,11 +46,13 @@ example/config/
 ├── adaptive/          # AdaptiveOptimizerAnalytical (default)
 │   ├── mediapipe/     # camera / video / replay input
 │   ├── avp/           # Apple Vision Pro input
-│   └── quest3/        # Meta Quest 3 input
+│   ├── quest3/        # Meta Quest 3 input
+│   └── noitom/        # Noitom PNS-G gloves
 └── vector/            # KeyVectorOptimizer
     ├── mediapipe/
     ├── avp/
-    └── quest3/
+    ├── quest3/
+    └── noitom/
 ```
 
 | Robot | `--robot` value | Config suffix | Description |
@@ -66,7 +68,14 @@ example/config/
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 
-> Vector optimizer configs are currently provided for `shadow_hand` and `wuji_hand`. Other robots use `adaptive` only.
+> Vector optimizer configs are provided for `shadow_hand`, `wuji_hand`, and `inspire_hand`. Other robots use `adaptive` only.
+
+> **Note on Noitom configs:** Only `shadow_hand`, `wuji_hand`, and `inspire_hand` have been roughly calibrated for Noitom input. If you need to fine-tune the mapping accuracy between your hand and the robot hand, run `debug_skeleton.py` to visualize three skeletons side-by-side: **Blue** = raw input, **Green** = after scaling, **Red** = retargeted FK result. Compare the skeleton sizes and adjust the corresponding YAML config parameters (`scaling`, `segment_scaling`, `key_vectors[].scale`, etc.) accordingly.
+>
+> ```bash
+> cd example
+> python test/debug_skeleton.py --robot inspire --input noitom --noitom-local-ip 192.168.5.25
+> ```
 
 ## Repository Structure
 
@@ -87,16 +96,21 @@ example/config/
 │   ├── input/                             # Input device modules
 │   │   ├── landmark_utils.py              # Shared MediaPipe landmark processing
 │   │   ├── camera.py / video.py / ...     # Input devices
+│   │   └── noitom.py                      # Noitom PNS-G glove input
 │   ├── test/                              # Debug & visualization tools
+│   │   ├── debug_skeleton.py              # 3-skeleton comparison viewer
+│   │   └── calibrate_noitom.py            # Noitom segment_scaling calibration
 │   ├── config/
 │   │   ├── adaptive/                      # AdaptiveOptimizerAnalytical configs
 │   │   │   ├── avp/                       # Apple Vision Pro
 │   │   │   ├── quest3/                    # Meta Quest 3
-│   │   │   └── mediapipe/                 # Camera / video / replay
+│   │   │   ├── mediapipe/                 # Camera / video / replay
+│   │   │   └── noitom/                    # Noitom PNS-G gloves
 │   │   └── vector/                        # KeyVectorOptimizer configs
 │   │       ├── avp/
 │   │       ├── quest3/
-│   │       └── mediapipe/
+│   │       ├── mediapipe/
+│   │       └── noitom/
 │   └── data/                              # Sample recordings
 ├── assets/                                # Robot URDF / MuJoCo assets
 └── requirements.txt
@@ -109,6 +123,7 @@ example/config/
 - Python >= 3.10
 - (Optional) Apple Vision Pro with [Tracking Streamer](https://apps.apple.com/us/app/tracking-streamer/id6478969032) app
 - (Optional) Meta Quest 3 with [Hand Tracking Streamer](https://github.com/wengmister/hand-tracking-streamer) app
+- (Optional) Noitom PNS-G gloves with [Axis Studio](https://www.noitom.com.cn/axis-studio) (Windows)
 
 ### Install
 
@@ -169,6 +184,9 @@ python teleop_sim.py --input quest3 --robot shadow --port 9000 --hand right
 # Real-time with RealSense
 python teleop_sim.py --realsense --robot shadow --hand right --show-video
 
+# Noitom PNS-G gloves
+python teleop_sim.py --input noitom --robot inspire --hand right --noitom-local-ip 192.168.5.25
+
 # Replay your own recording (.pkl)
 python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 ```
@@ -186,6 +204,9 @@ python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand
 # Live Vision Pro -> Wuji Hand (vector optimizer)
 python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand right --optimizer vector
 
+# Noitom PNS-G gloves -> Inspire Hand
+python teleop_real.py --robot inspire --input noitom --hand right --noitom-local-ip 192.168.5.25
+
 # Replay the optional sample recording -> Wuji Hand
 python teleop_real.py --robot wuji --play data/avp1.pkl --hand right
 
@@ -201,14 +222,18 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--optimizer` | `adaptive` | Optimizer type: `adaptive` or `vector` |
 | `--config` | auto-select | Configuration file (overrides `--robot` and `--optimizer`) |
 | `--hand` | `right` | Hand side (`left`/`right`) |
-| `--input` | - | `teleop_sim.py`: `visionpro` / `quest3` / `camera` / `realsense` / `video` / `mediapipe_replay` |
-| `--input` | - | `teleop_real.py`: `visionpro` / `mediapipe_replay` |
+| `--input` | - | `teleop_sim.py`: `visionpro` / `quest3` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
+| `--input` | - | `teleop_real.py`: `visionpro` / `noitom` / `mediapipe_replay` |
 | `--realsense` | off | Shortcut for `--input realsense` |
 | `--play FILE` | - | Replay recording (shortcut for `--input mediapipe_replay`) |
 | `--video FILE` | - | Video file input with MediaPipe hand detection |
 | `--ip` | `192.168.50.127` | Vision Pro IP |
 | `--port` | `9000` | Quest 3 HTS listener port |
 | `--protocol` | `udp` | Quest 3 HTS transport protocol (`udp`/`tcp`) |
+| `--noitom-local-ip` | `192.168.5.25` | Noitom: local IP (this machine) |
+| `--noitom-local-port` | `8000` | Noitom: local UDP port |
+| `--noitom-server-ip` | `192.168.5.33` | Noitom: Axis Studio IP (Windows) |
+| `--noitom-server-port` | `9000` | Noitom: Axis Studio port |
 | `--speed` | `1.0` | Playback speed |
 | `--record` | - | Record input data |
 | `--output FILE` | - | Output file path for recording |
@@ -242,8 +267,28 @@ python test/debug_skeleton.py --robot leap --video data/right.mp4
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer adaptive
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer vector
 
+# With Noitom PNS-G gloves
+python test/debug_skeleton.py --robot inspire --input noitom --noitom-local-ip 192.168.5.25
+
+# With Noitom + KeyVector optimizer
+python test/debug_skeleton.py --robot inspire --input noitom --optimizer vector --noitom-local-ip 192.168.5.25
+
 # With your own recorded data
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
+```
+
+#### calibrate_noitom.py
+
+Calibrate `segment_scaling` for Noitom input. Collects data while the user holds their hand flat (fingers fully extended), then computes the ratio between robot FK and human bone distances.
+
+```bash
+cd example
+
+# Calibrate and print recommended segment_scaling
+python test/calibrate_noitom.py --robot inspire --noitom-local-ip 192.168.5.25
+
+# Calibrate and write results directly to config file
+python test/calibrate_noitom.py --robot inspire --noitom-local-ip 192.168.5.25 --write
 ```
 
 #### visualize_scaling.py

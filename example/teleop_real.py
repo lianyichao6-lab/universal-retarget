@@ -22,6 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from anydexretarget import Retargeter
 from input.camera import Camera
 from input.mediapipe_replay import MediaPipeReplay
+from input.noitom import NoitomInput
 from input.quest3 import Quest3
 from input.realsense import Realsense
 from input.video import Video
@@ -102,6 +103,10 @@ def run_teleop(
     visionpro_ip: str = "192.168.50.127",
     quest3_port: int = 9000,
     quest3_protocol: str = "udp",
+    noitom_local_ip: str = "192.168.5.25",
+    noitom_local_port: int = 8000,
+    noitom_server_ip: str = "192.168.5.33",
+    noitom_server_port: int = 9000,
     mediapipe_replay_path: str = "data/avp1.pkl",
     video_path: str = "data/right.mp4",
     playback_speed: float = 1.0,
@@ -131,6 +136,12 @@ def run_teleop(
     device_map = {
         "visionpro": lambda: VisionPro(ip=visionpro_ip),
         "quest3": lambda: Quest3(port=quest3_port, protocol=quest3_protocol),
+        "noitom": lambda: NoitomInput(
+            local_ip=noitom_local_ip,
+            local_port=noitom_local_port,
+            server_ip=noitom_server_ip,
+            server_port=noitom_server_port,
+        ),
         "mediapipe_replay": lambda: MediaPipeReplay(
             record_path=mediapipe_replay_path,
             playback_speed=playback_speed,
@@ -304,7 +315,7 @@ Examples:
                         help="Hand side (default: right)")
 
     parser.add_argument("--input", type=str, default=None,
-                        choices=["visionpro", "quest3", "mediapipe_replay", "camera", "realsense", "video"],
+                        choices=["visionpro", "quest3", "noitom", "mediapipe_replay", "camera", "realsense", "video"],
                         help="Input device type")
     parser.add_argument("--realsense", action="store_true",
                         help="Use RealSense camera (shortcut for --input realsense)")
@@ -324,6 +335,15 @@ Examples:
                         help="Quest 3 HTS listener port (default: 9000)")
     parser.add_argument("--quest3-protocol", type=str, default="udp", choices=["udp", "tcp"],
                         help="Quest 3 HTS transport protocol (default: udp)")
+
+    parser.add_argument("--noitom-local-ip", type=str, default="192.168.5.25",
+                        help="Noitom: Linux IP (must match Axis Studio destination, default: 192.168.5.25)")
+    parser.add_argument("--noitom-local-port", type=int, default=8000,
+                        help="Noitom: local UDP port (default: 7012)")
+    parser.add_argument("--noitom-server-ip", type=str, default="192.168.5.33",
+                        help="Noitom: Windows Axis Studio IP (default: 192.168.5.33)")
+    parser.add_argument("--noitom-server-port", type=int, default=9000,
+                        help="Noitom: Axis Studio BVH broadcast port (default: 9000)")
 
     parser.add_argument("--speed", type=float, default=1.0,
                         help="Playback speed for replay mode (default: 1.0)")
@@ -373,6 +393,7 @@ Examples:
         input_to_dir = {
             "quest3": "quest3",
             "visionpro": "avp",
+            "noitom": "noitom",
         }
         config_dir = input_to_dir.get(input_device_type, "mediapipe")
         robot_file = robot_name_map.get(args.robot, args.robot)
@@ -386,6 +407,10 @@ Examples:
         visionpro_ip=args.ip,
         quest3_port=args.quest3_port,
         quest3_protocol=args.quest3_protocol,
+        noitom_local_ip=args.noitom_local_ip,
+        noitom_local_port=args.noitom_local_port,
+        noitom_server_ip=args.noitom_server_ip,
+        noitom_server_port=args.noitom_server_port,
         mediapipe_replay_path=mediapipe_replay_path,
         video_path=video_path,
         playback_speed=args.speed,

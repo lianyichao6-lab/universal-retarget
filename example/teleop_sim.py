@@ -28,6 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from anydexretarget import Retargeter
 from input.camera import Camera
 from input.mediapipe_replay import MediaPipeReplay
+from input.noitom import NoitomInput
 from input.quest3 import Quest3
 from input.realsense import Realsense
 from input.video import Video
@@ -38,6 +39,7 @@ ROBOT_HAND_CONFIGS = {
     "shadow_hand": {
         "model_path": lambda side: str(PROJECT_ROOT / "assets" / "shadow_hand" / f"scene_{side}.xml"),
         "needs_menagerie_mapping": True,
+        "base_quat": (0.7071068, 0, 0, 0.7071068),  # Rotate 90 deg around Z to align with MuJoCo model
     },
     "wuji_hand": {
         "model_path": lambda _: str(PROJECT_ROOT / "assets" / "wuji_hand" / "right.xml"),
@@ -198,6 +200,10 @@ def run_teleop(
     visionpro_ip: str = "192.168.50.127",
     quest3_port: int = 9000,
     quest3_protocol: str = "udp",
+    noitom_local_ip: str = "192.168.5.25",
+    noitom_local_port: int = 8000,
+    noitom_server_ip: str = "192.168.5.33",
+    noitom_server_port: int = 9000,
     playback_speed: float = 1.0,
     playback_loop: bool = True,
     enable_recording: bool = False,
@@ -286,6 +292,12 @@ def run_teleop(
     device_map = {
         "visionpro": lambda: VisionPro(ip=visionpro_ip),
         "quest3": lambda: Quest3(port=quest3_port, protocol=quest3_protocol),
+        "noitom": lambda: NoitomInput(
+            local_ip=noitom_local_ip,
+            local_port=noitom_local_port,
+            server_ip=noitom_server_ip,
+            server_port=noitom_server_port,
+        ),
         "mediapipe_replay": lambda: MediaPipeReplay(
             record_path=mediapipe_replay_path,
             playback_speed=playback_speed,
@@ -555,7 +567,7 @@ def main():
                         help="Hand side (default: right)")
 
     parser.add_argument("--input", type=str, default=None,
-                        choices=["visionpro", "quest3", "mediapipe_replay", "camera", "realsense", "video"],
+                        choices=["visionpro", "quest3", "noitom", "mediapipe_replay", "camera", "realsense", "video"],
                         help="Input device type")
     parser.add_argument("--realsense", action="store_true",
                         help="Use RealSense camera (shortcut for --input realsense)")
@@ -575,6 +587,15 @@ def main():
                         help="Quest 3 HTS listener port (default: 9000)")
     parser.add_argument("--protocol", type=str, default="udp", choices=["udp", "tcp"],
                         help="Quest 3 HTS transport protocol (default: udp)")
+
+    parser.add_argument("--noitom-local-ip", type=str, default="192.168.5.25",
+                        help="Noitom: Linux IP，须与 Axis Studio 目标地址一致 (default: 192.168.5.25)")
+    parser.add_argument("--noitom-local-port", type=int, default=8000,
+                        help="Noitom: 本机 UDP 监听端口 (default: 8000)")
+    parser.add_argument("--noitom-server-ip", type=str, default="192.168.5.33",
+                        help="Noitom: Axis Studio 所在 Windows IP (default: 192.168.5.33)")
+    parser.add_argument("--noitom-server-port", type=int, default=9000,
+                        help="Noitom: Axis Studio BVH 广播端口 (default: 9000)")
 
     parser.add_argument("--speed", type=float, default=1.0,
                         help="Playback speed for replay mode (default: 1.0)")
@@ -640,6 +661,7 @@ def main():
         input_to_dir = {
             "quest3": "quest3",
             "visionpro": "avp",
+            "noitom": "noitom",
         }
         config_dir = input_to_dir.get(input_device_type, "mediapipe")
         robot_file = robot_name_map.get(args.robot, args.robot)
@@ -654,6 +676,10 @@ def main():
         visionpro_ip=args.ip,
         quest3_port=args.port,
         quest3_protocol=args.protocol,
+        noitom_local_ip=args.noitom_local_ip,
+        noitom_local_port=args.noitom_local_port,
+        noitom_server_ip=args.noitom_server_ip,
+        noitom_server_port=args.noitom_server_port,
         playback_speed=args.speed,
         playback_loop=not args.no_loop,
         enable_recording=args.record,

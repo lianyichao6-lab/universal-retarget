@@ -34,6 +34,7 @@ from anydexretarget import Retargeter
 from anydexretarget.mediapipe import apply_mediapipe_transformations
 from anydexretarget.optimizer.base_optimizer import BaseOptimizer
 from input.camera import Camera
+from input.noitom import NoitomInput
 from input.video import Video
 from input.mediapipe_replay import MediaPipeReplay
 from teleop_sim import ROBOT_HAND_CONFIGS, map_urdf_to_mujoco_menagerie
@@ -185,22 +186,41 @@ def build_scaled_skeleton(mediapipe_kp, optimizer):
     scaling = optimizer.scaling if hasattr(optimizer, 'scaling') else 1.0
     wrist = mediapipe_kp[0]
 
-    # Build scaled keypoints: apply scaling to all vectors from wrist
     scaled_kp = np.zeros_like(mediapipe_kp)
     scaled_kp[0] = origin_pos  # wrist at robot origin
 
-    # For full-hand vectors, use segment_scaling
-    seg_scaling = None
-    if hasattr(optimizer, 'segment_scaling'):
-        seg_scaling = optimizer.segment_scaling
-
-    # Map MP finger indices
     mp_finger_indices = optimizer.mp_finger_indices if hasattr(optimizer, 'mp_finger_indices') else [0, 1, 2, 3, 4]
 
-    # Apply scaling to each landmark
-    for i in range(1, 21):
-        vec = mediapipe_kp[i] - wrist  # vector from wrist in meters
-        scaled_kp[i] = origin_pos + vec * scaling
+    if hasattr(optimizer, 'segment_scaling_full'):
+        # Per-finger, per-segment scaling: (nf, 4) — MCP, PIP, DIP, TIP
+        seg_full = optimizer.segment_scaling_full
+        MP_MCP = [1, 5, 9, 13, 17]
+        MP_PIP = [2, 6, 10, 14, 18]
+        MP_DIP = [3, 7, 11, 15, 19]
+        MP_TIP = [4, 8, 12, 16, 20]
+        for local_fi, fi in enumerate(mp_finger_indices):
+            for mp_idx, col in zip(
+                [MP_MCP[fi], MP_PIP[fi], MP_DIP[fi], MP_TIP[fi]], [0, 1, 2, 3]
+            ):
+                scaled_kp[mp_idx] = origin_pos + (mediapipe_kp[mp_idx] - wrist) * seg_full[local_fi, col]
+    elif hasattr(optimizer, '_task_kp_indices'):
+        # KeyVectorOptimizer: apply per-vector scale to each task keypoint
+        # Start with uniform 1.0, then override with key_vectors scales
+        for i in range(1, 21):
+            scaled_kp[i] = origin_pos + (mediapipe_kp[i] - wrist)
+        for origin_kp, task_kp, scale in zip(
+            optimizer._origin_kp_indices,
+            optimizer._task_kp_indices,
+            optimizer._vector_scalings,
+        ):
+            if origin_kp == 0:
+                scaled_kp[task_kp] = origin_pos + (mediapipe_kp[task_kp] - wrist) * scale
+            else:
+                scaled_kp[task_kp] = scaled_kp[origin_kp] + (mediapipe_kp[task_kp] - mediapipe_kp[origin_kp]) * scale
+    else:
+        # Fallback: uniform global scaling
+        for i in range(1, 21):
+            scaled_kp[i] = origin_pos + (mediapipe_kp[i] - wrist) * scaling
 
     return scaled_kp, MP_CONNECTIONS
 
@@ -237,11 +257,17 @@ def main():
                                  "linkerhand_l21", "unitree_dex5"],
                         help="Robot hand type (default: leap)")
     parser.add_argument("--hand", default="right", choices=["left", "right"])
-    parser.add_argument("--input", default="camera", choices=["camera", "video", "replay"])
+    parser.add_argument("--input", default="camera", choices=["camera", "video", "replay", "noitom"])
     parser.add_argument("--video", default="", help="Video file path")
     parser.add_argument("--play", default="", help="Replay pickle path")
+    parser.add_argument("--noitom-local-ip", type=str, default="192.168.5.25")
+    parser.add_argument("--noitom-local-port", type=int, default=8000)
+    parser.add_argument("--noitom-server-ip", type=str, default="192.168.5.33")
+    parser.add_argument("--noitom-server-port", type=int, default=9000)
     parser.add_argument("--show-video", action="store_true")
     parser.add_argument("--speed", type=float, default=1.0)
+    parser.add_argument("--alpha", type=float, default=0.25,
+                        help="Robot hand transparency (0=invisible, 1=opaque, default: 0.25)")
     args = parser.parse_args()
 
     robot_name_map = {
@@ -251,7 +277,9 @@ def main():
         "unitree_dex5": "unitree_dex5_hand",
     }
     robot_file = robot_name_map.get(args.robot, args.robot)
-    config_path = args.config if args.config else f"config/{args.optimizer}/mediapipe/mediapipe_{robot_file}.yaml"
+    input_to_dir = {"noitom": "noitom"}
+    config_dir = input_to_dir.get(args.input, "mediapipe")
+    config_path = args.config if args.config else f"config/{args.optimizer}/{config_dir}/{config_dir}_{robot_file}.yaml"
     config_file = EXAMPLE_ROOT / config_path
     with open(config_file, 'r') as f:
         config = yaml.safe_load(f)
@@ -294,7 +322,15 @@ def main():
     optimizer = retargeter.optimizer
 
     # Initialize input device
-    if args.input == "video" or args.video:
+    if args.input == "noitom":
+        input_device = NoitomInput(
+            local_ip=args.noitom_local_ip,
+            local_port=args.noitom_local_port,
+            server_ip=args.noitom_server_ip,
+            server_port=args.noitom_server_port,
+        )
+        input_type = "noitom"
+    elif args.input == "video" or args.video:
         video_path = args.video or "data/right.mp4"
         input_device = Video(
             video_path=video_path,
@@ -322,6 +358,9 @@ def main():
         print("Control mode: actuator position")
     else:
         print("Control mode: direct qpos")
+
+    # Make robot hand semi-transparent
+    model.geom_rgba[:, 3] = args.alpha
 
     # Launch viewer
     viewer = mujoco.viewer.launch_passive(model, data)
