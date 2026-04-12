@@ -30,9 +30,7 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 - [仓库结构](#仓库结构)
 - [安装](#安装)
 - [快速开始](#快速开始)
-- [配置说明](#配置说明)
 - [API 参考](#api-参考)
-- [优化器详解](#优化器详解)
 - [引用](#引用)
 - [致谢](#致谢)
 - [联系方式](#联系方式)
@@ -141,11 +139,6 @@ pip install -e .
 
 ### 故障排除
 
-**pinocchio 安装问题**：`pinocchio` 需要通过 conda 安装（不要用 pip）。pip 上的 `pin` 包需要 C++ 编译，在 Windows 上通常会失败：
-```bash
-conda install -c conda-forge pinocchio
-```
-
 **macOS MuJoCo**：仿真脚本使用 `mjpython` 代替 `python`：
 ```bash
 mjpython example/teleop_sim.py --video example/data/right.mp4
@@ -216,14 +209,13 @@ sudo chmod a+rw /dev/ttyUSB0
 
 ### 命令参考
 
+#### 输入
+
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--robot` | `shadow`（sim）/ `wuji`（real） | 灵巧手类型 |
-| `--optimizer` | `adaptive` | 优化器类型：`adaptive` 或 `vector` |
-| `--config` | 自动选择 | 配置文件（覆盖 `--robot` 和 `--optimizer`） |
-| `--hand` | `right` | 手的方向（`left`/`right`） |
 | `--input` | - | `teleop_sim.py`：`visionpro` / `quest3` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--input` | - | `teleop_real.py`：`visionpro` / `noitom` / `mediapipe_replay` |
+| `--hand` | `right` | 手的方向（`left`/`right`） |
 | `--realsense` | 关闭 | `--input realsense` 的快捷方式 |
 | `--play FILE` | - | 回放录制（`--input mediapipe_replay` 的快捷方式） |
 | `--video FILE` | - | 视频文件输入（MediaPipe 手部检测） |
@@ -235,10 +227,23 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--noitom-server-ip` | `192.168.5.33` | Noitom：Axis Studio IP（Windows） |
 | `--noitom-server-port` | `9000` | Noitom：Axis Studio 端口 |
 | `--speed` | `1.0` | 播放速度 |
+| `--video-depth-scale` | `1.25` | `--video` 模式下额外深度缩放 |
+
+#### 优化器
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--robot` | `shadow`（sim）/ `wuji`（real） | 灵巧手类型 |
+| `--optimizer` | `adaptive` | 优化器类型：`adaptive` 或 `vector` |
+| `--config` | 自动选择 | 配置文件（覆盖 `--robot` 和 `--optimizer`） |
+
+#### 输出
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
 | `--record` | - | 录制输入数据 |
 | `--output FILE` | - | 录制输出文件路径 |
 | `--show-video` | 关闭 | 显示 RGB / 关键点预览 |
-| `--video-depth-scale` | `1.25` | `--video` 模式下额外深度缩放 |
 | `--no-loop` | - | 禁用回放循环 |
 | `--headless` | 关闭 | 无 GUI 运行仿真 |
 | `--save-sim FILE` | - | 保存离屏仿真视频 |
@@ -302,91 +307,6 @@ python test/visualize_scaling.py --robot leap --video data/right.mp4 --hand righ
 python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
 ```
 
-## 配置说明
-
-### Adaptive 优化器配置
-
-```yaml
-optimizer:
-  type: "AdaptiveOptimizerAnalytical"
-
-robot:
-  type: "shadow_hand"
-
-retarget:
-  # 损失权重
-  w_pos: 1.0              # 指尖位置权重
-  w_dir: 5.0              # 指尖方向权重
-  w_full_hand: 1.0        # 全手权重
-
-  # Huber 损失阈值
-  huber_delta: 2.0        # 位置阈值（cm）
-  huber_delta_dir: 0.5    # 方向阈值
-
-  # 正则化
-  norm_delta: 0.04        # 速度平滑
-
-  # 缩放
-  scaling: 0.81           # MediaPipe 到机器人缩放（Shadow Hand 约为 MediaPipe 的 81%）
-
-  # 坐标系对齐
-  mediapipe_rotation:
-    x: 0.0
-    y: 0.0
-    z: -90.0              # Shadow Hand 需要 -90° Z 旋转
-
-  # 对指阈值（cm）
-  pinch_thresholds:
-    index:  { d1: 2.0, d2: 4.0 }
-    middle: { d1: 2.0, d2: 4.0 }
-    ring:   { d1: 2.0, d2: 4.0 }
-    pinky:  { d1: 2.0, d2: 4.0 }
-
-  # 低通滤波器（0~1，越小越平滑）
-  lp_alpha: 0.4
-```
-
-### KeyVector 优化器配置
-
-```yaml
-optimizer:
-  type: "KeyVectorOptimizer"
-
-robot:
-  type: "wuji_hand"
-  urdf_path: "assets/wuji_hand/right.urdf"
-
-retarget:
-  huber_delta: 2.0
-  norm_delta: 0.04
-  lp_alpha: 0.4
-
-  # 每项：机器人（origin_link -> task_link）匹配 MediaPipe（origin_kp -> task_kp）关键点对
-  # scale：将人手向量缩放以匹配机器人手部尺寸
-  key_vectors:
-    - {origin: right_palm_link, task: right_finger1_link3,    origin_kp: 0, task_kp:  2, scale: 1.0}
-    - {origin: right_palm_link, task: right_finger1_link4,    origin_kp: 0, task_kp:  3, scale: 1.0}
-    - {origin: right_palm_link, task: right_finger1_tip_link, origin_kp: 0, task_kp:  4, scale: 1.0}
-    # ... （共 15 个向量：每指 3 个）
-
-  mediapipe_rotation:
-    x: -5.0
-    y: -5.0
-    z: 0.0
-```
-
-### 关键参数
-
-| 参数 | 优化器 | 说明 |
-|------|--------|------|
-| `scaling` | adaptive | 手部尺寸比例。Shadow Hand ≈ 0.81 |
-| `w_pos` / `w_dir` / `w_full_hand` | adaptive | 损失项权重 |
-| `pinch_thresholds` | adaptive | 对指检测距离阈值（cm） |
-| `key_vectors[i].scale` | vector | 每向量缩放以匹配机器人手部尺寸 |
-| `mediapipe_rotation` | 两者 | 坐标系对齐（角度） |
-| `norm_delta` | 两者 | 速度正则化权重 |
-| `lp_alpha` | 两者 | 低通滤波系数（0~1） |
-
 ## API 参考
 
 ### 基本用法
@@ -419,41 +339,6 @@ cost = optimizer.compute_cost(qpos, mediapipe_keypoints)
 stats = optimizer.get_timing_stats()
 print(f"平均耗时: {stats.get_avg()['total_ms']:.2f} ms")
 ```
-
-## 优化器详解
-
-### AdaptiveOptimizerAnalytical
-
-基于拇指到手指距离，在 TipDirVec（对指）和 FullHandVec（张开）之间自适应混合。
-
-**损失函数：**
-```
-L = Σᵢ [αᵢ · (w_pos·L_pos + w_dir·L_dir) + (1-αᵢ) · w_full·L_full] + norm_delta·||Δq||²
-```
-
-**自适应混合：**
-```
-αᵢ = 0.7    如果 dᵢ < d1  (对指 → TipDirVec 模式)
-αᵢ = 0.0    如果 dᵢ > d2  (张开 → FullHandVec 模式)
-αᵢ = 插值   其他情况
-```
-
-其中 `dᵢ` 是拇指到手指指尖的距离。
-
-### KeyVectorOptimizer
-
-最小化 N 个机器人 link 对向量与对应的缩放后 MediaPipe 关键点向量之间的平均 Huber 距离。参考：[dex-retargeting](https://github.com/dexsuite/dex-retargeting) VectorOptimizer。
-
-**损失函数：**
-```
-L = (1/N) · Σᵢ Huber(‖[FK(task_i) - FK(origin_i)] - scale_i·(mp[task_kp_i] - mp[origin_kp_i])‖)
-  + norm_delta · ‖q - q_prev‖²
-```
-
-**适用场景：**
-- 行为更简单、更可预测
-- 无对指检测——适合不需要精确手指接触的任务
-- 易于自定义：在 YAML 中增删向量或调整每向量缩放
 
 ## 引用
 

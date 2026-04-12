@@ -30,9 +30,7 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 - [Repository Structure](#repository-structure)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Configuration](#configuration)
 - [API Reference](#api-reference)
-- [Optimizer Details](#optimizer-details)
 - [Citation](#citation)
 - [Acknowledgement](#acknowledgement)
 - [Contact](#contact)
@@ -141,11 +139,6 @@ pip install -e .
 
 ### Troubleshooting
 
-**pinocchio Installation**: `pinocchio` must be installed via conda (not pip). The pip package `pin` requires C++ compilation and often fails on Windows:
-```bash
-conda install -c conda-forge pinocchio
-```
-
 **macOS MuJoCo**: Use `mjpython` instead of `python`:
 ```bash
 mjpython example/teleop_sim.py --video example/data/right.mp4
@@ -216,14 +209,13 @@ sudo chmod a+rw /dev/ttyUSB0
 
 ### Command Reference
 
+#### Input
+
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--robot` | `shadow` (sim) / `wuji` (real) | Robot hand type |
-| `--optimizer` | `adaptive` | Optimizer type: `adaptive` or `vector` |
-| `--config` | auto-select | Configuration file (overrides `--robot` and `--optimizer`) |
-| `--hand` | `right` | Hand side (`left`/`right`) |
 | `--input` | - | `teleop_sim.py`: `visionpro` / `quest3` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--input` | - | `teleop_real.py`: `visionpro` / `noitom` / `mediapipe_replay` |
+| `--hand` | `right` | Hand side (`left`/`right`) |
 | `--realsense` | off | Shortcut for `--input realsense` |
 | `--play FILE` | - | Replay recording (shortcut for `--input mediapipe_replay`) |
 | `--video FILE` | - | Video file input with MediaPipe hand detection |
@@ -235,10 +227,23 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--noitom-server-ip` | `192.168.5.33` | Noitom: Axis Studio IP (Windows) |
 | `--noitom-server-port` | `9000` | Noitom: Axis Studio port |
 | `--speed` | `1.0` | Playback speed |
+| `--video-depth-scale` | `1.25` | Extra depth scaling for `--video` mode |
+
+#### Optimizer
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--robot` | `shadow` (sim) / `wuji` (real) | Robot hand type |
+| `--optimizer` | `adaptive` | Optimizer type: `adaptive` or `vector` |
+| `--config` | auto-select | Configuration file (overrides `--robot` and `--optimizer`) |
+
+#### Output
+
+| Option | Default | Description |
+|--------|---------|-------------|
 | `--record` | - | Record input data |
 | `--output FILE` | - | Output file path for recording |
 | `--show-video` | off | Show RGB / landmark preview for supported inputs |
-| `--video-depth-scale` | `1.25` | Extra depth scaling for `--video` mode |
 | `--no-loop` | - | Disable looping for replay |
 | `--headless` | off | Run simulation without GUI viewer |
 | `--save-sim FILE` | - | Save offscreen simulation video |
@@ -302,91 +307,6 @@ python test/visualize_scaling.py --robot leap --video data/right.mp4 --hand righ
 python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand right
 ```
 
-## Configuration
-
-### Adaptive Optimizer Config
-
-```yaml
-optimizer:
-  type: "AdaptiveOptimizerAnalytical"
-
-robot:
-  type: "shadow_hand"
-
-retarget:
-  # Loss weights
-  w_pos: 1.0              # Tip position weight
-  w_dir: 5.0              # Tip direction weight
-  w_full_hand: 1.0        # Full hand weight
-
-  # Huber loss thresholds
-  huber_delta: 2.0        # Position threshold (cm)
-  huber_delta_dir: 0.5    # Direction threshold
-
-  # Regularization
-  norm_delta: 0.04        # Velocity smoothing
-
-  # Scaling
-  scaling: 0.81           # MediaPipe to robot scale (Shadow Hand ~81% of MediaPipe)
-
-  # Coordinate alignment
-  mediapipe_rotation:
-    x: 0.0
-    y: 0.0
-    z: -90.0              # Shadow Hand requires -90° Z rotation
-
-  # Pinch thresholds (cm)
-  pinch_thresholds:
-    index:  { d1: 2.0, d2: 4.0 }
-    middle: { d1: 2.0, d2: 4.0 }
-    ring:   { d1: 2.0, d2: 4.0 }
-    pinky:  { d1: 2.0, d2: 4.0 }
-
-  # Low-pass filter (0~1, smaller = smoother)
-  lp_alpha: 0.4
-```
-
-### KeyVector Optimizer Config
-
-```yaml
-optimizer:
-  type: "KeyVectorOptimizer"
-
-robot:
-  type: "wuji_hand"
-  urdf_path: "assets/wuji_hand/right.urdf"
-
-retarget:
-  huber_delta: 2.0
-  norm_delta: 0.04
-  lp_alpha: 0.4
-
-  # Each entry: robot (origin_link -> task_link) matched to (origin_kp -> task_kp) MediaPipe pair
-  # scale: shrink/expand the human vector to match robot hand size
-  key_vectors:
-    - {origin: right_palm_link, task: right_finger1_link3,    origin_kp: 0, task_kp:  2, scale: 1.0}
-    - {origin: right_palm_link, task: right_finger1_link4,    origin_kp: 0, task_kp:  3, scale: 1.0}
-    - {origin: right_palm_link, task: right_finger1_tip_link, origin_kp: 0, task_kp:  4, scale: 1.0}
-    # ... (15 vectors total: 3 per finger)
-
-  mediapipe_rotation:
-    x: -5.0
-    y: -5.0
-    z: 0.0
-```
-
-### Key Parameters
-
-| Parameter | Optimizer | Description |
-|-----------|-----------|-------------|
-| `scaling` | adaptive | Hand size ratio. Shadow Hand ≈ 0.81 |
-| `w_pos` / `w_dir` / `w_full_hand` | adaptive | Loss term weights |
-| `pinch_thresholds` | adaptive | Distance thresholds for pinch detection (cm) |
-| `key_vectors[i].scale` | vector | Per-vector scale to match robot hand size |
-| `mediapipe_rotation` | both | Coordinate alignment (degrees) |
-| `norm_delta` | both | Velocity regularization weight |
-| `lp_alpha` | both | Low-pass filter coefficient (0~1) |
-
 ## API Reference
 
 ### Basic Usage
@@ -419,41 +339,6 @@ cost = optimizer.compute_cost(qpos, mediapipe_keypoints)
 stats = optimizer.get_timing_stats()
 print(f"Average time: {stats.get_avg()['total_ms']:.2f} ms")
 ```
-
-## Optimizer Details
-
-### AdaptiveOptimizerAnalytical
-
-Adaptive blending between TipDirVec (pinch) and FullHandVec (open hand) based on thumb-to-finger distance.
-
-**Loss function:**
-```
-L = Σᵢ [αᵢ · (w_pos·L_pos + w_dir·L_dir) + (1-αᵢ) · w_full·L_full] + norm_delta·||Δq||²
-```
-
-**Adaptive blending:**
-```
-αᵢ = 0.7    if dᵢ < d1  (pinching → TipDirVec mode)
-αᵢ = 0.0    if dᵢ > d2  (open → FullHandVec mode)
-αᵢ = lerp   otherwise
-```
-
-Where `dᵢ` is thumb-to-finger tip distance.
-
-### KeyVectorOptimizer
-
-Minimizes the mean Huber distance between N robot link-pair vectors and the corresponding scaled MediaPipe keypoint vectors. Reference: [dex-retargeting](https://github.com/dexsuite/dex-retargeting) VectorOptimizer.
-
-**Loss function:**
-```
-L = (1/N) · Σᵢ Huber(‖[FK(task_i) - FK(origin_i)] - scale_i·(mp[task_kp_i] - mp[origin_kp_i])‖)
-  + norm_delta · ‖q - q_prev‖²
-```
-
-**When to use:**
-- Simpler, more predictable behavior
-- No pinch detection — better for tasks not requiring precise finger contact
-- Easily customizable: add/remove vectors or adjust per-vector scale in YAML
 
 ## Citation
 
