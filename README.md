@@ -209,7 +209,7 @@ sudo chmod a+rw /dev/ttyUSB0
 
 ### Command Reference
 
-#### Input
+#### Input Source
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -226,24 +226,23 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--noitom-local-port` | `8000` | Noitom: local UDP port |
 | `--noitom-server-ip` | `192.168.5.33` | Noitom: Axis Studio IP (Windows) |
 | `--noitom-server-port` | `9000` | Noitom: Axis Studio port |
-| `--speed` | `1.0` | Playback speed |
-| `--video-depth-scale` | `1.25` | Extra depth scaling for `--video` mode |
 
 #### Optimizer
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--robot` | `shadow` (sim) / `wuji` (real) | Robot hand type |
 | `--optimizer` | `adaptive` | Optimizer type: `adaptive` or `vector` |
 | `--config` | auto-select | Configuration file (overrides `--robot` and `--optimizer`) |
 
-#### Output
+#### Robot Hand & Output
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `--robot` | `shadow` (sim) / `wuji` (real) | Robot hand type |
 | `--record` | - | Record input data |
 | `--output FILE` | - | Output file path for recording |
 | `--show-video` | off | Show RGB / landmark preview for supported inputs |
+| `--speed` | `1.0` | Playback speed |
 | `--no-loop` | - | Disable looping for replay |
 | `--headless` | off | Run simulation without GUI viewer |
 | `--save-sim FILE` | - | Save offscreen simulation video |

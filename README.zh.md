@@ -209,7 +209,7 @@ sudo chmod a+rw /dev/ttyUSB0
 
 ### 命令参考
 
-#### 输入
+#### 输入源
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
@@ -226,24 +226,23 @@ sudo chmod a+rw /dev/ttyUSB0
 | `--noitom-local-port` | `8000` | Noitom：本机 UDP 端口 |
 | `--noitom-server-ip` | `192.168.5.33` | Noitom：Axis Studio IP（Windows） |
 | `--noitom-server-port` | `9000` | Noitom：Axis Studio 端口 |
-| `--speed` | `1.0` | 播放速度 |
-| `--video-depth-scale` | `1.25` | `--video` 模式下额外深度缩放 |
 
 #### 优化器
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--robot` | `shadow`（sim）/ `wuji`（real） | 灵巧手类型 |
 | `--optimizer` | `adaptive` | 优化器类型：`adaptive` 或 `vector` |
 | `--config` | 自动选择 | 配置文件（覆盖 `--robot` 和 `--optimizer`） |
 
-#### 输出
+#### 灵巧手与输出
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
+| `--robot` | `shadow`（sim）/ `wuji`（real） | 灵巧手类型 |
 | `--record` | - | 录制输入数据 |
 | `--output FILE` | - | 录制输出文件路径 |
 | `--show-video` | 关闭 | 显示 RGB / 关键点预览 |
+| `--speed` | `1.0` | 播放速度 |
 | `--no-loop` | - | 禁用回放循环 |
 | `--headless` | 关闭 | 无 GUI 运行仿真 |
 | `--save-sim FILE` | - | 保存离屏仿真视频 |
