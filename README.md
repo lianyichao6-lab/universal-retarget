@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 
 ## Features
 
-- **Shadow Hand Support**: Shadow Hand with MuJoCo Menagerie high-quality meshes
+- **11 Robot Hands**: Shadow, Wuji, Allegro, Inspire, Ability, Leap, SVH, LinkerHand, ROHand, Unitree Dex5, Sharpa
 - **Two Optimizers**: `adaptive` (pinch-aware, default) and `vector` (key-vector matching)
 - **High-Precision Pinch**: Adaptive optimization for accurate finger-to-thumb contact
 - **Real-time Performance**: Analytical gradients + NLopt SLSQP (~2ms per frame)
@@ -65,8 +65,7 @@ example/config/
 | **LinkerHand L21** | `linkerhand_l21` | `linkerhand_l21` | LinkerHand L21 |
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
-
-> Vector optimizer configs are provided for `shadow_hand`, `wuji_hand`, and `inspire_hand`. Other robots use `adaptive` only.
+| **Sharpa Hand** | `sharpa` | `sharpa_hand` | Sharpa Wave Hand, 5 fingers / 22 DOF |
 
 > **Note on Noitom configs:** Only `shadow_hand`, `wuji_hand`, and `inspire_hand` have been roughly calibrated for Noitom input. If you need to fine-tune the mapping accuracy between your hand and the robot hand, run `debug_skeleton.py` to visualize three skeletons side-by-side: **Blue** = raw input, **Green** = after scaling, **Red** = retargeted FK result. Compare the skeleton sizes and adjust the corresponding YAML config parameters (`scaling`, `segment_scaling`, `key_vectors[].scale`, etc.) accordingly.
 >
@@ -97,7 +96,7 @@ example/config/
 │   │   └── noitom.py                      # Noitom PNS-G glove input
 │   ├── test/                              # Debug & visualization tools
 │   │   ├── debug_skeleton.py              # 3-skeleton comparison viewer
-│   │   └── calibrate_noitom.py            # Noitom segment_scaling calibration
+│   │   └── calibrate_scaling.py            # Universal segment_scaling calibration
 │   ├── config/
 │   │   ├── adaptive/                      # AdaptiveOptimizerAnalytical configs
 │   │   │   ├── avp/                       # Apple Vision Pro
@@ -277,22 +276,37 @@ python test/debug_skeleton.py --robot inspire --input noitom --noitom-local-ip 1
 # With Noitom + KeyVector optimizer
 python test/debug_skeleton.py --robot inspire --input noitom --optimizer vector --noitom-local-ip 192.168.5.25
 
+# With RealSense D435
+python test/debug_skeleton.py --robot sharpa --input realsense --hand right
+
+# With Vision Pro
+python test/debug_skeleton.py --robot sharpa --input avp --avp-ip 192.168.5.32 --hand right
+
 # With your own recorded data
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
 ```
 
-#### calibrate_noitom.py
+#### calibrate_scaling.py
 
-Calibrate `segment_scaling` for Noitom input. Collects data while the user holds their hand flat (fingers fully extended), then computes the ratio between robot FK and human bone distances.
+Calibrate `segment_scaling` for any robot hand and input source. Collects data while the user holds their hand flat, then computes the ratio between robot FK and human bone distances.
 
 ```bash
 cd example
 
-# Calibrate and print recommended segment_scaling
-python test/calibrate_noitom.py --robot inspire --noitom-local-ip 192.168.5.25
+# Calibrate with RealSense
+python test/calibrate_scaling.py --robot sharpa --input mediapipe
 
-# Calibrate and write results directly to config file
-python test/calibrate_noitom.py --robot inspire --noitom-local-ip 192.168.5.25 --write
+# Calibrate with video
+python test/calibrate_scaling.py --robot shadow --input mediapipe --video data/right.mp4
+
+# Calibrate with Vision Pro
+python test/calibrate_scaling.py --robot wuji --input avp --avp-ip 192.168.5.32
+
+# Calibrate with Noitom
+python test/calibrate_scaling.py --robot inspire --input noitom
+
+# Calibrate with Quest 3
+python test/calibrate_scaling.py --robot shadow --input quest3
 ```
 
 #### visualize_scaling.py

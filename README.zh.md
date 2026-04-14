@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 
 ## 特性
 
-- **Shadow Hand 支持**：Shadow Hand + MuJoCo Menagerie 高精度模型
+- **多灵巧手支持**：Shadow Hand、Wuji Hand、Inspire Hand 等 11 款灵巧手开箱即用
 - **两种优化器**：`adaptive`（对指感知，默认）和 `vector`（关键向量匹配）
 - **高精度对指**：自适应优化，精确的拇指-手指接触
 - **实时性能**：解析梯度 + NLopt SLSQP（~2ms/帧）
@@ -65,8 +65,7 @@ example/config/
 | **LinkerHand L21** | `linkerhand_l21` | `linkerhand_l21` | LinkerHand L21 |
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
-
-> vector 优化器目前提供 `shadow_hand`、`wuji_hand` 和 `inspire_hand` 的配置，其他机器人仅支持 `adaptive`。
+| **Sharpa Hand** | `sharpa` | `sharpa_hand` | Sharpa Wave 灵巧手，5 指 / 22 DOF |
 
 > **Noitom 配置说明：** 目前仅对 `shadow_hand`、`wuji_hand`、`inspire_hand` 进行了大致的 Noitom 参数匹配。如需精调人手与灵巧手之间的映射精度，建议运行 `debug_skeleton.py` 可视化三套骨架进行对比：**蓝色** = 原始输入、**绿色** = scaling 后的目标、**红色** = 重定向后的 FK 结果。根据骨架大小差异调整对应 YAML 配置文件中的参数（`scaling`、`segment_scaling`、`key_vectors[].scale` 等）。
 >
@@ -97,7 +96,7 @@ example/config/
 │   │   └── noitom.py                      # Noitom PNS-G 手套输入
 │   ├── test/                              # 调试与可视化工具
 │   │   ├── debug_skeleton.py              # 三骨架对比查看器
-│   │   └── calibrate_noitom.py            # Noitom segment_scaling 标定
+│   │   └── calibrate_scaling.py           # 通用 segment_scaling 标定
 │   ├── config/
 │   │   ├── adaptive/                      # AdaptiveOptimizerAnalytical 配置
 │   │   │   ├── avp/                       # Apple Vision Pro
@@ -267,6 +266,12 @@ python test/debug_skeleton.py --robot leap --input camera
 # 视频文件输入
 python test/debug_skeleton.py --robot leap --video data/right.mp4
 
+# RealSense 输入
+python test/debug_skeleton.py --robot shadow --input realsense
+
+# Vision Pro 输入
+python test/debug_skeleton.py --robot shadow --input visionpro --ip <vision-pro-ip>
+
 # 使用可选示例录制数据，对比两种优化器
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer adaptive
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer vector
@@ -281,18 +286,27 @@ python test/debug_skeleton.py --robot inspire --input noitom --optimizer vector 
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
 ```
 
-#### calibrate_noitom.py
+#### calibrate_scaling.py
 
-标定 Noitom 输入的 `segment_scaling`。用户伸直所有手指保持不动，采集数据后计算机器人 FK 与人手骨骼距离的比值。
+为任意灵巧手和输入源标定 `segment_scaling`。采集用户伸直手指的数据，计算机器人 FK 距离与人手距离的比值。
 
 ```bash
 cd example
 
-# 标定并输出推荐的 segment_scaling
-python test/calibrate_noitom.py --robot inspire --noitom-local-ip 192.168.5.25
+# RealSense 标定
+python test/calibrate_scaling.py --robot sharpa --input mediapipe
 
-# 标定并直接写回配置文件
-python test/calibrate_noitom.py --robot inspire --noitom-local-ip 192.168.5.25 --write
+# 视频标定
+python test/calibrate_scaling.py --robot shadow --input mediapipe --video data/right.mp4
+
+# Vision Pro 标定
+python test/calibrate_scaling.py --robot wuji --input avp --avp-ip 192.168.5.32
+
+# Noitom 标定
+python test/calibrate_scaling.py --robot inspire --input noitom
+
+# Quest 3 标定
+python test/calibrate_scaling.py --robot shadow --input quest3
 ```
 
 #### visualize_scaling.py

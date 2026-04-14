@@ -85,9 +85,10 @@ ROBOT_CONFIGS = {
         'num_fingers': 5,
     },
     # LinkerHand L21
+    # Virtual tip links added to URDF (fixed joints from last physical link)
     'linkerhand_l21': {
         'origin_link': 'hand_base_link',
-        'tip_links': ['thumb_distal', 'index_middle', 'middle_middle', 'ring_middle', 'pinky_middle'],
+        'tip_links': ['thumb_tip', 'index_tip', 'middle_tip', 'ring_tip', 'pinky_tip'],
         'link1_names': ['thumb_metacarpals', 'index_metacarpals', 'middle_metacarpals', 'ring_metacarpals', 'pinky_metacarpals'],
         'link3_names': ['thumb_metacarpals', 'index_proximal', 'middle_proximal', 'ring_proximal', 'pinky_proximal'],
         'link4_names': ['thumb_distal', 'index_middle', 'middle_middle', 'ring_middle', 'pinky_middle'],
@@ -98,13 +99,7 @@ ROBOT_CONFIGS = {
             [0.000, 0.000, 0.022],
             [0.000, 0.000, 0.022],
         ],
-        'tip_offsets': [
-            [0.040, 0.000, 0.000],
-            [0.000, 0.000, 0.044],
-            [0.000, 0.000, 0.044],
-            [0.000, 0.000, 0.044],
-            [0.000, 0.000, 0.044],
-        ],
+        'tip_offsets': None,
         'link4_offsets': [
             [0.023, 0.000, 0.000],
             [0.000, 0.000, 0.022],
@@ -148,5 +143,25 @@ ROBOT_CONFIGS = {
         },
         'num_fingers': 5,
         'neutral_qpos': [0.0] * 20,
+    },
+    # Sharpa Hand (5 fingers, 22 DOF: thumb 5, index/middle/ring 4 each, pinky 5)
+    'sharpa_hand': {
+        'origin_link': 'right_hand_C_MC',
+        'tip_links': ['right_thumb_fingertip', 'right_index_fingertip', 'right_middle_fingertip', 'right_ring_fingertip', 'right_pinky_fingertip'],
+        'link1_names': ['right_thumb_MC', 'right_index_PP', 'right_middle_PP', 'right_ring_PP', 'right_pinky_PP'],
+        'link3_names': ['right_thumb_PP', 'right_index_MP', 'right_middle_MP', 'right_ring_MP', 'right_pinky_MP'],
+        'link4_names': ['right_thumb_DP', 'right_index_DP', 'right_middle_DP', 'right_ring_DP', 'right_pinky_DP'],
+        'urdf_subdir': 'assets/sharpa_hand',
+        'urdf_file': {
+            'right': 'right_sharpa_wave.urdf',
+            'left': 'left_sharpa_wave.urdf',
+        },
+        'mjcf_subdir': 'assets/sharpa_hand',
+        'mjcf_file': {
+            'right': 'right_sharpa_wave.xml',
+            'left': 'left_sharpa_wave.xml',
+        },
+        'num_fingers': 5,
+        'neutral_qpos': [0.0] * 22,
     },
 }

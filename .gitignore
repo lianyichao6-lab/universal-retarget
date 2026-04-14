@@ -19,3 +19,7 @@ MUJOCO_LOG.TXT
 # Temporary files
 *.tmp
 *.log
+
+# Sharpa source files (large)
+assets/sharpa-urdf-usd-xml-main.zip
+assets/sharpa-urdf-usd-xml-main/

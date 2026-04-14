@@ -31,7 +31,6 @@ class Realsense:
         height: int = 480,
         fps: int = 30,
         z_scale: float = 2.5,
-        correct_segments: bool = True,
         reference_wrist_to_mid_mcp: float = 0.09,
     ):
         self.hand_side = hand_side.lower()
@@ -39,7 +38,6 @@ class Realsense:
         self.frame_width = width
         self.frame_height = height
         self.z_scale = z_scale
-        self.correct_segments = correct_segments
         self._reference_wrist_to_mid_mcp = reference_wrist_to_mid_mcp
 
         # Initialize RealSense pipeline (RGB stream only)
@@ -65,7 +63,7 @@ class Realsense:
 
         print(f"RealSense camera initialized")
         print(f"  Resolution: {width}x{height} @ {fps}fps")
-        print(f"  Hand side: {self.hand_side}, z_scale: {self.z_scale}, correct_segments: {self.correct_segments}")
+        print(f"  Hand side: {self.hand_side}, z_scale: {self.z_scale}")
 
     def get_fingers_data(self) -> dict:
         frames = self._pipeline.wait_for_frames()
@@ -99,7 +97,6 @@ class Realsense:
             kp = process_landmarks(
                 kp,
                 depth_scale=1.0,
-                correct_segments=self.correct_segments,
                 reference_wrist_to_mid_mcp=self._reference_wrist_to_mid_mcp,
             )
             self._last_valid_kp = kp

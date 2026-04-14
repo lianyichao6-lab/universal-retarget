@@ -38,11 +38,11 @@ retarget:
   # Per-finger segment scaling [PIP, DIP, TIP]
   # Adjust based on Shadow Hand kinematics
   segment_scaling:
-    thumb:  [1.0, 1.0, 1.0]
-    index:  [1.0, 1.0, 1.0]
-    middle: [1.0, 1.0, 1.0]
-    ring:   [1.0, 1.0, 1.0]
-    pinky:  [1.0, 1.0, 1.0]
+    thumb:  [0.884, 0.883, 0.854]
+    index:  [1.079, 1.03, 1.028]
+    middle: [1.098, 1.051, 1.052]
+    ring:   [1.113, 1.085, 1.098]
+    pinky:  [1.142, 1.18, 1.243]
 
   # Pinch distance thresholds (cm) for each finger
   # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)
@@ -56,7 +56,7 @@ retarget:
   mediapipe_rotation:
     x: -10.0
     y: 0.0
-    z: -90.0
+    z: -120.0
 
   # Clamp joint lower bounds to prevent hyperextension
   # Pattern matches joint names containing the key, sets minimum lower bound

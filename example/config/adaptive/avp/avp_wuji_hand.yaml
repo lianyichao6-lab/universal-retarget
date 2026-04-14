@@ -27,11 +27,11 @@ retarget:
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
   segment_scaling:
-    thumb:  [1.0, 1.0, 1.0]
-    index:  [1.0, 1.03, 1.05]
-    middle: [1.0, 1.0, 1.0]
-    ring:   [1.0, 1.0, 1.0]
-    pinky:  [1.05, 1.15, 1.15]
+    thumb:  [1.051, 1.026, 1.024]
+    index:  [1.096, 1.13, 1.155]
+    middle: [1.053, 1.065, 1.091]
+    ring:   [1.075, 1.094, 1.12]
+    pinky:  [1.145, 1.22, 1.246]
 
   # Pinch distance thresholds (cm) for each finger
   # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)

@@ -1030,4 +1030,35 @@
       effort="100"
       velocity="1" />
   </joint>
+  <!-- Virtual tip links for retargeting (full tip_offset from robot_configs) -->
+  <link name="thumb_tip"/>
+  <joint name="thumb_tip_fixed" type="fixed">
+    <parent link="thumb_distal"/>
+    <child link="thumb_tip"/>
+    <origin xyz="0.040 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="index_tip"/>
+  <joint name="index_tip_fixed" type="fixed">
+    <parent link="index_middle"/>
+    <child link="index_tip"/>
+    <origin xyz="0 0 0.044" rpy="0 0 0"/>
+  </joint>
+  <link name="middle_tip"/>
+  <joint name="middle_tip_fixed" type="fixed">
+    <parent link="middle_middle"/>
+    <child link="middle_tip"/>
+    <origin xyz="0 0 0.044" rpy="0 0 0"/>
+  </joint>
+  <link name="ring_tip"/>
+  <joint name="ring_tip_fixed" type="fixed">
+    <parent link="ring_middle"/>
+    <child link="ring_tip"/>
+    <origin xyz="0 0 0.044" rpy="0 0 0"/>
+  </joint>
+  <link name="pinky_tip"/>
+  <joint name="pinky_tip_fixed" type="fixed">
+    <parent link="pinky_middle"/>
+    <child link="pinky_tip"/>
+    <origin xyz="0 0 0.044" rpy="0 0 0"/>
+  </joint>
 </robot>

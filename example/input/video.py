@@ -31,14 +31,12 @@ class Video:
         show_video: bool = False,
         playback_speed: float = 1.0,
         loop: bool = True,
-        correct_segments: bool = True,
-        depth_scale: float = 1.25,
+        depth_scale: float = 1.0,
     ):
         self.hand_side = hand_side.lower()
         self.show_video = show_video
         self.playback_speed = playback_speed
         self.loop = loop
-        self.correct_segments = correct_segments
         self.depth_scale = float(depth_scale)
 
         video_path = Path(video_path)
@@ -121,7 +119,6 @@ class Video:
             kp = process_landmarks(
                 kp,
                 depth_scale=self.depth_scale,
-                correct_segments=self.correct_segments,
             )
             self._last_valid_kp = kp
             self._last_valid_raw = raw_lm

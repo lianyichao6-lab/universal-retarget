@@ -17,11 +17,11 @@ retarget:
   w_full_hand: 1.0
 
   segment_scaling:
-    thumb:  [1.1, 1.1, 1.1]
-    index:  [1.2, 1.2, 1.2]
-    middle: [1.2, 1.2, 1.2]
-    ring:   [1.2, 1.2, 1.2]
-    pinky:  [1.2, 1.2, 1.2]
+    thumb:  [1.181, 1.313, 1.5]
+    index:  [1.331, 1.412, 1.367]
+    middle: [1.375, 1.414, 1.366]
+    ring:   [1.397, 1.451, 1.401]
+    pinky:  [1.45, 1.589, 1.536]
 
   pinch_thresholds:
     index:  { d1: 2.0, d2: 4.0 }
@@ -30,7 +30,7 @@ retarget:
     pinky:  { d1: 2.0, d2: 4.0 }
 
   mediapipe_rotation:
-    x: 0.0
+    x: -10.0
     y: 0.0
     z: -20.0
 

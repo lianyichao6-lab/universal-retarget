@@ -176,6 +176,14 @@ class BaseOptimizer(ABC):
             self.link1_names = [replace_suffix(n) for n in self.link1_names]
             self.link3_names = [replace_suffix(n) for n in self.link3_names]
             self.link4_names = [replace_suffix(n) for n in self.link4_names]
+        elif robot_type == 'sharpa_hand' and self.hand_side == 'left':
+            def replace_prefix(name):
+                return name.replace('right_', 'left_')
+            self.origin_link_name = replace_prefix(self.origin_link_name)
+            self.task_link_names = [replace_prefix(n) for n in self.task_link_names]
+            self.link1_names = [replace_prefix(n) for n in self.link1_names]
+            self.link3_names = [replace_prefix(n) for n in self.link3_names]
+            self.link4_names = [replace_prefix(n) for n in self.link4_names]
 
         # Build link indices
         self._build_link_indices()

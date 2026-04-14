@@ -81,6 +81,10 @@ ROBOT_HAND_CONFIGS = {
         "qpos_servo_alpha": 0.2,
         "base_quat": (0.7071068, 0.7071068, 0, 0),
     },
+    "sharpa_hand": {
+        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "sharpa_hand" / f"{side}_sharpa_wave.xml"),
+        "qpos_mapping": [17, 18, 19, 20, 21, 0, 1, 2, 3, 4, 5, 6, 7, 13, 14, 15, 16, 8, 9, 10, 11, 12],
+    },
 }
 
 
@@ -561,7 +565,7 @@ def main():
     parser.add_argument("--robot", type=str, default="shadow",
                         choices=["shadow", "wuji", "allegro", "leap",
                                  "inspire", "ability", "svh", "rohand",
-                                 "linkerhand_l21", "unitree_dex5"],
+                                 "linkerhand_l21", "unitree_dex5", "sharpa"],
                         help="Robot hand type (default: shadow)")
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"],
                         help="Hand side (default: right)")
@@ -656,7 +660,7 @@ def main():
             "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
             "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
             "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-            "unitree_dex5": "unitree_dex5_hand",
+            "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
         }
         input_to_dir = {
             "quest3": "quest3",

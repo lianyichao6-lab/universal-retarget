@@ -19,11 +19,11 @@ retarget:
   w_full_hand: 1.0
 
   segment_scaling:
-    thumb:  [1.12, 1.12, 1.12]
-    index:  [1.12, 1.12, 1.12]
-    middle: [1.12, 1.12, 1.12]
-    ring:   [1.12, 1.12, 1.12]
-    pinky:  [1.12, 1.12, 1.12]
+    thumb:  [0.666, 0.875, 1.109]
+    index:  [1.206, 1.199, 1.139]
+    middle: [1.203, 1.203, 1.14]
+    ring:   [1.232, 1.237, 1.17]
+    pinky:  [1.276, 1.268, 1.202]
 
   pinch_thresholds:
     index:  { d1: 2.0, d2: 8.0 }
