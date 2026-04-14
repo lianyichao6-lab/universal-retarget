@@ -375,4 +375,4 @@ print(f"Average time: {stats.get_avg()['total_ms']:.2f} ms")
 
 ## Contact
 
-For questions, please open an issue on [GitHub](https://github.com/qqsq12321/AnyDexRetarget/issues) or contact the author via 932851972@qq.com.
+For questions, please open an issue on [Gitee](https://gitee.com/gx_robot/AnyDexRetarget/issues) or contact the author via 932851972@qq.com.
