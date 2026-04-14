@@ -375,4 +375,4 @@ print(f"平均耗时: {stats.get_avg()['total_ms']:.2f} ms")
 
 ## 联系方式
 
-如有问题，请在 [Gitee](https://gitee.com/gx_robot/AnyDexRetarget/issues) 上提交 issue 或通过 932851972@qq.com 联系作者。
+如有问题，请在 [Gitee](https://gitee.com/gx_robot/AnyDexRetarget/issues) / [GitHub](https://github.com/qqsq12321/AnyDexRetarget/issues) 上提交 issue 或通过 932851972@qq.com 联系作者。
