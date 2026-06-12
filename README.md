@@ -135,6 +135,10 @@ git clone https://github.com/qqsq12321/AnyDexRetarget.git
 git clone https://gitee.com/gx_robot/AnyDexRetarget.git
 cd AnyDexRetarget
 
+# (Recommended) Create and activate a conda virtual environment
+conda create -n anydex python=3.10 -y
+conda activate anydex
+
 # Install pinocchio via conda (recommended, pre-built binaries)
 conda install -c conda-forge pinocchio
 
