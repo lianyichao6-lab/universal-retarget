@@ -8,6 +8,10 @@ High-precision hand pose retargeting system. Supports two optimizers (**Adaptive
 
 ## Demo
 
+### Apple Vision Pro Teleoperation
+
+https://github.com/qqsq12321/AnyDexRetarget/issues/3#issue-4647028312
+
 ### Simulation Retargeting
 
 https://github.com/user-attachments/assets/0950b2b0-ecd4-4270-abf6-5729dc05c6cb

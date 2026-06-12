@@ -8,6 +8,10 @@
 
 ## 演示
 
+### Apple Vision Pro 遥操作
+
+https://github.com/qqsq12321/AnyDexRetarget/issues/3#issue-4647028312
+
 ### 仿真重定向
 
 https://github.com/user-attachments/assets/0950b2b0-ecd4-4270-abf6-5729dc05c6cb
