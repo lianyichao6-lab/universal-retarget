@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 
 ### Apple Vision Pro Teleoperation
 
-https://github.com/qqsq12321/AnyDexRetarget/issues/3#issue-4647028312
+https://github.com/user-attachments/assets/dccdb649-4a20-422a-979c-2b1301e8836b
 
 ## Features
 
