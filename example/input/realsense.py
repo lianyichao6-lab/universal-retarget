@@ -11,7 +11,11 @@ Usage:
 import cv2
 import numpy as np
 import mediapipe as mp
-import pyrealsense2 as rs
+
+try:
+    import pyrealsense2 as rs
+except ImportError:
+    rs = None
 
 from .landmark_utils import (
     HAND_CONNECTIONS,
@@ -33,6 +37,8 @@ class Realsense:
         z_scale: float = 2.5,
         reference_wrist_to_mid_mcp: float = 0.09,
     ):
+        if rs is None:
+            raise ImportError("pyrealsense2 is not installed. Install it to use RealSense input.")
         self.hand_side = hand_side.lower()
         self.show_video = show_video
         self.frame_width = width

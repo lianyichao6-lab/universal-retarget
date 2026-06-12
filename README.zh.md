@@ -270,7 +270,7 @@ python test/debug_skeleton.py --robot leap --video data/right.mp4
 python test/debug_skeleton.py --robot shadow --input realsense
 
 # Vision Pro 输入
-python test/debug_skeleton.py --robot shadow --input visionpro --ip <vision-pro-ip>
+python test/debug_skeleton.py --robot shadow --input avp --avp-ip <vision-pro-ip>
 
 # 使用可选示例录制数据，对比两种优化器
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer adaptive

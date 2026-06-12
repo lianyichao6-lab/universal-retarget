@@ -1,7 +1,12 @@
 """VisionPro input device for teleoperation."""
 
 import numpy as np
-from avp_stream import VisionProStreamer
+
+try:
+    from avp_stream import VisionProStreamer
+except ImportError:
+    VisionProStreamer = None
+
 from anydexretarget.mediapipe import MediaPipeSmoother
 
 # VisionPro 25 joints to MediaPipe 21 landmarks mapping
@@ -20,6 +25,8 @@ def convert_vp_to_mediapipe(fingers_mat: np.ndarray) -> np.ndarray:
 
 class VisionPro:
     def __init__(self, ip: str = "192.168.50.127"):
+        if VisionProStreamer is None:
+            raise ImportError("avp_stream is not installed. Install it to use Vision Pro input.")
         self.streamer = VisionProStreamer(ip=ip)
         self._mediapipe_smoother = MediaPipeSmoother(buffer_size=5)
 

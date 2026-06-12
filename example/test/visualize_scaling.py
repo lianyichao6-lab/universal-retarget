@@ -302,7 +302,7 @@ def main():
     parser.add_argument('--robot', type=str, default='allegro',
                         choices=['shadow', 'wuji', 'allegro', 'leap',
                                  'inspire', 'ability', 'svh', 'rohand',
-                                 'linkerhand_l21', 'unitree_dex5'],
+                                 'linkerhand_l21', 'unitree_dex5', 'sharpa'],
                         help='Robot hand type (default: allegro)')
     parser.add_argument('--hand', type=str, default='right', choices=['left', 'right'])
     parser.add_argument('--play', type=str, default=None, help='Pickle file with recorded data')
@@ -313,10 +313,10 @@ def main():
         "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
         "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
         "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-        "unitree_dex5": "unitree_dex5_hand",
+        "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
     }
     robot_file = robot_name_map.get(args.robot, args.robot)
-    cfg = args.config if args.config else f"config/mediapipe/mediapipe_{robot_file}.yaml"
+    cfg = args.config if args.config else f"config/adaptive/mediapipe/mediapipe_{robot_file}.yaml"
     config_path = EXAMPLE_ROOT / cfg
 
     if args.play:
