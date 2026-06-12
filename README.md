@@ -125,6 +125,9 @@ example/config/
 ### Install
 
 ```bash
+# GitHub
+git clone https://github.com/qqsq12321/AnyDexRetarget.git
+# or Gitee
 git clone https://gitee.com/gx_robot/AnyDexRetarget.git
 cd AnyDexRetarget
 
@@ -270,17 +273,17 @@ python test/debug_skeleton.py --robot leap --video data/right.mp4
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer adaptive
 python test/debug_skeleton.py --robot shadow --play data/avp1.pkl --optimizer vector
 
-# With Noitom PNS-G gloves
-python test/debug_skeleton.py --robot inspire --input noitom --noitom-local-ip 192.168.5.25
-
-# With Noitom + KeyVector optimizer
-python test/debug_skeleton.py --robot inspire --input noitom --optimizer vector --noitom-local-ip 192.168.5.25
-
 # With RealSense D435
 python test/debug_skeleton.py --robot sharpa --input realsense --hand right
 
 # With Vision Pro
 python test/debug_skeleton.py --robot sharpa --input avp --avp-ip 192.168.5.32 --hand right
+
+# With Noitom PNS-G gloves
+python test/debug_skeleton.py --robot inspire --input noitom --noitom-local-ip 192.168.5.25
+
+# With Noitom + KeyVector optimizer
+python test/debug_skeleton.py --robot inspire --input noitom --optimizer vector --noitom-local-ip 192.168.5.25
 
 # With your own recorded data
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
@@ -360,7 +363,7 @@ print(f"Average time: {stats.get_avg()['total_ms']:.2f} ms")
   title={AnyDexRetarget},
   author={Shiquan Qiu},
   year={2025},
-  url={https://gitee.com/gx_robot/AnyDexRetarget},
+  url={https://github.com/qqsq12321/AnyDexRetarget},
 }
 ```
 

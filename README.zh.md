@@ -125,6 +125,9 @@ example/config/
 ### 安装步骤
 
 ```bash
+# GitHub
+git clone https://github.com/qqsq12321/AnyDexRetarget.git
+# 或 Gitee
 git clone https://gitee.com/gx_robot/AnyDexRetarget.git
 cd AnyDexRetarget
 
@@ -282,6 +285,12 @@ python test/debug_skeleton.py --robot inspire --input noitom --noitom-local-ip 1
 # Noitom + KeyVector 优化器
 python test/debug_skeleton.py --robot inspire --input noitom --optimizer vector --noitom-local-ip 192.168.5.25
 
+# RealSense D435
+python test/debug_skeleton.py --robot sharpa --input realsense --hand right
+
+# Vision Pro
+python test/debug_skeleton.py --robot sharpa --input avp --avp-ip 192.168.5.32 --hand right
+
 # 你自己的录制数据
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
 ```
@@ -360,7 +369,7 @@ print(f"平均耗时: {stats.get_avg()['total_ms']:.2f} ms")
   title={AnyDexRetarget},
   author={Shiquan Qiu},
   year={2025},
-  url={https://gitee.com/gx_robot/AnyDexRetarget},
+  url={https://github.com/qqsq12321/AnyDexRetarget},
 }
 ```
 
