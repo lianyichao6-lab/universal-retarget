@@ -33,9 +33,9 @@ def main():
     parser = argparse.ArgumentParser(description="跑到指定帧，打开 MuJoCo 窗口截图")
     parser.add_argument("--config", type=str, default=None, help="配置文件 (相对于 example/，覆盖 --robot)")
     parser.add_argument("--robot", type=str, default="shadow",
-                        choices=["shadow", "wuji", "allegro", "leap",
-                                 "inspire", "ability", "svh", "rohand",
-                                 "linkerhand_l21", "unitree_dex5"],
+        choices=["shadow", "wuji", "allegro", "leap",
+                 "inspire", "ability", "svh", "rohand",
+                 "linkerhand_l21", "linker_l20", "unitree_dex5"],
                         help="灵巧手类型 (默认: shadow)")
     parser.add_argument("--frame", type=int, required=True, help="目标帧号")
     parser.add_argument("--video", type=str, default=str(EXAMPLE_DIR / "data" / "right.mp4"))
@@ -48,10 +48,10 @@ def main():
         "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
         "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
         "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-        "unitree_dex5": "unitree_dex5_hand",
+        "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand",
     }
     robot_file = robot_name_map.get(args.robot, args.robot)
-    config_path = args.config if args.config else f"config/mediapipe/mediapipe_{robot_file}.yaml"
+    config_path = args.config if args.config else f"config/adaptive/mediapipe/mediapipe_{robot_file}.yaml"
     config_file = EXAMPLE_DIR / config_path
     with open(config_file, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)

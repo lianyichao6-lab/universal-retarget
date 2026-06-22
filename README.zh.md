@@ -67,6 +67,7 @@ example/config/
 | **Leap Hand** | `leap` | `leap_hand` | Leap Hand，4 指 / 16 自由度 |
 | **SVH Hand** | `svh` | `svh_hand` | Schunk SVH Hand，含 mimic 关节 |
 | **LinkerHand L21** | `linkerhand_l21` | `linkerhand_l21` | LinkerHand L21 |
+| **Linker L20** | `linker_l20` | `linker_l20` | DexForce Linker L20，5 指 / 21 revolute 关节，含 mimic 关节 |
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 | **Sharpa Hand** | `sharpa` | `sharpa_hand` | Sharpa Wave 灵巧手，5 指 / 22 DOF |

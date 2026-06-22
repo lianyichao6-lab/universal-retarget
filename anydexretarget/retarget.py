@@ -23,6 +23,61 @@ from .optimizer import BaseOptimizer, LPFilter
 from .mediapipe import apply_mediapipe_transformations
 
 
+def apply_linker_l20_input_preprocessing(
+    keypoints: np.ndarray,
+    mcp_lateral_scale: float = 1.0,
+    thumb_scale: float = 1.0,
+    thumb_inward_offset: float = 0.0,
+) -> np.ndarray:
+    """Preprocess Linker L20 input keypoints before optimization.
+
+    This compresses the four-finger chain along the palm-width axis so MCP,
+    PIP, DIP, and TIP all stay narrower together.
+    """
+    keypoints = np.asarray(keypoints, dtype=np.float64)
+    lateral_scale = float(mcp_lateral_scale)
+    thumb_scale = float(thumb_scale)
+    thumb_inward_offset = float(thumb_inward_offset)
+    if np.isclose(lateral_scale, 1.0):
+        compressed = keypoints.copy()
+    else:
+        wrist = keypoints[0]
+        mcp_indices = [5, 9, 13, 17]
+        width_vec = keypoints[5] - keypoints[17]
+        width_norm = np.linalg.norm(width_vec)
+        if width_norm < 1e-8:
+            compressed = keypoints.copy()
+        else:
+            width_axis = width_vec / width_norm
+            compressed = keypoints.copy()
+            for idx in range(5, 21):
+                vec = keypoints[idx] - wrist
+                lateral = np.dot(vec, width_axis) * width_axis
+                radial = vec - lateral
+                compressed[idx] = wrist + radial + lateral * lateral_scale
+
+    if np.isclose(thumb_scale, 1.0):
+        thumb_compressed = compressed
+    else:
+        wrist = compressed[0]
+        for idx in [1, 2, 3, 4]:
+            compressed[idx] = wrist + (compressed[idx] - wrist) * thumb_scale
+        thumb_compressed = compressed
+
+    if np.isclose(thumb_inward_offset, 0.0):
+        return thumb_compressed
+
+    width_vec = thumb_compressed[5] - thumb_compressed[17]
+    width_norm = np.linalg.norm(width_vec)
+    if width_norm < 1e-8:
+        return thumb_compressed
+
+    width_axis = width_vec / width_norm
+    for idx in [1, 2, 3, 4]:
+        thumb_compressed[idx] = thumb_compressed[idx] + width_axis * thumb_inward_offset
+    return thumb_compressed
+
+
 class Retargeter:
     """Unified retargeting interface for Wuji Hand.
 
@@ -66,6 +121,9 @@ class Retargeter:
 
         # Rotation adjustment
         self.rotation_xyz = retarget_config.get('mediapipe_rotation', {})
+        self.mcp_lateral_scale = retarget_config.get('mcp_lateral_scale', 1.0)
+        self.thumb_scale = retarget_config.get('thumb_scale', 1.0)
+        self.thumb_inward_offset = retarget_config.get('thumb_inward_offset', 0.0)
 
     @classmethod
     def from_yaml(cls, yaml_path: str, hand_side: str = "right") -> "Retargeter":
@@ -116,6 +174,14 @@ class Retargeter:
         if self.rotation_xyz:
             mediapipe_kp = self._apply_rotation(mediapipe_kp)
 
+        if self.robot_type == 'linker_l20':
+            mediapipe_kp = apply_linker_l20_input_preprocessing(
+                mediapipe_kp,
+                self.mcp_lateral_scale,
+                self.thumb_scale,
+                self.thumb_inward_offset,
+            )
+
         # Solve IK
         qpos = self.optimizer.solve(mediapipe_kp)
 
@@ -150,6 +216,14 @@ class Retargeter:
         # Apply rotation adjustment if configured
         if self.rotation_xyz:
             mediapipe_kp = self._apply_rotation(mediapipe_kp)
+
+        if self.robot_type == 'linker_l20':
+            mediapipe_kp = apply_linker_l20_input_preprocessing(
+                mediapipe_kp,
+                self.mcp_lateral_scale,
+                self.thumb_scale,
+                self.thumb_inward_offset,
+            )
 
         # Solve IK
         qpos = self.optimizer.solve(mediapipe_kp)
@@ -212,4 +286,4 @@ class Retargeter:
         return self.optimizer.num_joints
 
 
-__all__ = ["Retargeter"]
+__all__ = ["Retargeter", "apply_linker_l20_input_preprocessing"]

@@ -31,6 +31,7 @@ if str(EXAMPLE_ROOT) not in sys.path:
     sys.path.insert(0, str(EXAMPLE_ROOT))
 
 from anydexretarget import Retargeter
+from anydexretarget.retarget import apply_linker_l20_input_preprocessing
 from anydexretarget.mediapipe import apply_mediapipe_transformations
 from anydexretarget.optimizer.base_optimizer import BaseOptimizer
 from input.camera import Camera
@@ -200,6 +201,14 @@ def build_scaled_skeleton(mediapipe_kp, optimizer):
                 [MP_MCP[fi], MP_PIP[fi], MP_DIP[fi], MP_TIP[fi]], [0, 1, 2, 3]
             ):
                 scaled_kp[mp_idx] = origin_pos + (mediapipe_kp[mp_idx] - wrist) * seg_full[local_fi, col]
+        retarget_cfg = getattr(optimizer, 'config', {}).get('retarget', {})
+        if getattr(optimizer, 'config', {}).get('robot', {}).get('type') == 'linker_l20':
+            scaled_kp = apply_linker_l20_input_preprocessing(
+                scaled_kp,
+                retarget_cfg.get('mcp_lateral_scale', 1.0),
+                retarget_cfg.get('thumb_scale', 1.0),
+                retarget_cfg.get('thumb_inward_offset', 0.0),
+            )
     elif hasattr(optimizer, '_task_kp_indices'):
         for i in range(1, 21):
             scaled_kp[i] = origin_pos + (mediapipe_kp[i] - wrist)
@@ -246,12 +255,12 @@ def main():
                         choices=["adaptive", "vector"],
                         help="Optimizer type: adaptive (default) or vector (KeyVectorOptimizer)")
     parser.add_argument("--robot", default="leap",
-                        choices=["shadow", "wuji", "allegro", "leap",
-                                 "inspire", "ability", "svh", "rohand",
-                                 "linkerhand_l21", "unitree_dex5", "sharpa"],
+        choices=["shadow", "wuji", "allegro", "leap",
+                 "inspire", "ability", "svh", "rohand",
+                 "linkerhand_l21", "linker_l20", "unitree_dex5", "sharpa"],
                         help="Robot hand type (default: leap)")
     parser.add_argument("--hand", default="right", choices=["left", "right"])
-    parser.add_argument("--input", default="camera", choices=["camera", "video", "replay", "noitom", "realsense", "avp", "quest3"])
+    parser.add_argument("--input", default="camera", choices=["camera", "video", "replay", "noitom", "realsense", "avp", "quest3", "pico4"])
     parser.add_argument("--video", default="", help="Video file path")
     parser.add_argument("--play", default="", help="Replay pickle path")
     parser.add_argument("--noitom-local-ip", type=str, default="192.168.5.25")
@@ -261,6 +270,7 @@ def main():
     parser.add_argument("--avp-ip", type=str, default="192.168.50.127")
     parser.add_argument("--quest3-port", type=int, default=9000)
     parser.add_argument("--quest3-protocol", type=str, default="udp", choices=["udp", "tcp"])
+    parser.add_argument("--pico4-port", type=int, default=63901)
     parser.add_argument("--show-video", action="store_true")
     parser.add_argument("--speed", type=float, default=1.0)
     parser.add_argument("--alpha", type=float, default=0.25,
@@ -271,10 +281,10 @@ def main():
         "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
         "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
         "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-        "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
+        "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
     }
     robot_file = robot_name_map.get(args.robot, args.robot)
-    input_to_dir = {"noitom": "noitom", "avp": "avp", "quest3": "quest3"}
+    input_to_dir = {"noitom": "noitom", "avp": "avp", "quest3": "quest3", "pico4": "pico4"}
     config_dir = input_to_dir.get(args.input, "mediapipe")
     config_path = args.config if args.config else f"config/{args.optimizer}/{config_dir}/{config_dir}_{robot_file}.yaml"
     config_file = EXAMPLE_ROOT / config_path
@@ -339,6 +349,10 @@ def main():
         from input.quest3 import Quest3
         input_device = Quest3(port=args.quest3_port, protocol=args.quest3_protocol)
         input_type = "quest3"
+    elif args.input == "pico4":
+        from input.pico4 import Pico4
+        input_device = Pico4()
+        input_type = "pico4"
     elif args.input == "video" or args.video:
         video_path = args.video or "data/right.mp4"
         input_device = Video(

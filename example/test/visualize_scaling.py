@@ -27,6 +27,7 @@ if str(EXAMPLE_ROOT) not in sys.path:
 
 from anydexretarget import Retargeter
 from anydexretarget.mediapipe import apply_mediapipe_transformations
+from anydexretarget.retarget import apply_linker_l20_input_preprocessing
 from anydexretarget.optimizer.base_optimizer import M_TO_CM
 
 # MediaPipe hand connections
@@ -263,6 +264,13 @@ def visualize_matplotlib(frames_raw, config_path, hand_side):
         transformed_cm = transformed * M_TO_CM
 
         scaled = apply_scaling_to_keypoints(transformed, scaling, segment_scaling, mp_finger_indices)
+        if retargeter.config.get('robot', {}).get('type') == 'linker_l20':
+            scaled = apply_linker_l20_input_preprocessing(
+                scaled,
+                retarget_config.get('mcp_lateral_scale', 1.0),
+                retarget_config.get('thumb_scale', 1.0),
+                retarget_config.get('thumb_inward_offset', 0.0),
+            )
         scaled_cm = scaled * M_TO_CM
 
         draw_skeleton(ax1, transformed_cm, f'Original (MANO)\nFrame {idx}/{len(frames_raw)}', color='blue')
@@ -300,9 +308,9 @@ def main():
     parser = argparse.ArgumentParser(description='Visualize scaling effect on hand skeleton')
     parser.add_argument('--config', type=str, default=None, help='YAML config file (overrides --robot)')
     parser.add_argument('--robot', type=str, default='allegro',
-                        choices=['shadow', 'wuji', 'allegro', 'leap',
-                                 'inspire', 'ability', 'svh', 'rohand',
-                                 'linkerhand_l21', 'unitree_dex5', 'sharpa'],
+        choices=['shadow', 'wuji', 'allegro', 'leap',
+                 'inspire', 'ability', 'svh', 'rohand',
+                 'linkerhand_l21', 'linker_l20', 'unitree_dex5', 'sharpa'],
                         help='Robot hand type (default: allegro)')
     parser.add_argument('--hand', type=str, default='right', choices=['left', 'right'])
     parser.add_argument('--play', type=str, default=None, help='Pickle file with recorded data')
@@ -313,7 +321,7 @@ def main():
         "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
         "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
         "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-        "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
+        "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
     }
     robot_file = robot_name_map.get(args.robot, args.robot)
     cfg = args.config if args.config else f"config/adaptive/mediapipe/mediapipe_{robot_file}.yaml"

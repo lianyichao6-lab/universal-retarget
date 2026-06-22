@@ -115,6 +115,21 @@ ROBOT_CONFIGS = {
         'num_fingers': 5,
         'neutral_qpos': [0.0] * 17,
     },
+    # Linker L20 (DexForce official URDF, 21 revolute joints with mimic joints)
+    'linker_l20': {
+        'origin_link': 'right_hand_base_link',
+        'tip_links': ['right_t_tip', 'right_if_tip', 'right_mf_tip', 'right_rf_tip', 'right_lf_tip'],
+        'link1_names': ['right_t_cmc_roll_link', 'right_if_mcp_roll_link', 'right_mf_mcp_roll_link', 'right_rf_mcp_roll_link', 'right_lf_mcp_roll_link'],
+        'link3_names': ['right_t_mcp_link', 'right_if_pip_link', 'right_mf_pip_link', 'right_rf_pip_link', 'right_lf_pip_link'],
+        'link4_names': ['right_t_ip_link', 'right_if_dip_link', 'right_mf_dip_link', 'right_rf_dip_link', 'right_lf_dip_link'],
+        'urdf_subdir': 'assets/linker_l20',
+        'urdf_file': {
+            'right': 'linker_l20_right_vis.urdf',
+            'left': 'linker_l20_left_vis.urdf',
+        },
+        'num_fingers': 5,
+        'neutral_qpos': [0.0] * 21,
+    },
     # ROHand
     'rohand': {
         'origin_link': 'base_link',

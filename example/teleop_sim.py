@@ -29,10 +29,13 @@ from anydexretarget import Retargeter
 from input.camera import Camera
 from input.mediapipe_replay import MediaPipeReplay
 from input.noitom import NoitomInput
+from input.pico4 import Pico4
 from input.quest3 import Quest3
 from input.realsense import Realsense
 from input.video import Video
 from input.visionpro import VisionPro
+
+DEFAULT_PICO4_PORT = 63901
 
 
 ROBOT_HAND_CONFIGS = {
@@ -67,6 +70,11 @@ ROBOT_HAND_CONFIGS = {
     "linkerhand_l21": {
         "model_path": lambda side: str(PROJECT_ROOT / "assets" / "linkerhand_l21" / f"linkerhand_l21_{side}_mujoco.xml"),
         "qpos_mapping": [0, 1, 2, 3, 4, 5, 9, 10, 11, 6, 7, 8, 12, 13, 14, 15, 16],
+        "qpos_servo_alpha": 0.2,
+    },
+    "linker_l20": {
+        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "linker_l20" / f"linker_l20_{side}_mujoco.xml"),
+        "qpos_mapping": [16, 17, 18, 19, 20, 0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 4, 5, 6, 7],
         "qpos_servo_alpha": 0.2,
     },
     "rohand": {
@@ -204,6 +212,7 @@ def run_teleop(
     visionpro_ip: str = "192.168.50.127",
     quest3_port: int = 9000,
     quest3_protocol: str = "udp",
+    pico4_port: int = DEFAULT_PICO4_PORT,
     noitom_local_ip: str = "192.168.5.25",
     noitom_local_port: int = 8000,
     noitom_server_ip: str = "192.168.5.33",
@@ -296,6 +305,7 @@ def run_teleop(
     device_map = {
         "visionpro": lambda: VisionPro(ip=visionpro_ip),
         "quest3": lambda: Quest3(port=quest3_port, protocol=quest3_protocol),
+        "pico4": lambda: Pico4(port=pico4_port),
         "noitom": lambda: NoitomInput(
             local_ip=noitom_local_ip,
             local_port=noitom_local_port,
@@ -565,13 +575,13 @@ def main():
     parser.add_argument("--robot", type=str, default="shadow",
                         choices=["shadow", "wuji", "allegro", "leap",
                                  "inspire", "ability", "svh", "rohand",
-                                 "linkerhand_l21", "unitree_dex5", "sharpa"],
+                                 "linkerhand_l21", "linker_l20", "unitree_dex5", "sharpa"],
                         help="Robot hand type (default: shadow)")
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"],
                         help="Hand side (default: right)")
 
     parser.add_argument("--input", type=str, default=None,
-                        choices=["visionpro", "quest3", "noitom", "mediapipe_replay", "camera", "realsense", "video"],
+                        choices=["visionpro", "quest3", "pico4", "noitom", "mediapipe_replay", "camera", "realsense", "video"],
                         help="Input device type")
     parser.add_argument("--realsense", action="store_true",
                         help="Use RealSense camera (shortcut for --input realsense)")
@@ -591,6 +601,8 @@ def main():
                         help="Quest 3 HTS listener port (default: 9000)")
     parser.add_argument("--protocol", type=str, default="udp", choices=["udp", "tcp"],
                         help="Quest 3 HTS transport protocol (default: udp)")
+    parser.add_argument("--pico4-port", type=int, default=DEFAULT_PICO4_PORT,
+                        help=f"Pico 4 TCP listen port (default: {DEFAULT_PICO4_PORT})")
 
     parser.add_argument("--noitom-local-ip", type=str, default="192.168.5.25",
                         help="Noitom: Linux IP，须与 Axis Studio 目标地址一致 (default: 192.168.5.25)")
@@ -660,12 +672,13 @@ def main():
             "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
             "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
             "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-            "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
+            "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
         }
         input_to_dir = {
             "quest3": "quest3",
             "visionpro": "avp",
             "noitom": "noitom",
+            "pico4": "pico4",
         }
         config_dir = input_to_dir.get(input_device_type, "mediapipe")
         robot_file = robot_name_map.get(args.robot, args.robot)
@@ -680,6 +693,7 @@ def main():
         visionpro_ip=args.ip,
         quest3_port=args.port,
         quest3_protocol=args.protocol,
+        pico4_port=args.pico4_port,
         noitom_local_ip=args.noitom_local_ip,
         noitom_local_port=args.noitom_local_port,
         noitom_server_ip=args.noitom_server_ip,

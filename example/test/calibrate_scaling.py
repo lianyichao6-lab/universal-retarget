@@ -13,15 +13,18 @@ Usage:
     python test/calibrate_scaling.py --robot wuji --input noitom
     python test/calibrate_scaling.py --robot wuji --input quest3
     python test/calibrate_scaling.py --config config/adaptive/avp/avp_wuji_hand.yaml --input avp
+    python test/calibrate_scaling.py --robot wuji --input mediapipe --optimizer both --write
 """
 
 import argparse
+import shutil
 import sys
 import time
 from pathlib import Path
 
 import numpy as np
 import yaml
+from ruamel.yaml import YAML
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_ROOT = Path(__file__).resolve().parents[1]
@@ -39,7 +42,7 @@ ROBOT_NAME_MAP = {
     "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
     "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
     "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-    "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
+    "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
 }
 
 INPUT_TO_CONFIG_DIR = {
@@ -47,7 +50,125 @@ INPUT_TO_CONFIG_DIR = {
     "noitom": "noitom",
     "quest3": "quest3",
     "avp": "avp",
+    "pico4": "pico4",
 }
+
+# MediaPipe task_kp → (finger, level): level 0=PIP, 1=DIP, 2=TIP
+_KP_TO_FINGER_LEVEL = {
+    2: ("thumb",  0), 3: ("thumb",  1), 4: ("thumb",  2),
+    6: ("index",  0), 7: ("index",  1), 8: ("index",  2),
+    10: ("middle", 0), 11: ("middle", 1), 12: ("middle", 2),
+    14: ("ring",   0), 15: ("ring",   1), 16: ("ring",   2),
+    18: ("pinky",  0), 19: ("pinky",  1), 20: ("pinky",  2),
+}
+
+
+def _resolve_config_paths(args, robot_file):
+    """Return (adaptive_path, vector_path) as Path objects (may not exist)."""
+    config_dir = INPUT_TO_CONFIG_DIR[args.input]
+    adaptive = EXAMPLE_ROOT / f"config/adaptive/{config_dir}/{config_dir}_{robot_file}.yaml"
+    vector   = EXAMPLE_ROOT / f"config/vector/{config_dir}/{config_dir}_{robot_file}.yaml"
+    return adaptive, vector
+
+
+def _write_adaptive(config_path: Path, result: dict, backup: bool):
+    """Update retarget.segment_scaling in an adaptive config YAML."""
+    ryaml = YAML()
+    ryaml.preserve_quotes = True
+    with open(config_path) as f:
+        doc = ryaml.load(f)
+
+    seg = doc["retarget"]["segment_scaling"]
+    for fname, vals in result.items():
+        if fname in seg:
+            # preserve ruamel sequence type to keep inline flow style
+            for i, v in enumerate(vals):
+                seg[fname][i] = v
+
+    if backup:
+        shutil.copy2(config_path, str(config_path) + ".bak")
+    with open(config_path, "w") as f:
+        ryaml.dump(doc, f)
+
+
+def _write_vector(config_path: Path, result: dict, backup: bool):
+    """Update key_vectors[*].scale in a vector config YAML."""
+    ryaml = YAML()
+    ryaml.preserve_quotes = True
+    with open(config_path) as f:
+        doc = ryaml.load(f)
+
+    kv_list = doc["retarget"]["key_vectors"]
+    for entry in kv_list:
+        task_kp = int(entry.get("task_kp", -1))
+        mapping = _KP_TO_FINGER_LEVEL.get(task_kp)
+        if mapping is None:
+            continue
+        fname, level = mapping
+        if fname in result:
+            entry["scale"] = float(result[fname][level])
+
+    if backup:
+        shutil.copy2(config_path, str(config_path) + ".bak")
+    with open(config_path, "w") as f:
+        ryaml.dump(doc, f)
+
+
+def write_configs(args, robot_file, result, explicit_config_path=None):
+    """Write calibration result to adaptive and/or vector config files.
+
+    If --config was given, only that single file is written regardless of
+    --optimizer.  Otherwise both adaptive/vector paths are resolved
+    automatically and written according to --optimizer.
+    """
+    optimizer_mode = getattr(args, "optimizer", "both")
+
+    # Single explicit config path
+    if explicit_config_path:
+        config_path = Path(explicit_config_path)
+        if not config_path.is_absolute():
+            config_path = EXAMPLE_ROOT / config_path
+        _write_single(config_path, result, args)
+        return
+
+    adaptive_path, vector_path = _resolve_config_paths(args, robot_file)
+    targets = []
+    if optimizer_mode in ("adaptive", "both") and adaptive_path.exists():
+        targets.append(("adaptive", adaptive_path))
+    if optimizer_mode in ("vector", "both") and vector_path.exists():
+        targets.append(("vector", vector_path))
+
+    if not targets:
+        print("  未找到对应配置文件，跳过写入。")
+        return
+
+    for opt_type, path in targets:
+        try:
+            if opt_type == "adaptive":
+                _write_adaptive(path, result, backup=True)
+            else:
+                _write_vector(path, result, backup=True)
+            print(f"  已写入 ({opt_type}): {path}")
+            print(f"  备份已保存: {path}.bak")
+        except Exception as e:
+            print(f"  写入失败 ({path}): {e}")
+
+
+def _write_single(config_path: Path, result: dict, args):
+    """Write to a single explicitly-specified config file, auto-detecting type."""
+    try:
+        with open(config_path) as f:
+            raw = yaml.safe_load(f)
+        opt_type_str = raw.get("optimizer", {}).get("type", "")
+        if "KeyVector" in opt_type_str:
+            _write_vector(config_path, result, backup=True)
+            print(f"  已写入 (vector): {config_path}")
+        else:
+            _write_adaptive(config_path, result, backup=True)
+            print(f"  已写入 (adaptive): {config_path}")
+        print(f"  备份已保存: {config_path}.bak")
+    except Exception as e:
+        print(f"  写入失败 ({config_path}): {e}")
 
 
 def _get_link_pos(robot, link_name, offset=None):
@@ -213,6 +334,9 @@ def create_input_device(args):
     elif args.input == "avp":
         from input.visionpro import VisionPro
         return VisionPro(ip=args.avp_ip)
+    elif args.input == "pico4":
+        from input.pico4 import Pico4
+        return Pico4()
     else:
         raise ValueError(f"Unknown input: {args.input}")
 
@@ -233,7 +357,7 @@ def main():
                         help="Robot hand type (default: wuji)")
     parser.add_argument("--hand", default="right", choices=["left", "right"])
     parser.add_argument("--input", default="mediapipe",
-                        choices=["mediapipe", "noitom", "quest3", "avp"],
+                        choices=["mediapipe", "noitom", "quest3", "avp", "pico4"],
                         help="Input source (default: mediapipe)")
     parser.add_argument("--video", default=None,
                         help="Video file for mediapipe input (omit to use camera)")
@@ -250,6 +374,12 @@ def main():
     parser.add_argument("--quest3-protocol", default="udp", choices=["udp", "tcp"])
     # AVP
     parser.add_argument("--avp-ip", default="192.168.50.127")
+    # Write-back options
+    parser.add_argument("--optimizer", default="both",
+                        choices=["adaptive", "vector", "both"],
+                        help="写入哪种配置文件（默认: both）")
+    parser.add_argument("--write", action="store_true",
+                        help="标定后直接写入配置文件，不询问")
     args = parser.parse_args()
 
     # Resolve config path
@@ -386,6 +516,35 @@ def main():
     print("  segment_scaling:")
     for fname, vals in result.items():
         print(f"    {fname}: {vals}")
+
+    # ── Write back to config ─────────────────────────────────────────────────
+    print(f"\n{'='*68}")
+    if args.write:
+        print("写入配置文件...")
+        write_configs(args, robot_file, result, explicit_config_path=args.config)
+    else:
+        # Show which files would be written
+        if args.config:
+            targets_info = [args.config]
+        else:
+            adaptive_path, vector_path = _resolve_config_paths(args, robot_file)
+            targets_info = []
+            if args.optimizer in ("adaptive", "both") and adaptive_path.exists():
+                targets_info.append(str(adaptive_path))
+            if args.optimizer in ("vector", "both") and vector_path.exists():
+                targets_info.append(str(vector_path))
+
+        if targets_info:
+            print("将写入以下配置文件（含自动备份 .bak）:")
+            for p in targets_info:
+                print(f"  {p}")
+            answer = input("\n是否写入？[y=写入 / n=跳过]: ").strip().lower()
+            if answer == "y":
+                write_configs(args, robot_file, result, explicit_config_path=args.config)
+            else:
+                print("已跳过写入。")
+        else:
+            print("未找到对应配置文件，跳过写入。")
 
 
 if __name__ == "__main__":

@@ -67,6 +67,7 @@ example/config/
 | **Leap Hand** | `leap` | `leap_hand` | Leap Hand, 4 fingers / 16 DOF |
 | **SVH Hand** | `svh` | `svh_hand` | Schunk SVH Hand with mimic joints |
 | **LinkerHand L21** | `linkerhand_l21` | `linkerhand_l21` | LinkerHand L21 |
+| **Linker L20** | `linker_l20` | `linker_l20` | DexForce Linker L20, 5 fingers / 21 revolute joints with mimic joints |
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 | **Sharpa Hand** | `sharpa` | `sharpa_hand` | Sharpa Wave Hand, 5 fingers / 22 DOF |
