@@ -17,7 +17,6 @@ Usage:
 """
 
 import argparse
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -71,7 +70,7 @@ def _resolve_config_paths(args, robot_file):
     return adaptive, vector
 
 
-def _write_adaptive(config_path: Path, result: dict, backup: bool):
+def _write_adaptive(config_path: Path, result: dict, backup: bool = False):
     """Update retarget.segment_scaling in an adaptive config YAML."""
     ryaml = YAML()
     ryaml.preserve_quotes = True
@@ -85,13 +84,11 @@ def _write_adaptive(config_path: Path, result: dict, backup: bool):
             for i, v in enumerate(vals):
                 seg[fname][i] = v
 
-    if backup:
-        shutil.copy2(config_path, str(config_path) + ".bak")
     with open(config_path, "w") as f:
         ryaml.dump(doc, f)
 
 
-def _write_vector(config_path: Path, result: dict, backup: bool):
+def _write_vector(config_path: Path, result: dict, backup: bool = False):
     """Update key_vectors[*].scale in a vector config YAML."""
     ryaml = YAML()
     ryaml.preserve_quotes = True
@@ -108,8 +105,6 @@ def _write_vector(config_path: Path, result: dict, backup: bool):
         if fname in result:
             entry["scale"] = float(result[fname][level])
 
-    if backup:
-        shutil.copy2(config_path, str(config_path) + ".bak")
     with open(config_path, "w") as f:
         ryaml.dump(doc, f)
 
@@ -145,11 +140,10 @@ def write_configs(args, robot_file, result, explicit_config_path=None):
     for opt_type, path in targets:
         try:
             if opt_type == "adaptive":
-                _write_adaptive(path, result, backup=True)
+                _write_adaptive(path, result, backup=False)
             else:
-                _write_vector(path, result, backup=True)
+                _write_vector(path, result, backup=False)
             print(f"  已写入 ({opt_type}): {path}")
-            print(f"  备份已保存: {path}.bak")
         except Exception as e:
             print(f"  写入失败 ({path}): {e}")
 
@@ -161,12 +155,11 @@ def _write_single(config_path: Path, result: dict, args):
             raw = yaml.safe_load(f)
         opt_type_str = raw.get("optimizer", {}).get("type", "")
         if "KeyVector" in opt_type_str:
-            _write_vector(config_path, result, backup=True)
+            _write_vector(config_path, result, backup=False)
             print(f"  已写入 (vector): {config_path}")
         else:
-            _write_adaptive(config_path, result, backup=True)
+            _write_adaptive(config_path, result, backup=False)
             print(f"  已写入 (adaptive): {config_path}")
-        print(f"  备份已保存: {config_path}.bak")
     except Exception as e:
         print(f"  写入失败 ({config_path}): {e}")
 
@@ -336,7 +329,13 @@ def create_input_device(args):
         return VisionPro(ip=args.avp_ip)
     elif args.input == "pico4":
         from input.pico4 import Pico4
-        return Pico4()
+        return Pico4(
+            mode=args.pico4_mode,
+            relay_host=args.pico4_relay_host,
+            relay_port=args.pico4_relay_port,
+            port=args.pico4_port,
+            broadcast_port=args.pico4_broadcast_port,
+        )
     else:
         raise ValueError(f"Unknown input: {args.input}")
 
@@ -372,6 +371,17 @@ def main():
     # Quest3
     parser.add_argument("--quest3-port", type=int, default=9000)
     parser.add_argument("--quest3-protocol", default="udp", choices=["udp", "tcp"])
+    # Pico4
+    parser.add_argument("--pico4-mode", default="relay", choices=["relay", "direct"],
+                        help="Pico 4 input mode: relay daemon (default) or direct TCP server")
+    parser.add_argument("--pico4-relay-host", default="127.0.0.1",
+                        help="Pico 4 relay daemon host (default: 127.0.0.1)")
+    parser.add_argument("--pico4-relay-port", type=int, default=63902,
+                        help="Pico 4 relay daemon port (default: 63902)")
+    parser.add_argument("--pico4-port", type=int, default=63901,
+                        help="Pico 4 direct-mode TCP listen port (default: 63901)")
+    parser.add_argument("--pico4-broadcast-port", type=int, default=29888,
+                        help="Pico 4 direct-mode UDP broadcast port (default: 29888)")
     # AVP
     parser.add_argument("--avp-ip", default="192.168.50.127")
     # Write-back options
@@ -392,6 +402,11 @@ def main():
     print(f"配置文件: {config_file}")
     print(f"输入源:   {args.input}")
     print(f"机器人:   {robot_file}")
+    if args.input == "pico4":
+        if args.pico4_mode == "direct":
+            print(f"Pico4模式: direct (tcp={args.pico4_port}, udp_broadcast={args.pico4_broadcast_port})")
+        else:
+            print(f"Pico4模式: relay ({args.pico4_relay_host}:{args.pico4_relay_port})")
 
     retargeter = Retargeter.from_yaml(str(config_file), args.hand)
     optimizer = retargeter.optimizer
@@ -535,7 +550,7 @@ def main():
                 targets_info.append(str(vector_path))
 
         if targets_info:
-            print("将写入以下配置文件（含自动备份 .bak）:")
+            print("将写入以下配置文件:")
             for p in targets_info:
                 print(f"  {p}")
             answer = input("\n是否写入？[y=写入 / n=跳过]: ").strip().lower()

@@ -270,7 +270,11 @@ def main():
     parser.add_argument("--avp-ip", type=str, default="192.168.50.127")
     parser.add_argument("--quest3-port", type=int, default=9000)
     parser.add_argument("--quest3-protocol", type=str, default="udp", choices=["udp", "tcp"])
+    parser.add_argument("--pico4-mode", type=str, default="relay", choices=["relay", "direct"])
+    parser.add_argument("--pico4-relay-host", type=str, default="127.0.0.1")
+    parser.add_argument("--pico4-relay-port", type=int, default=63902)
     parser.add_argument("--pico4-port", type=int, default=63901)
+    parser.add_argument("--pico4-broadcast-port", type=int, default=29888)
     parser.add_argument("--show-video", action="store_true")
     parser.add_argument("--speed", type=float, default=1.0)
     parser.add_argument("--alpha", type=float, default=0.25,
@@ -351,7 +355,13 @@ def main():
         input_type = "quest3"
     elif args.input == "pico4":
         from input.pico4 import Pico4
-        input_device = Pico4()
+        input_device = Pico4(
+            mode=args.pico4_mode,
+            relay_host=args.pico4_relay_host,
+            relay_port=args.pico4_relay_port,
+            port=args.pico4_port,
+            broadcast_port=args.pico4_broadcast_port,
+        )
         input_type = "pico4"
     elif args.input == "video" or args.video:
         video_path = args.video or "data/right.mp4"
@@ -375,6 +385,11 @@ def main():
         input_type = "camera"
 
     print(f"Input: {input_type}")
+    if input_type == "pico4":
+        if args.pico4_mode == "direct":
+            print(f"Pico4 mode: direct (tcp={args.pico4_port}, udp_broadcast={args.pico4_broadcast_port})")
+        else:
+            print(f"Pico4 mode: relay ({args.pico4_relay_host}:{args.pico4_relay_port})")
     if qpos_servo_mode:
         print(f"Control mode: qpos servo (alpha={qpos_servo_alpha})")
     elif actuator_mode:

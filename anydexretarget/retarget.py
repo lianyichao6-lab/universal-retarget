@@ -119,6 +119,9 @@ class Retargeter:
         lp_alpha = retarget_config.get('lp_alpha', 0.2)
         self.lp_filter = LPFilter(lp_alpha)
 
+        # Robot-specific preprocessing switches.
+        self.robot_type = config.get('robot', {}).get('type', 'shadow_hand')
+
         # Rotation adjustment
         self.rotation_xyz = retarget_config.get('mediapipe_rotation', {})
         self.mcp_lateral_scale = retarget_config.get('mcp_lateral_scale', 1.0)

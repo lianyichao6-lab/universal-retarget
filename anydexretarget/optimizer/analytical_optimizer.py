@@ -100,7 +100,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         non_thumb_mp_indices = self.mp_finger_indices[1:]  # skip thumb
         finger_tips = np.array([mediapipe_keypoints[self.MP_TIP_INDICES[i]] for i in non_thumb_mp_indices])
         distances = np.linalg.norm(finger_tips - thumb_tip, axis=1) * M_TO_CM
-        alphas_nt = np.clip((self.d2 - distances) / (self.d2 - self.d1 + 1e-8), 0.0, 0.7)
+        alphas_nt = np.clip((self.d2 - distances) / (self.d2 - self.d1 + 1e-8), 0.0, 1.0)
         alpha_thumb = np.max(alphas_nt)
         return np.concatenate([[alpha_thumb], alphas_nt])
 

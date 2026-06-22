@@ -13,4 +13,5 @@ matplotlib
 # Input devices (optional, install as needed)
 # avp_stream          # Apple Vision Pro
 # wujihandpy          # Wuji Hand real hardware
+# pyserial            # Inspire Hand real hardware
 # pyrealsense2        # Intel RealSense

@@ -1,7 +1,10 @@
-"""Teleoperation with Real Robot Hand Hardware.
+"""Teleoperation with real robot hand hardware.
 
-Uses the Retargeter interface to map hand tracking input to robot hand joint angles,
-sent to real hardware via wujihandpy (Wuji) or TCP socket (Shadow Hand).
+Uses the Retargeter interface to map hand tracking input to joint targets and
+send them to real hardware via:
+- wujihandpy (Wuji Hand)
+- TCP socket bridge (Shadow Hand)
+- direct serial protocol (Inspire RH56DFX)
 """
 
 import argparse
@@ -31,6 +34,11 @@ from input.visionpro import VisionPro
 
 
 # -------------------- Output drivers --------------------
+
+_INSPIRE_CHANNEL_INDICES = [4, 6, 2, 0, 9, 8]
+_INSPIRE_CHANNEL_MAX_RAD = [1.47, 1.47, 1.47, 1.47, 0.6, 1.308]
+_INSPIRE_CHANNEL_INVERT = [True, True, True, True, True, True]
+_INSPIRE_SERIAL_RESPONSE_TIMEOUT_S = 0.1
 
 class WujiOutput:
     """Output driver for Wuji Hand via wujihandpy."""
@@ -94,6 +102,80 @@ class ShadowTCPOutput:
             pass
 
 
+def _inspire_retarget_to_real(retarget_output: np.ndarray) -> list[int]:
+    """Map 12-D Inspire retarget output (rad) to 6 serial control channels."""
+    output = np.asarray(retarget_output, dtype=np.float64)
+    if output.shape[0] < 12:
+        raise ValueError(f"Expected at least 12 Inspire joints, got shape {output.shape}")
+    if not np.all(np.isfinite(output)):
+        raise ValueError("Invalid Inspire retarget output: contains NaN/Inf")
+
+    result: list[int] = []
+    for idx, max_rad, invert in zip(
+        _INSPIRE_CHANNEL_INDICES,
+        _INSPIRE_CHANNEL_MAX_RAD,
+        _INSPIRE_CHANNEL_INVERT,
+    ):
+        value = float(np.clip(output[idx] / max_rad, 0.0, 1.0))
+        if invert:
+            value = 1.0 - value
+        result.append(int(value * 2000))
+    return result
+
+
+class InspireSerialOutput:
+    """Direct serial controller for Inspire RH56DFX hand."""
+
+    def __init__(self, port_name: str, baudrate: int = 115200, hand_id: int = 1):
+        try:
+            import serial
+        except ImportError as exc:
+            raise ImportError(
+                "pyserial is required for Inspire hand control. "
+                "Install it with `pip install pyserial`."
+            ) from exc
+
+        self._port = serial.Serial(port_name, baudrate, timeout=0.01)
+        self._hand_id = int(hand_id)
+        self._port_name = port_name
+        self._baudrate = int(baudrate)
+        print(f"Connected to Inspire hand serial at {port_name} @ {baudrate} baud.")
+
+    def _read_response(self) -> bytes:
+        deadline = time.time() + _INSPIRE_SERIAL_RESPONSE_TIMEOUT_S
+        input_bytes = bytearray()
+        while time.time() < deadline:
+            chunk = self._port.read(self._port.in_waiting or 1)
+            if chunk:
+                input_bytes += chunk
+            else:
+                break
+        return bytes(input_bytes)
+
+    @staticmethod
+    def _encode_channels(channels: list[int]) -> list[int]:
+        if len(channels) != 6:
+            raise ValueError(f"Inspire hand expects 6 channels, got {len(channels)}")
+        return [int(np.clip(round(ch / 2.0), 0, 1000)) for ch in channels]
+
+    def send(self, qpos, joint_names):
+        channels = _inspire_retarget_to_real(qpos)
+        encoded = self._encode_channels(channels)
+        packet = bytearray([0xEB, 0x90, self._hand_id, 0x0F, 0x12, 0xCE, 0x05])
+        for angle in encoded:
+            packet.append(angle & 0xFF)
+            packet.append((angle >> 8) & 0xFF)
+        checksum = sum(packet[2:2 + 0x0F + 3])
+        packet.append(checksum & 0xFF)
+        self._port.write(packet)
+        self._read_response()
+
+    def close(self):
+        if self._port.is_open:
+            self._port.close()
+            print(f"Closed Inspire hand serial at {self._port_name} @ {self._baudrate} baud.")
+
+
 # -------------------- Teleoperation --------------------
 
 def run_teleop(
@@ -104,7 +186,11 @@ def run_teleop(
     visionpro_ip: str = "192.168.50.127",
     quest3_port: int = 9000,
     quest3_protocol: str = "udp",
+    pico4_mode: str = "relay",
+    pico4_relay_host: str = "127.0.0.1",
+    pico4_relay_port: int = 63902,
     pico4_port: int = 63901,
+    pico4_broadcast_port: int = 29888,
     noitom_local_ip: str = "192.168.5.25",
     noitom_local_port: int = 8000,
     noitom_server_ip: str = "192.168.5.33",
@@ -118,6 +204,9 @@ def run_teleop(
     video_depth_scale: float = 1.25,
     docker_ip: str = "localhost",
     docker_port: int = 5555,
+    inspire_port: str = "/dev/ttyUSB0",
+    inspire_baudrate: int = 115200,
+    inspire_hand_id: int = 1,
 ):
     """Run teleoperation with real hardware.
 
@@ -132,13 +221,25 @@ def run_teleop(
         output = WujiOutput()
     elif robot_type == "shadow":
         output = ShadowTCPOutput(docker_ip=docker_ip, port=docker_port)
+    elif robot_type == "inspire":
+        output = InspireSerialOutput(
+            port_name=inspire_port,
+            baudrate=inspire_baudrate,
+            hand_id=inspire_hand_id,
+        )
     else:
         raise ValueError(f"Unknown robot type: {robot_type}")
 
     device_map = {
         "visionpro": lambda: VisionPro(ip=visionpro_ip),
         "quest3": lambda: Quest3(port=quest3_port, protocol=quest3_protocol),
-        "pico4": lambda: Pico4(),
+        "pico4": lambda: Pico4(
+            mode=pico4_mode,
+            relay_host=pico4_relay_host,
+            relay_port=pico4_relay_port,
+            port=pico4_port,
+            broadcast_port=pico4_broadcast_port,
+        ),
         "noitom": lambda: NoitomInput(
             local_ip=noitom_local_ip,
             local_port=noitom_local_port,
@@ -229,8 +330,15 @@ def run_teleop(
         print(f"  Hand: {hand_side}")
         print(f"  Input: {input_device_type}")
         print(f"  Recording: {'ON' if enable_recording else 'OFF'}")
+        if input_device_type == "pico4":
+            if pico4_mode == "direct":
+                print(f"  Pico4 mode: direct (tcp={pico4_port}, udp_broadcast={pico4_broadcast_port})")
+            else:
+                print(f"  Pico4 mode: relay ({pico4_relay_host}:{pico4_relay_port})")
         if robot_type == "shadow":
             print(f"  Shadow bridge: {docker_ip}:{docker_port}")
+        elif robot_type == "inspire":
+            print(f"  Inspire serial: {inspire_port} @ {inspire_baudrate} (id={inspire_hand_id})")
         print("=" * 50)
 
         input_thread.start()
@@ -295,6 +403,12 @@ Examples:
   # Live VisionPro input with Shadow Hand
   python teleop_real.py --robot shadow --input visionpro --ip <your-vision-pro-ip>
 
+  # Inspire Hand via direct serial control
+  python teleop_real.py --robot inspire --input noitom --hand right --noitom-local-ip 192.168.5.25 --inspire-port /dev/ttyUSB0
+
+  # Pico 4 direct mode with PC broadcast discovery
+  python teleop_real.py --robot inspire --input pico4 --hand right --pico4-mode direct --inspire-port /dev/ttyUSB0
+
   # RealSense camera input
   python teleop_real.py --robot shadow --realsense
 
@@ -312,7 +426,7 @@ Examples:
                         choices=["adaptive", "vector"],
                         help="Optimizer type: adaptive (default) or vector (KeyVectorOptimizer)")
     parser.add_argument("--robot", type=str, default="wuji",
-                        choices=["wuji", "shadow"],
+                        choices=["wuji", "shadow", "inspire"],
                         help="Robot hand type (default: wuji)")
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"],
                         help="Hand side (default: right)")
@@ -339,8 +453,16 @@ Examples:
     parser.add_argument("--quest3-protocol", type=str, default="udp", choices=["udp", "tcp"],
                         help="Quest 3 HTS transport protocol (default: udp)")
 
+    parser.add_argument("--pico4-mode", type=str, default="relay", choices=["relay", "direct"],
+                        help="Pico 4 input mode: relay daemon (default) or direct TCP server")
+    parser.add_argument("--pico4-relay-host", type=str, default="127.0.0.1",
+                        help="Pico 4 relay daemon host (default: 127.0.0.1)")
+    parser.add_argument("--pico4-relay-port", type=int, default=63902,
+                        help="Pico 4 relay daemon port (default: 63902)")
     parser.add_argument("--pico4-port", type=int, default=63901,
                         help="Pico 4 TCP listen port (default: 63901)")
+    parser.add_argument("--pico4-broadcast-port", type=int, default=29888,
+                        help="Pico 4 direct-mode UDP broadcast port (default: 29888)")
 
     parser.add_argument("--noitom-local-ip", type=str, default="192.168.5.25",
                         help="Noitom: Linux IP (must match Axis Studio destination, default: 192.168.5.25)")
@@ -365,6 +487,12 @@ Examples:
                         help="Docker ROS bridge IP (default: localhost, for --robot shadow)")
     parser.add_argument("--docker-port", type=int, default=5555,
                         help="Docker ROS bridge port (default: 5555, for --robot shadow)")
+    parser.add_argument("--inspire-port", type=str, default="/dev/ttyUSB0",
+                        help="Inspire serial port (default: /dev/ttyUSB0, for --robot inspire)")
+    parser.add_argument("--inspire-baudrate", type=int, default=115200,
+                        help="Inspire serial baudrate (default: 115200, for --robot inspire)")
+    parser.add_argument("--inspire-hand-id", type=int, default=1,
+                        help="Inspire hand ID in serial protocol (default: 1, for --robot inspire)")
 
     args = parser.parse_args()
 
@@ -395,6 +523,7 @@ Examples:
         robot_name_map = {
             "wuji": "wuji_hand",
             "shadow": "shadow_hand",
+            "inspire": "inspire_hand",
         }
         input_to_dir = {
             "quest3": "quest3",
@@ -414,7 +543,11 @@ Examples:
         visionpro_ip=args.ip,
         quest3_port=args.quest3_port,
         quest3_protocol=args.quest3_protocol,
+        pico4_mode=args.pico4_mode,
+        pico4_relay_host=args.pico4_relay_host,
+        pico4_relay_port=args.pico4_relay_port,
         pico4_port=args.pico4_port,
+        pico4_broadcast_port=args.pico4_broadcast_port,
         noitom_local_ip=args.noitom_local_ip,
         noitom_local_port=args.noitom_local_port,
         noitom_server_ip=args.noitom_server_ip,
@@ -428,6 +561,9 @@ Examples:
         video_depth_scale=args.video_depth_scale,
         docker_ip=args.docker_ip,
         docker_port=args.docker_port,
+        inspire_port=args.inspire_port,
+        inspire_baudrate=args.inspire_baudrate,
+        inspire_hand_id=args.inspire_hand_id,
     )
 
     if log is not None and len(log) > 0:

@@ -134,7 +134,8 @@
     <parent link="if_proximal_link" />
     <child link="if_distal_link" />
     <axis xyz="-0.082428 0.99278 0.087177" />
-  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" /></joint>
+  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" />    <mimic joint="if_proximal_link" multiplier="1.138285" offset="-0.034824"/>
+</joint>
   <link name="if_connecting_link">
     <inertial>
       <origin xyz="-0.0149214142555827 -0.00339461470143052 -0.00756951243385832" rpy="0 0 0" />
@@ -275,7 +276,8 @@
     <parent link="mf_proximal_link" />
     <child link="mf_distal_link" />
     <axis xyz="-0.013244 0.99991 -2.1055E-05" />
-  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" /></joint>
+  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" />    <mimic joint="mf_proximal_link" multiplier="1.139937" offset="-0.033724"/>
+</joint>
   <link name="mf_connecting_link">
     <inertial>
       <origin xyz="-0.0172404027176054 -0.00302882403489448 -0.00839495079986684" rpy="0 0 0" />
@@ -416,7 +418,8 @@
     <parent link="rf_proximal_link" />
     <child link="rf_distal_link" />
     <axis xyz="0.05658 0.9984 -2.102E-05" />
-  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" /></joint>
+  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" />    <mimic joint="rf_proximal_link" multiplier="1.134612" offset="-0.033167"/>
+</joint>
   <link name="rf_connecting_link">
     <inertial>
       <origin xyz="-0.0149581978586362 -0.00195701448922151 -0.00799324332753841" rpy="0 0 0" />
@@ -557,7 +560,8 @@
     <parent link="lf_proximal_link" />
     <child link="lf_distal_link" />
     <axis xyz="0.11759 0.98923 -0.087106" />
-  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" /></joint>
+  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" />    <mimic joint="lf_proximal_link" multiplier="1.152366" offset="-0.067444"/>
+</joint>
   <link name="lf_connecting_link">
     <inertial>
       <origin xyz="-0.0129208949539236 -0.00198480160598055 -0.00783823800520824" rpy="0 0 0" />
@@ -727,5 +731,6 @@
     <parent link="th_proximal_link" />
     <child link="th_distal_link" />
     <axis xyz="-0.21698 0.032029 0.97565" />
-  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" /></joint>
+  <limit lower="-3.14159" upper="3.14159" effort="1" velocity="10" />    <mimic joint="th_proximal_link" multiplier="1.229686" offset="-0.037509"/>
+</joint>
 </robot>

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <mujoco model="rohand_right">
   <compiler angle="radian" meshdir="right"/>
+  <default>
+    <joint damping="0.05"/>
+  </default>
   <asset>
     <mesh name="base_link" content_type="model/stl" file="base_link.STL"/>
     <mesh name="if_slider_link" content_type="model/stl" file="if_slider_link.STL"/>
@@ -159,35 +162,37 @@
       </body>
     </body>
   </worldbody>
+  <equality>
+    <joint name="if_distal_mimic"  joint1="if_distal_link"  joint2="if_proximal_link"  polycoef="-0.034824 1.138285 0 0 0" solref="0.01 1" solimp="0.99 0.999 0.001"/>
+    <joint name="mf_distal_mimic"  joint1="mf_distal_link"  joint2="mf_proximal_link"  polycoef="-0.033724 1.139937 0 0 0" solref="0.01 1" solimp="0.99 0.999 0.001"/>
+    <joint name="rf_distal_mimic"  joint1="rf_distal_link"  joint2="rf_proximal_link"  polycoef="-0.033167 1.134612 0 0 0" solref="0.01 1" solimp="0.99 0.999 0.001"/>
+    <joint name="lf_distal_mimic"  joint1="lf_distal_link"  joint2="lf_proximal_link"  polycoef="-0.067444 1.152366 0 0 0" solref="0.01 1" solimp="0.99 0.999 0.001"/>
+    <joint name="th_distal_mimic"  joint1="th_distal_link"  joint2="th_proximal_link"  polycoef="-0.037509 1.229686 0 0 0" solref="0.01 1" solimp="0.99 0.999 0.001"/>
+  </equality>
   <visual>
     <global offwidth="1280" offheight="720"/>
   </visual>
   <option gravity="0 0 0"/>
   <actuator>
-    <position name="if_slider_link_pos" joint="if_slider_link" kp="2.0" ctrlrange="0.0 0.019"/>
-    <position name="if_slider_abpart_link_pos" joint="if_slider_abpart_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="if_proximal_link_pos" joint="if_proximal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="if_distal_link_pos" joint="if_distal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="if_connecting_link_pos" joint="if_connecting_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="mf_slider_link_pos" joint="mf_slider_link" kp="2.0" ctrlrange="0.0 0.019"/>
-    <position name="mf_slider_abpart_link_pos" joint="mf_slider_abpart_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="mf_proximal_link_pos" joint="mf_proximal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="mf_distal_link_pos" joint="mf_distal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="mf_connecting_link_pos" joint="mf_connecting_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="rf_slider_link_pos" joint="rf_slider_link" kp="2.0" ctrlrange="0.0 0.019"/>
-    <position name="rf_slider_abpart_link_pos" joint="rf_slider_abpart_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="rf_proximal_link_pos" joint="rf_proximal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="rf_distal_link_pos" joint="rf_distal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="rf_connecting_link_pos" joint="rf_connecting_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="lf_slider_link_pos" joint="lf_slider_link" kp="2.0" ctrlrange="0.0 0.019"/>
-    <position name="lf_slider_abpart_link_pos" joint="lf_slider_abpart_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="lf_proximal_link_pos" joint="lf_proximal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="lf_distal_link_pos" joint="lf_distal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="lf_connecting_link_pos" joint="lf_connecting_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="th_root_link_pos" joint="th_root_link" kp="2.0" ctrlrange="0.0 1.57"/>
-    <position name="th_proximal_link_pos" joint="th_proximal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="th_slider_link_pos" joint="th_slider_link" kp="2.0" ctrlrange="0.0 0.01"/>
-    <position name="th_connecting_link_pos" joint="th_connecting_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
-    <position name="th_distal_link_pos" joint="th_distal_link" kp="2.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="if_slider_link_pos" joint="if_slider_link" kp="50.0" ctrlrange="0.0 0.019"/>
+    <position name="if_slider_abpart_link_pos" joint="if_slider_abpart_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="if_proximal_link_pos" joint="if_proximal_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="if_connecting_link_pos" joint="if_connecting_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="mf_slider_link_pos" joint="mf_slider_link" kp="50.0" ctrlrange="0.0 0.019"/>
+    <position name="mf_slider_abpart_link_pos" joint="mf_slider_abpart_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="mf_proximal_link_pos" joint="mf_proximal_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="mf_connecting_link_pos" joint="mf_connecting_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="rf_slider_link_pos" joint="rf_slider_link" kp="50.0" ctrlrange="0.0 0.019"/>
+    <position name="rf_slider_abpart_link_pos" joint="rf_slider_abpart_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="rf_proximal_link_pos" joint="rf_proximal_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="rf_connecting_link_pos" joint="rf_connecting_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="lf_slider_link_pos" joint="lf_slider_link" kp="50.0" ctrlrange="0.0 0.019"/>
+    <position name="lf_slider_abpart_link_pos" joint="lf_slider_abpart_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="lf_proximal_link_pos" joint="lf_proximal_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="lf_connecting_link_pos" joint="lf_connecting_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="th_root_link_pos" joint="th_root_link" kp="50.0" ctrlrange="0.0 1.57"/>
+    <position name="th_proximal_link_pos" joint="th_proximal_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
+    <position name="th_slider_link_pos" joint="th_slider_link" kp="50.0" ctrlrange="0.0 0.01"/>
+    <position name="th_connecting_link_pos" joint="th_connecting_link" kp="50.0" ctrlrange="-3.14159 3.14159"/>
   </actuator>
 </mujoco>
