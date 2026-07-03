@@ -71,6 +71,11 @@ class KeyVectorOptimizer(BaseOptimizer):
                 return name.replace('right_', 'left_')
             origin_names = [_replace(n) for n in origin_names_raw]
             task_names   = [_replace(n) for n in task_names_raw]
+        elif robot_type == 'inspire_hand' and self.hand_side == 'left':
+            def _replace(name):
+                return name.replace('right_', 'left_')
+            origin_names = [_replace(n) for n in origin_names_raw]
+            task_names   = [_replace(n) for n in task_names_raw]
         else:
             origin_names = origin_names_raw
             task_names   = task_names_raw

@@ -80,6 +80,10 @@ class BaseOptimizer(ABC):
             urdf_path = Path(urdf_path)
             if not urdf_path.is_absolute():
                 urdf_path = _PROJECT_ROOT / urdf_path
+            if robot_type == 'inspire_hand' and self.hand_side == 'left':
+                urdf_name = urdf_path.name
+                if 'inspire_hand_right' in urdf_name:
+                    urdf_path = urdf_path.with_name(urdf_name.replace('inspire_hand_right', 'inspire_hand_left'))
             urdf_path = str(urdf_path.resolve())
         else:
             # Default URDF path based on robot type and hand side
@@ -177,6 +181,22 @@ class BaseOptimizer(ABC):
             self.link3_names = [replace_suffix(n) for n in self.link3_names]
             self.link4_names = [replace_suffix(n) for n in self.link4_names]
         elif robot_type == 'sharpa_hand' and self.hand_side == 'left':
+            def replace_prefix(name):
+                return name.replace('right_', 'left_')
+            self.origin_link_name = replace_prefix(self.origin_link_name)
+            self.task_link_names = [replace_prefix(n) for n in self.task_link_names]
+            self.link1_names = [replace_prefix(n) for n in self.link1_names]
+            self.link3_names = [replace_prefix(n) for n in self.link3_names]
+            self.link4_names = [replace_prefix(n) for n in self.link4_names]
+        elif robot_type == 'linker_l20' and self.hand_side == 'left':
+            def replace_prefix(name):
+                return name.replace('right_', 'left_')
+            self.origin_link_name = replace_prefix(self.origin_link_name)
+            self.task_link_names = [replace_prefix(n) for n in self.task_link_names]
+            self.link1_names = [replace_prefix(n) for n in self.link1_names]
+            self.link3_names = [replace_prefix(n) for n in self.link3_names]
+            self.link4_names = [replace_prefix(n) for n in self.link4_names]
+        elif robot_type == 'inspire_hand' and self.hand_side == 'left':
             def replace_prefix(name):
                 return name.replace('right_', 'left_')
             self.origin_link_name = replace_prefix(self.origin_link_name)
