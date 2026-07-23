@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/dccdb649-4a20-422a-979c-2b1301e8836b
 
 ## Features
 
-- **11 Robot Hands**: Shadow, Wuji, Allegro, Inspire, Ability, Leap, SVH, LinkerHand, ROHand, Unitree Dex5, Sharpa
+- **13 Robot Hands**: Shadow, Wuji, Allegro, Inspire, Ability, Leap, SVH, LinkerHand L21, Linker L20, ROHand, Unitree Dex5, Sharpa, and Gaia Hand20
 - **Two Optimizers**: `adaptive` (pinch-aware, default) and `vector` (key-vector matching)
 - **High-Precision Pinch**: Adaptive optimization for accurate finger-to-thumb contact
 - **Real-time Performance**: Analytical gradients + NLopt SLSQP (~2ms per frame)
@@ -49,11 +49,13 @@ example/config/
 │   ├── mediapipe/     # camera / video / replay input
 │   ├── avp/           # Apple Vision Pro input
 │   ├── quest3/        # Meta Quest 3 input
+│   ├── pico4/         # Pico 4 input
 │   └── noitom/        # Noitom PNS-G gloves
 └── vector/            # KeyVectorOptimizer
     ├── mediapipe/
     ├── avp/
     ├── quest3/
+    ├── pico4/
     └── noitom/
 ```
 
@@ -71,6 +73,7 @@ example/config/
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 | **Sharpa Hand** | `sharpa` | `sharpa_hand` | Sharpa Wave Hand, 5 fingers / 22 DOF |
+| **Gaia Hand20** | `gaia` | `gaia_hand20` | Gaia Hand20, 5 fingers |
 
 > **Note on Noitom configs:** Only `shadow_hand`, `wuji_hand`, and `inspire_hand` have been roughly calibrated for Noitom input. If you need to fine-tune the mapping accuracy between your hand and the robot hand, run `debug_skeleton.py` to visualize three skeletons side-by-side: **Blue** = raw input, **Green** = after scaling, **Red** = retargeted FK result. Compare the skeleton sizes and adjust the corresponding YAML config parameters (`scaling`, `segment_scaling`, `key_vectors[].scale`, etc.) accordingly.
 >
@@ -170,6 +173,15 @@ cd example
 # Run the included sample video (adaptive optimizer, default)
 python teleop_sim.py --video data/right.mp4 --robot shadow --hand right
 
+# Gaia Hand20 (right/left both supported)
+python teleop_sim.py --video data/right.mp4 --robot gaia --hand right
+
+# Pico 4 direct mode (PC broadcasts itself and accepts the headset connection)
+python teleop_sim.py --input pico4 --pico4-mode direct --robot gaia --hand right
+
+# Pico 4 relay mode (default; run input/pico4_daemon.py in another terminal first)
+python teleop_sim.py --input pico4 --robot gaia --hand right
+
 # Switch to KeyVector optimizer
 python teleop_sim.py --video data/right.mp4 --robot shadow --hand right --optimizer vector
 
@@ -197,7 +209,7 @@ python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 
 ### Real Hardware
 
-`teleop_real.py` demonstrates real hardware teleoperation using **Wuji Hand** as an example. It sends `5 x 4` joint targets through `wujihandpy`. You can adapt the control loop for other robot hands.
+`teleop_real.py` provides real-hardware output drivers for **Wuji Hand**, **Shadow Hand** (TCP bridge), **Inspire Hand** (serial), and **Gaia Hand20** (official HandSDK).
 
 ```bash
 cd example
@@ -211,12 +223,28 @@ python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand
 # Noitom PNS-G gloves -> Inspire Hand
 python teleop_real.py --robot inspire --input noitom --hand right --noitom-local-ip 192.168.5.25
 
+# Pico 4 relay -> right Gaia Hand20
+python teleop_real.py --robot gaia --input pico4 --hand right --pico4-mode relay \
+  --gaia-port /dev/ttyACM0
+
 # Replay the optional sample recording -> Wuji Hand
 python teleop_real.py --robot wuji --play data/avp1.pkl --hand right
 
-# Linux USB permission
+# Linux USB permission (Inspire / Gaia examples)
 sudo chmod a+rw /dev/ttyUSB0
+sudo chmod a+rw /dev/ttyACM0
 ```
+
+#### Gaia Hand20 setup
+
+Install the Gaia HandSDK wheel matching the Python version and host architecture. For the recommended Python 3.10 Linux x86_64 environment:
+
+```bash
+conda activate anydex
+pip install /path/to/gaia_hand/02.HandSDK/packages/02.Linux/x86_64/v1.1.1/handsdk-1.1.1-cp310-cp310-manylinux_2_35_x86_64.whl
+python -c "import hand; print('Gaia HandSDK OK')"
+```
+
 
 ### Command Reference
 
@@ -225,7 +253,7 @@ sudo chmod a+rw /dev/ttyUSB0
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--input` | - | `teleop_sim.py`: `visionpro` / `quest3` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
-| `--input` | - | `teleop_real.py`: `visionpro` / `noitom` / `mediapipe_replay` |
+| `--input` | - | `teleop_real.py`: `visionpro` / `quest3` / `pico4` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--hand` | `right` | Hand side (`left`/`right`) |
 | `--realsense` | off | Shortcut for `--input realsense` |
 | `--play FILE` | - | Replay recording (shortcut for `--input mediapipe_replay`) |
@@ -249,7 +277,7 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--robot` | `shadow` (sim) / `wuji` (real) | Robot hand type |
+| `--robot` | `shadow` (sim) / `wuji` (real) | Robot hand type; real output supports `wuji`, `shadow`, `inspire`, and `gaia` |
 | `--record` | - | Record input data |
 | `--output FILE` | - | Output file path for recording |
 | `--show-video` | off | Show RGB / landmark preview for supported inputs |

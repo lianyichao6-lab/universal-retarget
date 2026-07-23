@@ -37,6 +37,26 @@ ROBOT_CONFIGS = {
         'link4_names': ['right_finger1_link4', 'right_finger2_link4', 'right_finger3_link4', 'right_finger4_link4', 'right_finger5_link4'],
         'num_fingers': 5,
     },
+    # Gaia Hand20 (5 fingers x 4 joints = 20 revolute joints)
+    'gaia_hand20': {
+        'origin_link': 'right_base_link',
+        'tip_links': ['right_thumb_tip', 'right_index_tip', 'right_middle_tip', 'right_ring_tip', 'right_little_tip'],
+        'link1_names': ['right_thumb_link_1', 'right_index_link_1', 'right_middle_link_1', 'right_ring_link_1', 'right_little_link_1'],
+        'link3_names': ['right_thumb_link_3', 'right_index_link_3', 'right_middle_link_3', 'right_ring_link_3', 'right_little_link_3'],
+        'link4_names': ['right_thumb_link_4', 'right_index_link_4', 'right_middle_link_4', 'right_ring_link_4', 'right_little_link_4'],
+        'urdf_subdir': 'assets/gaia_hand20',
+        'urdf_file': {
+            'right': 'gaiahand20_right.urdf',
+            'left': 'gaiahand20_left.urdf',
+        },
+        'mjcf_subdir': 'assets/gaia_hand20',
+        'mjcf_file': {
+            'right': 'gaiahand20_right_mujoco.xml',
+            'left': 'gaiahand20_left_mujoco.xml',
+        },
+        'num_fingers': 5,
+        'neutral_qpos': [0.0] * 20,
+    },
     # Allegro Hand (4 fingers: thumb, index, middle, ring - no pinky)
     # Finger order: thumb (link_12~15), index (link_0~3), middle (link_4~7), ring (link_8~11)
     'allegro_hand': {
@@ -115,17 +135,50 @@ ROBOT_CONFIGS = {
         'num_fingers': 5,
         'neutral_qpos': [0.0] * 17,
     },
-    # Linker L20 (DexForce official URDF, 21 revolute joints with mimic joints)
+    # Linker L20 (GEORT L20 URDF, 21 revolute joints with 5 mimic joints)
     'linker_l20': {
-        'origin_link': 'right_hand_base_link',
-        'tip_links': ['right_t_tip', 'right_if_tip', 'right_mf_tip', 'right_rf_tip', 'right_lf_tip'],
-        'link1_names': ['right_t_cmc_roll_link', 'right_if_mcp_roll_link', 'right_mf_mcp_roll_link', 'right_rf_mcp_roll_link', 'right_lf_mcp_roll_link'],
-        'link3_names': ['right_t_mcp_link', 'right_if_pip_link', 'right_mf_pip_link', 'right_rf_pip_link', 'right_lf_pip_link'],
-        'link4_names': ['right_t_ip_link', 'right_if_dip_link', 'right_mf_dip_link', 'right_rf_dip_link', 'right_lf_dip_link'],
+        'origin_link': 'hand_base_link',
+        'tip_links': [
+            'thumb_distal',
+            'index_distal',
+            'middle_distal',
+            'ring_distal',
+            'pinky_distal',
+        ],
+        # The GEORT distal link frames are located at the DIP/IP joints.  These
+        # local offsets place the targets at the visible fingertip surfaces.
+        'tip_offsets': [
+            [-0.0110, 0.0, 0.0277],
+            [-0.0135, 0.0, 0.0188],
+            [-0.0135, 0.0, 0.0188],
+            [-0.0135, 0.0, 0.0188],
+            [-0.0135, 0.0, 0.0188],
+        ],
+        'link1_names': [
+            'thumb_metacarpals_base1',
+            'index_metacarpals',
+            'middle_metacarpals',
+            'ring_metacarpals',
+            'pinky_metacarpals',
+        ],
+        'link3_names': [
+            'thumb_proximal',
+            'index_middle',
+            'middle_middle',
+            'ring_middle',
+            'pinky_middle',
+        ],
+        'link4_names': [
+            'thumb_distal',
+            'index_distal',
+            'middle_distal',
+            'ring_distal',
+            'pinky_distal',
+        ],
         'urdf_subdir': 'assets/linker_l20',
         'urdf_file': {
-            'right': 'linker_l20_right_vis.urdf',
-            'left': 'linker_l20_left_vis.urdf',
+            'right': 'geort_right/linkerhand_l20_right.urdf',
+            'left': 'geort_left/linkerhand_l20_left.urdf',
         },
         'num_fingers': 5,
         'neutral_qpos': [0.0] * 21,

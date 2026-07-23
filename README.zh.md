@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/dccdb649-4a20-422a-979c-2b1301e8836b
 
 ## 特性
 
-- **多灵巧手支持**：Shadow Hand、Wuji Hand、Inspire Hand 等 11 款灵巧手开箱即用
+- **多灵巧手支持**：Shadow Hand、Wuji Hand、Inspire Hand、Gaia Hand20 等 13 款灵巧手开箱即用
 - **两种优化器**：`adaptive`（对指感知，默认）和 `vector`（关键向量匹配）
 - **高精度对指**：自适应优化，精确的拇指-手指接触
 - **实时性能**：解析梯度 + NLopt SLSQP（~2ms/帧）
@@ -49,11 +49,13 @@ example/config/
 │   ├── mediapipe/     # 摄像头 / 视频 / 回放
 │   ├── avp/           # Apple Vision Pro
 │   ├── quest3/        # Meta Quest 3
+│   ├── pico4/         # Pico 4
 │   └── noitom/        # Noitom PNS-G 动捕手套
 └── vector/            # KeyVectorOptimizer
     ├── mediapipe/
     ├── avp/
     ├── quest3/
+    ├── pico4/
     └── noitom/
 ```
 
@@ -71,6 +73,7 @@ example/config/
 | **ROHand** | `rohand` | `rohand` | ROHand |
 | **Unitree Dex5** | `unitree_dex5` | `unitree_dex5_hand` | Unitree Dex5 |
 | **Sharpa Hand** | `sharpa` | `sharpa_hand` | Sharpa Wave 灵巧手，5 指 / 22 DOF |
+| **Gaia Hand20** | `gaia` | `gaia_hand20` | Gaia Hand20，5 指灵巧手 |
 
 > **Noitom 配置说明：** 目前仅对 `shadow_hand`、`wuji_hand`、`inspire_hand` 进行了大致的 Noitom 参数匹配。如需精调人手与灵巧手之间的映射精度，建议运行 `debug_skeleton.py` 可视化三套骨架进行对比：**蓝色** = 原始输入、**绿色** = scaling 后的目标、**红色** = 重定向后的 FK 结果。根据骨架大小差异调整对应 YAML 配置文件中的参数（`scaling`、`segment_scaling`、`key_vectors[].scale` 等）。
 >
@@ -170,6 +173,15 @@ cd example
 # 运行仓库自带示例视频（adaptive 优化器，默认）
 python teleop_sim.py --video data/right.mp4 --robot shadow --hand right
 
+# Gaia Hand20（支持左右手）
+python teleop_sim.py --video data/right.mp4 --robot gaia --hand right
+
+# Pico 4 直连模式（PC 广播自身地址并接收头显连接）
+python teleop_sim.py --input pico4 --pico4-mode direct --robot gaia --hand right
+
+# Pico 4 中继模式（默认；需要先在另一个终端运行 input/pico4_daemon.py）
+python teleop_sim.py --input pico4 --robot gaia --hand right
+
 # 切换到 KeyVector 优化器
 python teleop_sim.py --video data/right.mp4 --robot shadow --hand right --optimizer vector
 
@@ -197,7 +209,7 @@ python teleop_sim.py --play path/to/record.pkl --robot shadow --hand right
 
 ### 真机控制
 
-`teleop_real.py` 以 **Wuji Hand** 为示例，演示真机遥操作。它通过 `wujihandpy` 发送 `5 x 4` 关节目标，你可以参考其控制循环适配其他灵巧手。
+`teleop_real.py` 已提供 **Wuji Hand**、**Shadow Hand**（TCP 桥接）、**Inspire Hand**（串口）和 **Gaia Hand20**（官方 HandSDK）的真机输出驱动。
 
 ```bash
 cd example
@@ -211,12 +223,28 @@ python teleop_real.py --robot wuji --input visionpro --ip <vision-pro-ip> --hand
 # Noitom PNS-G 手套 -> Inspire Hand
 python teleop_real.py --robot inspire --input noitom --hand right --noitom-local-ip 192.168.5.25
 
+# Pico 4 中继 -> Gaia Hand20 右手
+python teleop_real.py --robot gaia --input pico4 --hand right --pico4-mode relay \
+  --gaia-port /dev/ttyACM0
+
 # 回放可选示例录制数据 -> Wuji Hand
 python teleop_real.py --robot wuji --play data/avp1.pkl --hand right
 
-# Linux USB 权限
+# Linux USB 权限（Inspire / Gaia 示例）
 sudo chmod a+rw /dev/ttyUSB0
+sudo chmod a+rw /dev/ttyACM0
 ```
+
+#### Gaia Hand20 配置
+
+安装与 Python 版本和主机架构匹配的 Gaia HandSDK wheel。推荐的 Python 3.10 Linux x86_64 环境可使用：
+
+```bash
+conda activate anydex
+pip install /path/to/gaia_hand/02.HandSDK/packages/02.Linux/x86_64/v1.1.1/handsdk-1.1.1-cp310-cp310-manylinux_2_35_x86_64.whl
+python -c "import hand; print('Gaia HandSDK OK')"
+```
+
 
 ### 命令参考
 
@@ -225,7 +253,7 @@ sudo chmod a+rw /dev/ttyUSB0
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
 | `--input` | - | `teleop_sim.py`：`visionpro` / `quest3` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
-| `--input` | - | `teleop_real.py`：`visionpro` / `noitom` / `mediapipe_replay` |
+| `--input` | - | `teleop_real.py`：`visionpro` / `quest3` / `pico4` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--hand` | `right` | 手的方向（`left`/`right`） |
 | `--realsense` | 关闭 | `--input realsense` 的快捷方式 |
 | `--play FILE` | - | 回放录制（`--input mediapipe_replay` 的快捷方式） |
@@ -249,7 +277,7 @@ sudo chmod a+rw /dev/ttyUSB0
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--robot` | `shadow`（sim）/ `wuji`（real） | 灵巧手类型 |
+| `--robot` | `shadow`（sim）/ `wuji`（real） | 灵巧手类型；真机输出支持 `wuji`、`shadow`、`inspire` 和 `gaia` |
 | `--record` | - | 录制输入数据 |
 | `--output FILE` | - | 录制输出文件路径 |
 | `--show-video` | 关闭 | 显示 RGB / 关键点预览 |

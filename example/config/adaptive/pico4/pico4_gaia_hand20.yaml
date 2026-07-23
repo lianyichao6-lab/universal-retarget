@@ -1,0 +1,72 @@
+# AdaptiveOptimizerAnalytical Configuration for Pico 4 data
+# Gaia Hand20 scaling calibrated from Pico 4 right-hand tracking data.
+# Adaptive blend: TipDirVec when pinching, FullHandVec otherwise
+# Loss: L = Σ (α_i * L_tip_dir_vec_i + (1-α_i) * L_full_hand_i) + norm_delta * ||Δq||²
+# Uses Huber loss + analytical gradients + NLopt SLSQP
+
+optimizer:
+  type: "AdaptiveOptimizerAnalytical"
+
+robot:
+  type: "gaia_hand20"
+
+retarget:
+  # Huber loss thresholds
+  huber_delta: 2.0             # Position Huber threshold (cm)
+  huber_delta_dir: 0.5         # Direction Huber threshold
+
+  # Regularization
+  norm_delta: 0.04             # Velocity regularization weight
+  # Keep the four human MCP points from the transformed Pico input.
+  align_four_mcp_to_robot: false
+
+  # TipDirVec parameters
+  w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
+  w_dir: 4.0                   # Avoid distal direction dominating the whole finger pose
+  scaling: 1.0                 # Global MediaPipe scaling parameter
+  project_tip_dir: false       # Whether to project tip direction
+  # Use the exact scaled green DIP/TIP targets for pinch position/direction.
+  pinch_targets_from_full_hand: true
+
+  # FullHandVec parameters
+  w_full_hand: 1.0             # Full hand vec weight
+  # During pinch, retain 30% of the PIP/DIP/TIP posture objective instead
+  # of discarding the green full-skeleton fit completely.
+  pinch_full_hand_weight: 0.3
+  segment_scaling:
+    thumb: [1.263, 1.232, 1.3801]
+    index: [1.407, 1.485, 1.455]
+    middle: [1.389, 1.417, 1.415]
+    ring: [1.405, 1.486, 1.403]
+    pinky: [1.579, 1.578, 1.552]
+
+  # Compress only the palm-lateral (Y) component before optimization.
+  # Keep the thumb and pinch TipDir target unchanged to preserve opposition.
+  lateral_axis: 1
+  lateral_scaling:
+    thumb: 1.0
+    index: 0.7
+    middle: 0.7
+    ring: 0.7
+    pinky: 0.7
+  preserve_pinch_lateral: true
+
+  # Pinch distance thresholds (cm) for each finger
+  # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)
+  pinch_thresholds:
+    index: {d1: 2.0, d2: 4.0}
+    middle: {d1: 2.0, d2: 4.0}
+    ring: {d1: 2.0, d2: 4.0}
+    pinky: {d1: 2.0, d2: 4.0}
+
+  # MediaPipe rotation adjustment (degrees)
+  mediapipe_rotation:
+    x: -7.0
+    y: -3.0
+    z: -10.0
+
+render:
+  camera:
+    azimuth: 135
+    elevation: -20
+    distance: 0.5

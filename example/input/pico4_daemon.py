@@ -13,6 +13,7 @@ Application scripts can then keep using Pico4 relay mode.
 from __future__ import annotations
 
 import argparse
+import errno
 import logging
 import socket
 import struct
@@ -51,6 +52,26 @@ def encode_relay_frame(device_id: str, payload: bytes) -> bytes:
     )
 
 
+class PortBindingError(RuntimeError):
+    """Raised when one or more daemon TCP ports cannot be reserved."""
+
+    def __init__(self, failures: list[tuple[str, str, int, OSError]]) -> None:
+        self.failures = failures
+        details = []
+        for role, host, port, exc in failures:
+            if exc.errno == errno.EADDRINUSE:
+                reason = "address already in use"
+            else:
+                reason = exc.strerror or str(exc)
+            details.append(f"  - {role} TCP {host}:{port}: {reason}")
+        super().__init__(
+            "Cannot start Pico 4 daemon:\n"
+            + "\n".join(details)
+            + "\nAnother Pico relay daemon may already be running. "
+            "Check with: ss -ltnp | grep -E ':(63901|63902)\\b'"
+        )
+
+
 class RelayHub:
     def __init__(self, host: str, port: int, device_id: str) -> None:
         self._host = host
@@ -59,13 +80,36 @@ class RelayHub:
         self._stop = threading.Event()
         self._clients: set[socket.socket] = set()
         self._lock = threading.Lock()
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._server: socket.socket | None = None
+        self._thread: threading.Thread | None = None
+
+    def bind(self) -> None:
+        """Reserve the relay port synchronously so startup errors reach main."""
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            server.bind((self._host, self._port))
+            server.listen(8)
+            server.settimeout(1.0)
+        except OSError:
+            server.close()
+            raise
+        self._server = server
 
     def start(self) -> None:
+        if self._server is None:
+            raise RuntimeError("RelayHub.bind() must be called before start()")
+        self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
     def stop(self) -> None:
         self._stop.set()
+        server, self._server = self._server, None
+        if server is not None:
+            try:
+                server.close()
+            except OSError:
+                pass
         with self._lock:
             for client in list(self._clients):
                 try:
@@ -73,7 +117,9 @@ class RelayHub:
                 except OSError:
                     pass
             self._clients.clear()
-        self._thread.join(timeout=2.0)
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
 
     def publish(self, payload: bytes) -> None:
         frame = encode_relay_frame(self._device_id, payload)
@@ -92,25 +138,20 @@ class RelayHub:
                     pass
 
     def _run(self) -> None:
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind((self._host, self._port))
-        server.listen(8)
-        server.settimeout(1.0)
+        server = self._server
+        if server is None:
+            return
         logger.info("Relay hub listening on %s:%d", self._host, self._port)
-        try:
-            while not self._stop.is_set():
-                try:
-                    conn, addr = server.accept()
-                except socket.timeout:
-                    continue
-                except OSError:
-                    break
-                logger.info("Relay client connected: %s", addr)
-                with self._lock:
-                    self._clients.add(conn)
-        finally:
-            server.close()
+        while not self._stop.is_set():
+            try:
+                conn, addr = server.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            logger.info("Relay client connected: %s", addr)
+            with self._lock:
+                self._clients.add(conn)
 
 
 class Pico4Daemon:
@@ -128,15 +169,14 @@ class Pico4Daemon:
         self._stop = threading.Event()
 
     def run(self) -> None:
+        server, failures = self._bind_servers()
+        if failures:
+            raise PortBindingError(failures)
+        assert server is not None
+
         self._hub.start()
         broadcast_thread = threading.Thread(target=self._broadcast_loop, daemon=True)
         broadcast_thread.start()
-
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server.bind(("0.0.0.0", self._direct_port))
-        server.listen(1)
-        server.settimeout(1.0)
         logger.info("Direct server listening on 0.0.0.0:%d", self._direct_port)
 
         try:
@@ -154,6 +194,35 @@ class Pico4Daemon:
             self._stop.set()
             server.close()
             self._hub.stop()
+            broadcast_thread.join(timeout=2.0)
+
+    def _bind_servers(
+        self,
+    ) -> tuple[socket.socket | None, list[tuple[str, str, int, OSError]]]:
+        """Bind both TCP endpoints before any background thread is started."""
+        failures: list[tuple[str, str, int, OSError]] = []
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            server.bind(("0.0.0.0", self._direct_port))
+            server.listen(1)
+            server.settimeout(1.0)
+        except OSError as exc:
+            failures.append(("direct", "0.0.0.0", self._direct_port, exc))
+            server.close()
+            server = None
+
+        try:
+            self._hub.bind()
+        except OSError as exc:
+            failures.append(("relay", self._hub._host, self._hub._port, exc))
+
+        if failures:
+            if server is not None:
+                server.close()
+            self._hub.stop()
+            return None, failures
+        return server, failures
 
     def _handle_direct_client(self, conn: socket.socket) -> None:
         parser = _DirectFrameParser()
@@ -235,7 +304,11 @@ def main() -> None:
         broadcast_port=args.broadcast_port,
         device_id=args.device_id,
     )
-    daemon.run()
+    try:
+        daemon.run()
+    except PortBindingError as exc:
+        logger.error("%s", exc)
+        raise SystemExit(2) from None
 
 
 if __name__ == "__main__":

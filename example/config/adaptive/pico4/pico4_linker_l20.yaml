@@ -14,33 +14,35 @@ retarget:
   w_dir: 5.0
   scaling: 1.2
   project_tip_dir: false
+  # Use the same scaled green DIP/TIP targets during pinch.
+  pinch_targets_from_full_hand: true
   w_full_hand: 1.0
-  mcp_lateral_scale: 0.60
-  thumb_scale: 1.0
-  thumb_inward_offset: -0.02
-
+  # Keep 30% of the full PIP/DIP/TIP posture objective at full pinch.
+  pinch_full_hand_weight: 0.3
   segment_scaling:
-    thumb: [1.95, 1.727, 1.53, 1.417]
-    index: [1.9, 1.617, 1.624, 1.579]
-    middle: [1.88, 1.58, 1.548, 1.47]
-    ring: [1.9, 1.613, 1.613, 1.55]
-    pinky: [1.95, 1.806, 1.821, 1.74]
+    thumb: [1.727, 1.53, 1.4985]
+    index: [1.517, 1.524, 1.4016]
+    middle: [1.48, 1.448, 1.312]
+    ring: [1.613, 1.613, 1.4917]
+    pinky: [1.806, 1.821, 1.6778]
 
   pinch_thresholds:
-    index:  { d1: 2.0, d2: 4.0 }
-    middle: { d1: 2.0, d2: 4.0 }
-    ring:   { d1: 2.0, d2: 4.0 }
-    pinky:  { d1: 2.0, d2: 4.0 }
+    index: {d1: 2.0, d2: 4.0}
+    middle: {d1: 2.0, d2: 4.0}
+    ring: {d1: 2.0, d2: 4.0}
+    pinky: {d1: 2.0, d2: 4.0}
 
+  # apply_mediapipe_transformations() yields mirrored Y axes for the
+  # two hands.  Mirror the fixed palm-frame correction as well so the input
+  # palm normal/width axes remain aligned with the L20 base frame.
   mediapipe_rotation:
-    x: -10.0
-    y: 0.0
-    z: -100.0
+    right: {x: -10.0, y: 0.0, z: -10.0}
+    left:  {x:  10.0, y: 0.0, z:  10.0}
 
   lp_alpha: 0.4
 
 render:
   camera:
-    azimuth: 90
+    azimuth: 180
     elevation: 0.0
     distance: 0.7

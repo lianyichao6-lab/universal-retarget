@@ -29,155 +29,27 @@ from anydexretarget import Retargeter
 from input.camera import Camera
 from input.mediapipe_replay import MediaPipeReplay
 from input.noitom import NoitomInput
-from input.pico4 import Pico4
+from input.pico4 import (
+    Pico4,
+    DEFAULT_RELAY_HOST as DEFAULT_PICO4_RELAY_HOST,
+    DEFAULT_RELAY_PORT as DEFAULT_PICO4_RELAY_PORT,
+    DEFAULT_DIRECT_PORT as DEFAULT_PICO4_PORT,
+    DEFAULT_UDP_BROADCAST_PORT as DEFAULT_PICO4_BROADCAST_PORT,
+)
 from input.quest3 import Quest3
 from input.realsense import Realsense
 from input.video import Video
 from input.visionpro import VisionPro
 
-DEFAULT_PICO4_PORT = 63901
 
-
-ROBOT_HAND_CONFIGS = {
-    "shadow_hand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "shadow_hand" / f"scene_{side}.xml"),
-        "needs_menagerie_mapping": True,
-        "base_quat": (0.7071068, 0, 0, 0.7071068),  # Rotate 90 deg around Z to align with MuJoCo model
-    },
-    "wuji_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "wuji_hand" / "right.xml"),
-    },
-    "allegro_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "allegro_hand" / "scene_right.xml"),
-        "qpos_mapping": [0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 4, 5, 6, 7],
-    },
-    "inspire_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "inspire_hand" / "inspire_hand_right_mujoco.xml"),
-        "qpos_mapping": [8, 9, 10, 11, 0, 1, 2, 3, 6, 7, 4, 5],
-    },
-    "ability_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "ability_hand" / "ability_hand_right_mujoco.xml"),
-        "qpos_mapping": [8, 9, 0, 1, 2, 3, 6, 7, 4, 5],
-    },
-    "leap_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "leap_hand" / "leap_hand_right_mujoco.xml"),
-        "qpos_mapping": [0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 4, 5, 6, 7],
-    },
-    "svh_hand": {
-        "model_path": lambda _: str(PROJECT_ROOT / "assets" / "schunk_hand" / "schunk_svh_hand_right_mujoco.xml"),
-        "qpos_mapping": [0, 1, 2, 3, 8, 13, 14, 15, 16, 9, 10, 11, 12, 4, 5, 6, 7, 17, 18, 19],
-    },
-    "linkerhand_l21": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "linkerhand_l21" / f"linkerhand_l21_{side}_mujoco.xml"),
-        "qpos_mapping": [0, 1, 2, 3, 4, 5, 9, 10, 11, 6, 7, 8, 12, 13, 14, 15, 16],
-        "qpos_servo_alpha": 0.2,
-    },
-    "linker_l20": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "linker_l20" / f"linker_l20_{side}_mujoco.xml"),
-        "qpos_mapping": [16, 17, 18, 19, 20, 0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 4, 5, 6, 7],
-        "qpos_servo_alpha": 0.2,
-    },
-    "rohand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "rohand" / f"rohand_{side}_mujoco.xml"),
-        "qpos_mapping": [3, 4, 1, 2, 0, 13, 14, 11, 12, 10, 18, 19, 16, 17, 15, 8, 9, 6, 7, 5, 20, 21, 23, 24, 22],
-        "qpos_servo_alpha": 0.18,
-        "base_quat": (0.7071068, 0, 0.7071068, 0),
-    },
-    "unitree_dex5_hand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "unitree_dex5_hand" / f"unitree_dex5_hand_{side}_mujoco.xml"),
-        "qpos_mapping": [16, 17, 18, 19, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        "qpos_servo_alpha": 0.2,
-        "base_quat": (0.7071068, 0.7071068, 0, 0),
-    },
-    "sharpa_hand": {
-        "model_path": lambda side: str(PROJECT_ROOT / "assets" / "sharpa_hand" / f"{side}_sharpa_wave.xml"),
-        "qpos_mapping": [17, 18, 19, 20, 21, 0, 1, 2, 3, 4, 5, 6, 7, 13, 14, 15, 16, 8, 9, 10, 11, 12],
-    },
-}
-
-
-def map_urdf_to_mujoco_menagerie(qpos: np.ndarray) -> np.ndarray:
-    """Map URDF joint angles (22 DoF) to MuJoCo Menagerie actuators (20 DoF)."""
-    ctrl = np.zeros(20, dtype=np.float32)
-    ctrl[0] = 0.0
-    ctrl[1] = 0.0
-    ctrl[2] = qpos[17]
-    ctrl[3] = qpos[18]
-    ctrl[4] = qpos[19]
-    ctrl[5] = qpos[20]
-    ctrl[6] = qpos[21]
-    ctrl[7] = qpos[0]
-    ctrl[8] = qpos[1]
-    ctrl[9] = qpos[2] + qpos[3]
-    ctrl[10] = qpos[9]
-    ctrl[11] = qpos[10]
-    ctrl[12] = qpos[11] + qpos[12]
-    ctrl[13] = qpos[13]
-    ctrl[14] = qpos[14]
-    ctrl[15] = qpos[15] + qpos[16]
-    ctrl[16] = qpos[4]
-    ctrl[17] = qpos[5]
-    ctrl[18] = qpos[6]
-    ctrl[19] = qpos[7] + qpos[8]
-    return ctrl
-
-
-def retarget_to_mujoco_target(
-    fingers_data: dict,
-    hand_side: str,
-    retargeter: Retargeter,
-    hand_cfg: dict,
-    target_len: int,
-):
-    """Retarget hand tracking input and map to MuJoCo control target."""
-    fingers_pose = fingers_data[f"{hand_side}_fingers"]
-    if np.allclose(fingers_pose, 0):
-        return None
-
-    qpos = retargeter.retarget(fingers_pose)
-
-    if hand_cfg.get("needs_menagerie_mapping"):
-        target = map_urdf_to_mujoco_menagerie(qpos)
-    elif "qpos_mapping" in hand_cfg:
-        target = qpos[hand_cfg["qpos_mapping"]]
-    else:
-        target = qpos
-
-    target = np.asarray(target, dtype=np.float32)
-    if len(target) != target_len:
-        buf = np.zeros(target_len, dtype=np.float32)
-        n = min(len(target), target_len)
-        buf[:n] = target[:n]
-        target = buf
-    return target
-
-
-def apply_qpos_to_mujoco(model, data, qpos, hand_cfg):
-    """Apply retarget output qpos to MuJoCo model and step simulation."""
-    if hand_cfg.get("needs_menagerie_mapping"):
-        ctrl = map_urdf_to_mujoco_menagerie(qpos)
-    elif "qpos_mapping" in hand_cfg:
-        ctrl = qpos[hand_cfg["qpos_mapping"]]
-    else:
-        ctrl = qpos
-    ctrl = np.asarray(ctrl, dtype=np.float32)
-
-    qpos_servo_alpha = hand_cfg.get("qpos_servo_alpha")
-    if qpos_servo_alpha is not None:
-        n = min(len(ctrl), model.nq)
-        data.qpos[:n] = ctrl[:n]
-        data.qvel[:] = 0.0
-        mujoco.mj_forward(model, data)
-    elif model.nu > 0:
-        n = min(len(ctrl), model.nu)
-        data.ctrl[:n] = ctrl[:n]
-        for _ in range(200):
-            mujoco.mj_step(model, data)
-    else:
-        n = min(len(ctrl), model.nq)
-        data.qpos[:n] = ctrl[:n]
-        mujoco.mj_forward(model, data)
-
+from output.sim.mujoco_output import (
+    ROBOT_HAND_CONFIGS,
+    apply_qpos_to_mujoco,
+    map_retarget_qpos,
+    map_urdf_to_mujoco_menagerie,
+    retarget_to_mujoco_target,
+    validate_mujoco_actuator_mapping,
+)
 
 def _resolve_example_path(path_str: str | None) -> Path | None:
     if not path_str:
@@ -212,7 +84,11 @@ def run_teleop(
     visionpro_ip: str = "192.168.50.127",
     quest3_port: int = 9000,
     quest3_protocol: str = "udp",
+    pico4_mode: str = "relay",
+    pico4_relay_host: str = DEFAULT_PICO4_RELAY_HOST,
+    pico4_relay_port: int = DEFAULT_PICO4_RELAY_PORT,
     pico4_port: int = DEFAULT_PICO4_PORT,
+    pico4_broadcast_port: int = DEFAULT_PICO4_BROADCAST_PORT,
     noitom_local_ip: str = "192.168.5.25",
     noitom_local_port: int = 8000,
     noitom_server_ip: str = "192.168.5.33",
@@ -254,6 +130,11 @@ def run_teleop(
 
     model = mujoco.MjModel.from_xml_path(str(model_path))
     data = mujoco.MjData(model)
+    actuator_joint_names = validate_mujoco_actuator_mapping(model, hand_cfg)
+    if actuator_joint_names:
+        print("  MuJoCo actuator joint order verified:")
+        for actuator_id, joint_name in enumerate(actuator_joint_names):
+            print(f"    ctrl[{actuator_id:02d}] -> {joint_name}")
     force_control_cfg = hand_cfg.get("force_control")
     qpos_servo_alpha = hand_cfg.get("qpos_servo_alpha")
     direct_qpos_mode = hand_cfg.get("direct_qpos", False)
@@ -305,7 +186,13 @@ def run_teleop(
     device_map = {
         "visionpro": lambda: VisionPro(ip=visionpro_ip),
         "quest3": lambda: Quest3(port=quest3_port, protocol=quest3_protocol),
-        "pico4": lambda: Pico4(port=pico4_port),
+        "pico4": lambda: Pico4(
+            mode=pico4_mode,
+            relay_host=pico4_relay_host,
+            relay_port=pico4_relay_port,
+            port=pico4_port,
+            broadcast_port=pico4_broadcast_port,
+        ),
         "noitom": lambda: NoitomInput(
             local_ip=noitom_local_ip,
             local_port=noitom_local_port,
@@ -332,6 +219,14 @@ def run_teleop(
         raise ValueError(f"Unknown input device type: {input_device_type}")
     if input_device_type == "mediapipe_replay" and not mediapipe_replay_path:
         raise ValueError("mediapipe_replay_path is required for mediapipe_replay mode")
+    if input_device_type == "pico4":
+        if pico4_mode == "relay":
+            print(f"  Pico 4: relay mode {pico4_relay_host}:{pico4_relay_port}")
+        else:
+            print(
+                f"  Pico 4: direct mode TCP {pico4_port}, "
+                f"UDP broadcast {pico4_broadcast_port}"
+            )
 
     input_device = device_map[input_device_type]()
     retargeter = Retargeter.from_yaml(str(config_file), hand_side)
@@ -575,7 +470,7 @@ def main():
     parser.add_argument("--robot", type=str, default="shadow",
                         choices=["shadow", "wuji", "allegro", "leap",
                                  "inspire", "ability", "svh", "rohand",
-                                 "linkerhand_l21", "linker_l20", "unitree_dex5", "sharpa"],
+                                 "linkerhand_l21", "linker_l20", "unitree_dex5", "sharpa", "gaia"],
                         help="Robot hand type (default: shadow)")
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"],
                         help="Hand side (default: right)")
@@ -601,8 +496,16 @@ def main():
                         help="Quest 3 HTS listener port (default: 9000)")
     parser.add_argument("--protocol", type=str, default="udp", choices=["udp", "tcp"],
                         help="Quest 3 HTS transport protocol (default: udp)")
+    parser.add_argument("--pico4-mode", type=str, default="relay", choices=["relay", "direct"],
+                        help="Pico 4 input mode: relay daemon (default) or direct TCP server")
+    parser.add_argument("--pico4-relay-host", type=str, default=DEFAULT_PICO4_RELAY_HOST,
+                        help=f"Pico 4 relay daemon host (default: {DEFAULT_PICO4_RELAY_HOST})")
+    parser.add_argument("--pico4-relay-port", type=int, default=DEFAULT_PICO4_RELAY_PORT,
+                        help=f"Pico 4 relay daemon port (default: {DEFAULT_PICO4_RELAY_PORT})")
     parser.add_argument("--pico4-port", type=int, default=DEFAULT_PICO4_PORT,
-                        help=f"Pico 4 TCP listen port (default: {DEFAULT_PICO4_PORT})")
+                        help=f"Pico 4 direct-mode TCP listen port (default: {DEFAULT_PICO4_PORT})")
+    parser.add_argument("--pico4-broadcast-port", type=int, default=DEFAULT_PICO4_BROADCAST_PORT,
+                        help=f"Pico 4 direct-mode UDP broadcast port (default: {DEFAULT_PICO4_BROADCAST_PORT})")
 
     parser.add_argument("--noitom-local-ip", type=str, default="192.168.5.25",
                         help="Noitom: Linux IP，须与 Axis Studio 目标地址一致 (default: 192.168.5.25)")
@@ -673,6 +576,7 @@ def main():
             "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
             "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
             "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
+            "gaia": "gaia_hand20",
         }
         input_to_dir = {
             "quest3": "quest3",
@@ -693,7 +597,11 @@ def main():
         visionpro_ip=args.ip,
         quest3_port=args.port,
         quest3_protocol=args.protocol,
+        pico4_mode=args.pico4_mode,
+        pico4_relay_host=args.pico4_relay_host,
+        pico4_relay_port=args.pico4_relay_port,
         pico4_port=args.pico4_port,
+        pico4_broadcast_port=args.pico4_broadcast_port,
         noitom_local_ip=args.noitom_local_ip,
         noitom_local_port=args.noitom_local_port,
         noitom_server_ip=args.noitom_server_ip,

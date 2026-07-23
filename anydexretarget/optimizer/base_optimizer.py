@@ -180,7 +180,7 @@ class BaseOptimizer(ABC):
             self.link1_names = [replace_suffix(n) for n in self.link1_names]
             self.link3_names = [replace_suffix(n) for n in self.link3_names]
             self.link4_names = [replace_suffix(n) for n in self.link4_names]
-        elif robot_type == 'sharpa_hand' and self.hand_side == 'left':
+        elif robot_type in ('sharpa_hand', 'gaia_hand20') and self.hand_side == 'left':
             def replace_prefix(name):
                 return name.replace('right_', 'left_')
             self.origin_link_name = replace_prefix(self.origin_link_name)

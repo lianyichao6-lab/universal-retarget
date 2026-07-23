@@ -3,7 +3,7 @@
 
 Shows three hand skeletons side-by-side in the MuJoCo viewer:
   - Blue:  Raw MediaPipe skeleton (after coordinate transform, before scaling)
-  - Green: Scaled target skeleton (what the optimizer tries to match)
+  - Green: Scaled input skeleton immediately before retargeting
   - Red:   Robot FK skeleton (retargeting result)
 
 Usage:
@@ -31,14 +31,17 @@ if str(EXAMPLE_ROOT) not in sys.path:
     sys.path.insert(0, str(EXAMPLE_ROOT))
 
 from anydexretarget import Retargeter
-from anydexretarget.retarget import apply_linker_l20_input_preprocessing
 from anydexretarget.mediapipe import apply_mediapipe_transformations
 from anydexretarget.optimizer.base_optimizer import BaseOptimizer
 from input.camera import Camera
 from input.noitom import NoitomInput
 from input.video import Video
 from input.mediapipe_replay import MediaPipeReplay
-from teleop_sim import ROBOT_HAND_CONFIGS, map_urdf_to_mujoco_menagerie
+from output.sim.mujoco_output import (
+    ROBOT_HAND_CONFIGS,
+    map_retarget_qpos,
+    validate_mujoco_actuator_mapping,
+)
 
 # MediaPipe hand connections (pairs of landmark indices)
 MP_CONNECTIONS = [
@@ -171,8 +174,8 @@ def get_robot_fk_skeleton(optimizer, qpos):
 def build_scaled_skeleton(mediapipe_kp, optimizer):
     """Build the scaled target skeleton from MediaPipe keypoints.
 
-    Uses the same scaling/segment_scaling as the optimizer to compute
-    the target positions the optimizer tries to match.
+    Uses the configured scaling/segment_scaling to show the transformed
+    human input immediately before it is passed into retargeting.
 
     Returns:
         points: (21, 3) scaled keypoints in meters (robot frame)
@@ -192,6 +195,15 @@ def build_scaled_skeleton(mediapipe_kp, optimizer):
 
     if hasattr(optimizer, 'segment_scaling_full'):
         seg_full = optimizer.segment_scaling_full
+        lateral_scales = getattr(
+            optimizer, 'lateral_scaling', np.ones(len(mp_finger_indices))
+        ).copy()
+        if (
+            getattr(optimizer, 'preserve_pinch_lateral', False)
+            and hasattr(optimizer, '_compute_pinch_alpha')
+        ):
+            pinch_alphas = optimizer._compute_pinch_alpha(mediapipe_kp)
+            lateral_scales += pinch_alphas * (1.0 - lateral_scales)
         MP_MCP = [1, 5, 9, 13, 17]
         MP_PIP = [2, 6, 10, 14, 18]
         MP_DIP = [3, 7, 11, 15, 19]
@@ -200,15 +212,15 @@ def build_scaled_skeleton(mediapipe_kp, optimizer):
             for mp_idx, col in zip(
                 [MP_MCP[fi], MP_PIP[fi], MP_DIP[fi], MP_TIP[fi]], [0, 1, 2, 3]
             ):
-                scaled_kp[mp_idx] = origin_pos + (mediapipe_kp[mp_idx] - wrist) * seg_full[local_fi, col]
-        retarget_cfg = getattr(optimizer, 'config', {}).get('retarget', {})
-        if getattr(optimizer, 'config', {}).get('robot', {}).get('type') == 'linker_l20':
-            scaled_kp = apply_linker_l20_input_preprocessing(
-                scaled_kp,
-                retarget_cfg.get('mcp_lateral_scale', 1.0),
-                retarget_cfg.get('thumb_scale', 1.0),
-                retarget_cfg.get('thumb_inward_offset', 0.0),
-            )
+                vec = (mediapipe_kp[mp_idx] - wrist) * seg_full[local_fi, col]
+                if hasattr(optimizer, 'lateral_scaling'):
+                    lateral_axis = getattr(optimizer, 'lateral_axis', 1)
+                    vec[lateral_axis] *= lateral_scales[local_fi]
+                scaled_kp[mp_idx] = origin_pos + vec
+
+        # ``mediapipe_kp`` is already the exact robot-specific preprocessed
+        # optimizer input.  Do not apply Linker L20 preprocessing a second time
+        # here, otherwise the green visualization differs from the real target.
     elif hasattr(optimizer, '_task_kp_indices'):
         for i in range(1, 21):
             scaled_kp[i] = origin_pos + (mediapipe_kp[i] - wrist)
@@ -257,7 +269,7 @@ def main():
     parser.add_argument("--robot", default="leap",
         choices=["shadow", "wuji", "allegro", "leap",
                  "inspire", "ability", "svh", "rohand",
-                 "linkerhand_l21", "linker_l20", "unitree_dex5", "sharpa"],
+                 "linkerhand_l21", "linker_l20", "unitree_dex5", "sharpa", "gaia"],
                         help="Robot hand type (default: leap)")
     parser.add_argument("--hand", default="right", choices=["left", "right"])
     parser.add_argument("--input", default="camera", choices=["camera", "video", "replay", "noitom", "realsense", "avp", "quest3", "pico4"])
@@ -286,6 +298,7 @@ def main():
         "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
         "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
         "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
+        "gaia": "gaia_hand20",
     }
     robot_file = robot_name_map.get(args.robot, args.robot)
     input_to_dir = {"noitom": "noitom", "avp": "avp", "quest3": "quest3", "pico4": "pico4"}
@@ -305,6 +318,11 @@ def main():
     # Load MuJoCo model
     model = mujoco.MjModel.from_xml_path(str(model_path))
     data = mujoco.MjData(model)
+    actuator_joint_names = validate_mujoco_actuator_mapping(model, hand_cfg)
+    if actuator_joint_names:
+        print("MuJoCo actuator joint order verified:")
+        for actuator_id, joint_name in enumerate(actuator_joint_names):
+            print(f"  ctrl[{actuator_id:02d}] -> {joint_name}")
 
     # Determine control mode (same logic as teleop_sim.py)
     qpos_servo_alpha = hand_cfg.get("qpos_servo_alpha")
@@ -397,8 +415,9 @@ def main():
     else:
         print("Control mode: direct qpos")
 
-    # Make robot hand semi-transparent
-    model.geom_rgba[:, 3] = args.alpha
+    # Make only the hand semi-transparent; keep the shared scene floor opaque.
+    hand_geom_mask = model.geom_type != mujoco.mjtGeom.mjGEOM_PLANE
+    model.geom_rgba[hand_geom_mask, 3] = args.alpha
 
     # Launch viewer
     viewer = mujoco.viewer.launch_passive(model, data)
@@ -410,7 +429,7 @@ def main():
 
     # Colors (RGBA float32)
     COLOR_RAW = np.array([0.2, 0.4, 1.0, 0.6], dtype=np.float32)      # Blue: raw input
-    COLOR_SCALED = np.array([0.2, 0.9, 0.3, 0.6], dtype=np.float32)    # Green: scaled target
+    COLOR_SCALED = np.array([0.2, 0.9, 0.3, 0.6], dtype=np.float32)    # Green: scaled input
     COLOR_FK = np.array([1.0, 0.2, 0.2, 0.8], dtype=np.float32)        # Red: robot FK
 
     # Offsets to separate skeletons (left-right)
@@ -420,13 +439,14 @@ def main():
 
     # Shared state
     latest_target = np.zeros(target_len, dtype=np.float32)
-    latest_mediapipe_kp = None
+    latest_raw_mediapipe_kp = None
+    latest_retarget_input_kp = None
     latest_qpos = None
     data_lock = threading.Lock()
     stop_event = threading.Event()
 
     def input_thread_fn():
-        nonlocal latest_mediapipe_kp, latest_qpos
+        nonlocal latest_raw_mediapipe_kp, latest_retarget_input_kp, latest_qpos
         while not stop_event.is_set():
             try:
                 fingers_data = input_device.get_fingers_data()
@@ -438,52 +458,89 @@ def main():
                 time.sleep(0.005)
                 continue
 
-            # Get transformed keypoints (same as retargeter internals)
-            mediapipe_kp = apply_mediapipe_transformations(raw_kp, args.hand)
+            # Raw blue skeleton: transformed/rotated Pico input before
+            # robot-specific preprocessing.
+            raw_mediapipe_kp = apply_mediapipe_transformations(raw_kp, args.hand)
             if retargeter.rotation_xyz:
-                mediapipe_kp = retargeter._apply_rotation(mediapipe_kp)
+                raw_mediapipe_kp = retargeter._apply_rotation(raw_mediapipe_kp)
 
-            # Retarget
-            qpos = retargeter.optimizer.solve(mediapipe_kp)
+            # Use exactly the same end-to-end path as teleop_sim.py.  The
+            # verbose keypoints are the keypoints actually consumed by
+            # optimizer.solve; the returned qpos also includes the configured
+            # low-pass filter, just like normal teleoperation.
+            qpos, verbose = retargeter.retarget_verbose(raw_kp, apply_filter=True)
+            retarget_input_kp = verbose["mediapipe_kp"]
 
-            # Map to MuJoCo target
-            if hand_cfg.get("needs_menagerie_mapping"):
-                target = map_urdf_to_mujoco_menagerie(qpos)
-            elif "qpos_mapping" in hand_cfg:
-                target = qpos[hand_cfg["qpos_mapping"]]
-            else:
-                target = qpos
-
+            # Map the full retarget output to the exact MuJoCo actuator/qpos
+            # order. GEORT L20 is mapped by independent joint names.
+            target = map_retarget_qpos(
+                qpos,
+                hand_cfg,
+                retargeter.optimizer.robot.dof_joint_names,
+            )
             target = np.asarray(target, dtype=np.float32)
 
             with data_lock:
                 n = min(len(target), target_len)
                 latest_target[:n] = target[:n]
-                latest_mediapipe_kp = mediapipe_kp.copy()
+                latest_raw_mediapipe_kp = raw_mediapipe_kp.copy()
+                latest_retarget_input_kp = retarget_input_kp.copy()
                 latest_qpos = qpos.copy()
 
     input_thread = threading.Thread(target=input_thread_fn, daemon=True)
 
-    # Build rotation matrix from base_quat (aligns pinocchio frame with MuJoCo model)
+    # Align the Pinocchio/URDF frame to the matching MuJoCo body frame.
+    # This includes translation: the GEORT scene places hand_base_link at
+    # z=0.05 while the URDF root is at z=0.
+    pin_origin_id = optimizer.robot.get_link_index(optimizer.origin_link_name)
+    pin_origin_pose = optimizer.robot.get_link_pose(pin_origin_id)
+    pin_origin_pos = pin_origin_pose[:3, 3].copy()
+    pin_origin_rot = pin_origin_pose[:3, :3].copy()
+    mujoco_origin_body_id = mujoco.mj_name2id(
+        model, mujoco.mjtObj.mjOBJ_BODY, optimizer.origin_link_name
+    )
+    if mujoco_origin_body_id < 0:
+        # Fallback for a hand-only scene whose root body has a different name.
+        root_body_ids = [
+            body_id
+            for body_id in range(1, model.nbody)
+            if model.body_parentid[body_id] == 0
+        ]
+        if len(root_body_ids) == 1:
+            mujoco_origin_body_id = root_body_ids[0]
+
+    frame_rot_matrix = None
+    frame_origin_pos = None
+    if mujoco_origin_body_id >= 0:
+        mujoco.mj_forward(model, data)
+        frame_origin_pos = data.xpos[mujoco_origin_body_id].copy()
+        mujoco_origin_rot = data.xmat[mujoco_origin_body_id].reshape(3, 3).copy()
+        frame_rot_matrix = mujoco_origin_rot @ pin_origin_rot.T
+
+    # Legacy fallback for models that expose only a fixed base rotation.
     base_quat = hand_cfg.get("base_quat")
-    if base_quat is not None:
+    if frame_rot_matrix is None and base_quat is not None:
         from scipy.spatial.transform import Rotation
         # MuJoCo quat is (w, x, y, z), scipy expects (x, y, z, w)
-        base_rot = Rotation.from_quat([base_quat[1], base_quat[2], base_quat[3], base_quat[0]])
+        base_rot = Rotation.from_quat(
+            [base_quat[1], base_quat[2], base_quat[3], base_quat[0]]
+        )
         base_rot_matrix = base_rot.as_matrix()
     else:
         base_rot_matrix = None
 
-    def rotate_points(pts):
-        """Rotate skeleton points to match MuJoCo model orientation."""
-        if base_rot_matrix is None:
-            return pts
-        return pts @ base_rot_matrix.T
+    def align_points_to_mujoco(pts):
+        """Transform URDF-frame skeleton points into the MuJoCo world frame."""
+        if frame_rot_matrix is not None:
+            return (pts - pin_origin_pos) @ frame_rot_matrix.T + frame_origin_pos
+        if base_rot_matrix is not None:
+            return pts @ base_rot_matrix.T
+        return pts
 
     print("=" * 60)
     print("Debug Skeleton Viewer")
     print("  Blue  = Raw MediaPipe (no scaling)")
-    print("  Green = Scaled target (what optimizer matches)")
+    print("  Green = Scaled input before retargeting")
     print("  Red   = Robot FK (retargeting result)")
     print("=" * 60)
 
@@ -493,7 +550,10 @@ def main():
         while viewer.is_running():
             with data_lock:
                 target_copy = latest_target.copy()
-                mp_kp = latest_mediapipe_kp.copy() if latest_mediapipe_kp is not None else None
+                raw_mp_kp = (latest_raw_mediapipe_kp.copy()
+                              if latest_raw_mediapipe_kp is not None else None)
+                input_mp_kp = (latest_retarget_input_kp.copy()
+                                if latest_retarget_input_kp is not None else None)
                 qpos_copy = latest_qpos.copy() if latest_qpos is not None else None
 
             # Apply control
@@ -512,20 +572,20 @@ def main():
             # Draw debug skeletons
             viewer.user_scn.ngeom = 0  # clear previous frame
 
-            if mp_kp is not None and qpos_copy is not None:
+            if raw_mp_kp is not None and input_mp_kp is not None and qpos_copy is not None:
                 # 1. Raw MediaPipe skeleton (blue) - offset to left
-                raw_pts, raw_conns = build_raw_skeleton(mp_kp, optimizer)
-                draw_skeleton(viewer.user_scn, rotate_points(raw_pts), raw_conns, COLOR_RAW,
+                raw_pts, raw_conns = build_raw_skeleton(raw_mp_kp, optimizer)
+                draw_skeleton(viewer.user_scn, align_points_to_mujoco(raw_pts), raw_conns, COLOR_RAW,
                               radius=0.0015, offset=OFFSET_RAW)
 
-                # 2. Scaled target skeleton (green) - at robot position
-                scaled_pts, scaled_conns = build_scaled_skeleton(mp_kp, optimizer)
-                draw_skeleton(viewer.user_scn, rotate_points(scaled_pts), scaled_conns, COLOR_SCALED,
+                # 2. Scaled input skeleton (green) - before retargeting
+                scaled_pts, scaled_conns = build_scaled_skeleton(input_mp_kp, optimizer)
+                draw_skeleton(viewer.user_scn, align_points_to_mujoco(scaled_pts), scaled_conns, COLOR_SCALED,
                               radius=0.0015, offset=OFFSET_SCALED)
 
-                # 3. Robot FK skeleton (red) - at robot position
+                # 3. Robot FK skeleton (red) - retargeting output
                 fk_pts, fk_conns = get_robot_fk_skeleton(optimizer, qpos_copy)
-                draw_skeleton(viewer.user_scn, rotate_points(fk_pts), fk_conns, COLOR_FK,
+                draw_skeleton(viewer.user_scn, align_points_to_mujoco(fk_pts), fk_conns, COLOR_FK,
                               radius=0.002, offset=OFFSET_FK)
 
             viewer.sync()

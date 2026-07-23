@@ -23,3 +23,4 @@ MUJOCO_LOG.TXT
 # Sharpa source files (large)
 assets/sharpa-urdf-usd-xml-main.zip
 assets/sharpa-urdf-usd-xml-main/
+*.bak-*

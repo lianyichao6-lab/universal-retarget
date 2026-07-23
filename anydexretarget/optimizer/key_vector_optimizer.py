@@ -28,6 +28,8 @@ class KeyVectorOptimizer(BaseOptimizer):
     Config (retarget.key_vectors, required):
         - origin: robot origin link name
         - task:   robot task link name
+        - origin_offset: optional point offset in the origin link frame
+        - task_offset: optional point offset in the task link frame
         - origin_kp: MediaPipe origin keypoint index
         - task_kp:   MediaPipe task keypoint index
         - scale:     scale applied to human vector (default 1.0)
@@ -66,7 +68,7 @@ class KeyVectorOptimizer(BaseOptimizer):
                 return f"{name[:-1]}L" if name.endswith('R') else name
             origin_names = [_replace(n) for n in origin_names_raw]
             task_names   = [_replace(n) for n in task_names_raw]
-        elif robot_type == 'linker_l20' and self.hand_side == 'left':
+        elif robot_type in ('linker_l20', 'sharpa_hand', 'gaia_hand20') and self.hand_side == 'left':
             def _replace(name):
                 return name.replace('right_', 'left_')
             origin_names = [_replace(n) for n in origin_names_raw]
@@ -80,22 +82,58 @@ class KeyVectorOptimizer(BaseOptimizer):
             origin_names = origin_names_raw
             task_names   = task_names_raw
 
-        # Deduplicate links to avoid redundant FK/Jacobian computation.
-        # The origin link (e.g. palm) typically appears for all N vectors.
-        all_names = list(dict.fromkeys(origin_names + task_names))
-        self._kv_computed_link_names   = all_names
-        self._kv_computed_link_indices = [self.robot.get_link_index(n) for n in all_names]
-        self._kv_origin_indices = np.array([all_names.index(n) for n in origin_names], dtype=int)
-        self._kv_task_indices   = np.array([all_names.index(n) for n in task_names],   dtype=int)
+        origin_offsets = np.asarray(
+            [kv.get('origin_offset', [0.0, 0.0, 0.0]) for kv in kv_config],
+            dtype=np.float64,
+        )
+        task_offsets = np.asarray(
+            [kv.get('task_offset', [0.0, 0.0, 0.0]) for kv in kv_config],
+            dtype=np.float64,
+        )
+        if origin_offsets.shape != (len(kv_config), 3):
+            raise ValueError(
+                f"origin_offset entries must have 3 values, got {origin_offsets.shape}"
+            )
+        if task_offsets.shape != (len(kv_config), 3):
+            raise ValueError(
+                f"task_offset entries must have 3 values, got {task_offsets.shape}"
+            )
+
+        # Deduplicate points by both frame name and local offset. A distal link
+        # can therefore be used once at its joint origin and again at its real
+        # fingertip surface without duplicating the FK/Jacobian implementation.
+        point_names = []
+        point_offsets = []
+        point_indices = {}
+
+        def add_point(name: str, offset: np.ndarray) -> int:
+            key = (name, *np.asarray(offset, dtype=np.float64).tolist())
+            if key not in point_indices:
+                point_indices[key] = len(point_names)
+                point_names.append(name)
+                point_offsets.append(np.asarray(offset, dtype=np.float64))
+            return point_indices[key]
+
+        self._kv_origin_indices = np.asarray(
+            [add_point(name, offset) for name, offset in zip(origin_names, origin_offsets)],
+            dtype=int,
+        )
+        self._kv_task_indices = np.asarray(
+            [add_point(name, offset) for name, offset in zip(task_names, task_offsets)],
+            dtype=int,
+        )
+        self._kv_computed_link_names = point_names
+        self._kv_computed_link_indices = [
+            self.robot.get_link_index(name) for name in point_names
+        ]
+        self._kv_computed_link_offsets = np.asarray(
+            point_offsets, dtype=np.float64
+        )
 
         self._origin_kp_indices = np.array([kv['origin_kp'] for kv in kv_config], dtype=int)
         self._task_kp_indices   = np.array([kv['task_kp']   for kv in kv_config], dtype=int)
         self._vector_scalings   = np.array([kv.get('scale', 1.0) for kv in kv_config], dtype=np.float64)
         self.num_vectors        = len(kv_config)
-
-        # Pre-allocated zero offsets (key vectors use link frame origins, no local offset)
-        n_unique = len(all_names)
-        self._zero_offsets = np.zeros((n_unique, 3), dtype=np.float64)
 
     # ------------------------------------------------------------------
     # Target vector computation
@@ -141,14 +179,14 @@ class KeyVectorOptimizer(BaseOptimizer):
         positions = self.robot.compute_points_batch(
             qpos,
             self._kv_computed_link_indices,
-            self._zero_offsets,
+            self._kv_computed_link_offsets,
         ) * M_TO_CM  # (num_unique_links, 3)
 
         # Jacobians: (num_unique_links, 3, nq)
         Js = self.robot.compute_all_jacobians_batch_with_offsets(
             qpos,
             self._kv_computed_link_indices,
-            self._zero_offsets,
+            self._kv_computed_link_offsets,
         ) * M_TO_CM
 
         # Per-vector positions and Jacobians

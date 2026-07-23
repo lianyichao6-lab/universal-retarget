@@ -8,7 +8,6 @@ optimizer:
 
 robot:
   type: "sharpa_hand"
-  urdf_path: "assets/sharpa_hand/right_sharpa_wave.urdf"
 
 retarget:
   # Huber loss thresholds

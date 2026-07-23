@@ -26,7 +26,11 @@ if str(EXAMPLE_DIR) not in sys.path:
 
 from anydexretarget import Retargeter
 from input.landmark_utils import landmarks_to_array, process_landmarks
-from teleop_sim import ROBOT_HAND_CONFIGS, apply_qpos_to_mujoco
+from output.sim.mujoco_output import (
+    ROBOT_HAND_CONFIGS,
+    apply_qpos_to_mujoco,
+    validate_mujoco_actuator_mapping,
+)
 
 
 def main():
@@ -35,7 +39,7 @@ def main():
     parser.add_argument("--robot", type=str, default="shadow",
         choices=["shadow", "wuji", "allegro", "leap",
                  "inspire", "ability", "svh", "rohand",
-                 "linkerhand_l21", "linker_l20", "unitree_dex5"],
+                 "linkerhand_l21", "linker_l20", "unitree_dex5", "sharpa", "gaia"],
                         help="灵巧手类型 (默认: shadow)")
     parser.add_argument("--frame", type=int, required=True, help="目标帧号")
     parser.add_argument("--video", type=str, default=str(EXAMPLE_DIR / "data" / "right.mp4"))
@@ -49,6 +53,7 @@ def main():
         "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
         "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
         "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand",
+        "sharpa": "sharpa_hand", "gaia": "gaia_hand20",
     }
     robot_file = robot_name_map.get(args.robot, args.robot)
     config_path = args.config if args.config else f"config/adaptive/mediapipe/mediapipe_{robot_file}.yaml"
@@ -107,7 +112,14 @@ def main():
     model_path = hand_cfg["model_path"](args.hand)
     model = mujoco.MjModel.from_xml_path(model_path)
     data = mujoco.MjData(model)
-    apply_qpos_to_mujoco(model, data, final_qpos, hand_cfg)
+    validate_mujoco_actuator_mapping(model, hand_cfg)
+    apply_qpos_to_mujoco(
+        model,
+        data,
+        final_qpos,
+        hand_cfg,
+        retargeter.optimizer.robot.dof_joint_names,
+    )
 
     # 打开交互窗口
     print("MuJoCo 窗口已打开，调整视角后截图。关闭窗口退出。")

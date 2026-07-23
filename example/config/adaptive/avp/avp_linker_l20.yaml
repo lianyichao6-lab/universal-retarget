@@ -15,22 +15,18 @@ retarget:
   scaling: 1.2
   project_tip_dir: false
   w_full_hand: 1.0
-  mcp_lateral_scale: 0.60
-  thumb_scale: 1.0
-  thumb_inward_offset: -0.05
-
   segment_scaling:
-    thumb: [1.95, 1.727, 1.53, 1.417]
-    index: [1.9, 1.617, 1.624, 1.579]
-    middle: [1.88, 1.58, 1.548, 1.47]
-    ring: [1.9, 1.613, 1.613, 1.55]
-    pinky: [1.95, 1.806, 1.821, 1.74]
+    thumb: [1.727, 1.53, 1.417]
+    index: [1.617, 1.624, 1.579]
+    middle: [1.58, 1.548, 1.47]
+    ring: [1.613, 1.613, 1.55]
+    pinky: [1.806, 1.821, 1.74]
 
   pinch_thresholds:
-    index:  { d1: 2.0, d2: 4.0 }
-    middle: { d1: 2.0, d2: 4.0 }
-    ring:   { d1: 2.0, d2: 4.0 }
-    pinky:  { d1: 2.0, d2: 4.0 }
+    index: {d1: 2.0, d2: 4.0}
+    middle: {d1: 2.0, d2: 4.0}
+    ring: {d1: 2.0, d2: 4.0}
+    pinky: {d1: 2.0, d2: 4.0}
 
   mediapipe_rotation:
     x: -7.0

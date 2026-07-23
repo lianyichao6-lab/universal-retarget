@@ -10,10 +10,6 @@ retarget:
   huber_delta: 2.0
   norm_delta: 0.04
   lp_alpha: 0.4
-  mcp_lateral_scale: 0.60
-  thumb_scale: 1.0
-  thumb_inward_offset: -0.05
-
   segment_scaling:
     thumb: [1.727, 1.53, 1.417]
     index: [1.617, 1.624, 1.579]
@@ -23,33 +19,47 @@ retarget:
 
   key_vectors:
     # thumb
-    - {origin: right_hand_base_link, task: right_t_mcp_link, origin_kp: 0, task_kp:  2, scale: 1.466}
-    - {origin: right_hand_base_link, task: right_t_ip_link,      origin_kp: 0, task_kp:  3, scale: 1.586}
-    - {origin: right_hand_base_link, task: right_t_tip,         origin_kp: 0, task_kp:  4, scale: 1.338}
+  - {origin: hand_base_link, task: thumb_proximal, origin_kp: 0, task_kp: 2, scale: 1.466}
+  - {origin: hand_base_link, task: thumb_distal, origin_kp: 0, task_kp: 3,
+    scale: 1.586}
+  - {origin: hand_base_link, task: thumb_distal, origin_kp: 0, task_kp: 4, task_offset: [-0.0110, 0.0, 0.0277], scale: 1.338}
     # index
-    - {origin: right_hand_base_link, task: right_if_pip_link,    origin_kp: 0, task_kp:  6, scale: 1.476}
-    - {origin: right_hand_base_link, task: right_if_dip_link,      origin_kp: 0, task_kp:  7, scale: 1.581}
-    - {origin: right_hand_base_link, task: right_if_tip,         origin_kp: 0, task_kp:  8, scale: 1.522}
+  - {origin: hand_base_link, task: index_middle, origin_kp: 0, task_kp: 6,
+    scale: 1.476}
+  - {origin: hand_base_link, task: index_distal, origin_kp: 0, task_kp: 7,
+    scale: 1.581}
+  - {origin: hand_base_link, task: index_distal, origin_kp: 0, task_kp: 8, task_offset: [-0.0135, 0.0, 0.0188], scale: 1.522}
     # middle
-    - {origin: right_hand_base_link, task: right_mf_pip_link,   origin_kp: 0, task_kp: 10, scale: 1.469}
-    - {origin: right_hand_base_link, task: right_mf_dip_link,     origin_kp: 0, task_kp: 11, scale: 1.536}
-    - {origin: right_hand_base_link, task: right_mf_tip,        origin_kp: 0, task_kp: 12, scale: 1.452}
+  - {origin: hand_base_link, task: middle_middle, origin_kp: 0, task_kp: 10,
+    scale: 1.469}
+  - {origin: hand_base_link, task: middle_distal, origin_kp: 0, task_kp: 11,
+    scale: 1.536}
+  - {origin: hand_base_link, task: middle_distal, origin_kp: 0, task_kp: 12, task_offset: [-0.0135, 0.0, 0.0188],
+    scale: 1.452}
     # ring
-    - {origin: right_hand_base_link, task: right_rf_pip_link,     origin_kp: 0, task_kp: 14, scale: 1.469}
-    - {origin: right_hand_base_link, task: right_rf_dip_link,       origin_kp: 0, task_kp: 15, scale: 1.575}
-    - {origin: right_hand_base_link, task: right_rf_tip,          origin_kp: 0, task_kp: 16, scale: 1.51}
+  - {origin: hand_base_link, task: ring_middle, origin_kp: 0, task_kp: 14,
+    scale: 1.469}
+  - {origin: hand_base_link, task: ring_distal, origin_kp: 0, task_kp: 15,
+    scale: 1.575}
+  - {origin: hand_base_link, task: ring_distal, origin_kp: 0, task_kp: 16, task_offset: [-0.0135, 0.0, 0.0188],
+    scale: 1.51}
     # pinky
-    - {origin: right_hand_base_link, task: right_lf_pip_link,    origin_kp: 0, task_kp: 18, scale: 1.545}
-    - {origin: right_hand_base_link, task: right_lf_dip_link,      origin_kp: 0, task_kp: 19, scale: 1.693}
-    - {origin: right_hand_base_link, task: right_lf_tip,         origin_kp: 0, task_kp: 20, scale: 1.62}
+  - {origin: hand_base_link, task: pinky_middle, origin_kp: 0, task_kp: 18,
+    scale: 1.545}
+  - {origin: hand_base_link, task: pinky_distal, origin_kp: 0, task_kp: 19,
+    scale: 1.693}
+  - {origin: hand_base_link, task: pinky_distal, origin_kp: 0, task_kp: 20, task_offset: [-0.0135, 0.0, 0.0188],
+    scale: 1.62}
 
+  # apply_mediapipe_transformations() yields mirrored Y axes for the
+  # two hands.  Mirror the fixed palm-frame correction as well so the input
+  # palm normal/width axes remain aligned with the L20 base frame.
   mediapipe_rotation:
-    x: -7.0
-    y: 0.0
-    z: -100.0
+    right: {x: -10.0, y: 0.0, z: -10.0}
+    left:  {x:  10.0, y: 0.0, z:  10.0}
 
 render:
   camera:
-    azimuth: 90
+    azimuth: 180
     elevation: 0.0
     distance: 0.7
