@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/dccdb649-4a20-422a-979c-2b1301e8836b
 
 ### Pico 4 + Linker L20 遥操作
 
-https://github.com/user-attachments/assets/370a6d4a-3588-4b38-b6de-1be59937ecb4
+https://github.com/user-attachments/assets/f6d87bf8-281f-4665-9023-111c90308ce2
 
 ## 特性
 
