@@ -20,6 +20,10 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 
 https://github.com/user-attachments/assets/dccdb649-4a20-422a-979c-2b1301e8836b
 
+### Pico 4 + Linker L20 Teleoperation
+
+https://github.com/user-attachments/assets/370a6d4a-3588-4b38-b6de-1be59937ecb4
+
 ## Features
 
 - **13 Robot Hands**: Shadow, Wuji, Allegro, Inspire, Ability, Leap, SVH, LinkerHand L21, Linker L20, ROHand, Unitree Dex5, Sharpa, and Gaia Hand20
@@ -102,6 +106,9 @@ example/config/
 │   │   ├── landmark_utils.py              # Shared MediaPipe landmark processing
 │   │   ├── camera.py / video.py / ...     # Input devices
 │   │   └── noitom.py                      # Noitom PNS-G glove input
+│   ├── output/                            # Retarget-output post-processing, one script per hand type
+│   │   ├── real/                          # Real hardware drivers (drivers_wuji.py, drivers_shadow.py, ...)
+│   │   └── sim/                           # MuJoCo simulation qpos mapping (mujoco_output.py)
 │   ├── test/                              # Debug & visualization tools
 │   │   ├── debug_skeleton.py              # 3-skeleton comparison viewer
 │   │   └── calibrate_scaling.py            # Universal segment_scaling calibration
@@ -252,7 +259,7 @@ python -c "import hand; print('Gaia HandSDK OK')"
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--input` | - | `teleop_sim.py`: `visionpro` / `quest3` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
+| `--input` | - | `teleop_sim.py`: `visionpro` / `quest3` / `pico4` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--input` | - | `teleop_real.py`: `visionpro` / `quest3` / `pico4` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--hand` | `right` | Hand side (`left`/`right`) |
 | `--realsense` | off | Shortcut for `--input realsense` |

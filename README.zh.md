@@ -20,6 +20,10 @@ https://github.com/user-attachments/assets/4bcac46b-a603-4c0c-9d70-83d4351c9811
 
 https://github.com/user-attachments/assets/dccdb649-4a20-422a-979c-2b1301e8836b
 
+### Pico 4 + Linker L20 遥操作
+
+https://github.com/user-attachments/assets/370a6d4a-3588-4b38-b6de-1be59937ecb4
+
 ## 特性
 
 - **多灵巧手支持**：Shadow Hand、Wuji Hand、Inspire Hand、Gaia Hand20 等 13 款灵巧手开箱即用
@@ -102,6 +106,9 @@ example/config/
 │   │   ├── landmark_utils.py              # 共享 MediaPipe 关键点处理
 │   │   ├── camera.py / video.py / ...     # 各输入设备
 │   │   └── noitom.py                      # Noitom PNS-G 手套输入
+│   ├── output/                            # retargeting 之后的输出处理，每个手型单独脚本
+│   │   ├── real/                          # 真机驱动 (drivers_wuji.py, drivers_shadow.py, ...)
+│   │   └── sim/                           # MuJoCo 仿真 qpos 映射 (mujoco_output.py)
 │   ├── test/                              # 调试与可视化工具
 │   │   ├── debug_skeleton.py              # 三骨架对比查看器
 │   │   └── calibrate_scaling.py           # 通用 segment_scaling 标定
@@ -252,7 +259,7 @@ python -c "import hand; print('Gaia HandSDK OK')"
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--input` | - | `teleop_sim.py`：`visionpro` / `quest3` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
+| `--input` | - | `teleop_sim.py`：`visionpro` / `quest3` / `pico4` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--input` | - | `teleop_real.py`：`visionpro` / `quest3` / `pico4` / `noitom` / `camera` / `realsense` / `video` / `mediapipe_replay` |
 | `--hand` | `right` | 手的方向（`left`/`right`） |
 | `--realsense` | 关闭 | `--input realsense` 的快捷方式 |
