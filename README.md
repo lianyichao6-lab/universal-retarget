@@ -24,6 +24,10 @@ https://github.com/user-attachments/assets/dccdb649-4a20-422a-979c-2b1301e8836b
 
 https://github.com/user-attachments/assets/f6d87bf8-281f-4665-9023-111c90308ce2
 
+### Pico 4 + Gaia Hand20 Teleoperation
+
+https://github.com/user-attachments/assets/e3a2432a-129f-4b76-98c7-a4834b7240ba
+
 ## Features
 
 - **13 Robot Hands**: Shadow, Wuji, Allegro, Inspire, Ability, Leap, SVH, LinkerHand L21, Linker L20, ROHand, Unitree Dex5, Sharpa, and Gaia Hand20
