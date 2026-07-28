@@ -8,6 +8,7 @@ without starting a business script first. It:
 3. republishes tracking JSON to local relay clients on 127.0.0.1:63902
 
 Application scripts can then keep using Pico4 relay mode.
+### 这个脚本是为了方便调试，不用每次都得重连vr而单独拆分出来的。
 """
 
 from __future__ import annotations
