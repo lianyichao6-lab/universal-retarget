@@ -32,24 +32,13 @@ retarget:
   w_full_hand: 1.0             # Full hand vec weight
   # During pinch, retain 30% of the PIP/DIP/TIP posture objective instead
   # of discarding the green full-skeleton fit completely.
-  pinch_full_hand_weight: 0.3
+  pinch_full_hand_weight: 0.2
   segment_scaling:
     thumb: [1.263, 1.232, 1.3801]
     index: [1.407, 1.485, 1.455]
     middle: [1.389, 1.417, 1.415]
     ring: [1.405, 1.486, 1.403]
     pinky: [1.579, 1.578, 1.552]
-
-  # Compress only the palm-lateral (Y) component before optimization.
-  # Keep the thumb and pinch TipDir target unchanged to preserve opposition.
-  lateral_axis: 1
-  lateral_scaling:
-    thumb: 1.0
-    index: 0.7
-    middle: 0.7
-    ring: 0.7
-    pinky: 0.7
-  preserve_pinch_lateral: true
 
   # Pinch distance thresholds (cm) for each finger
   # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)

@@ -25,6 +25,7 @@ retarget:
 
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
+  pinch_full_hand_weight: 0.2  # retain 20% FullHandVec posture objective during pinch
   segment_scaling:
     thumb:  [1.0, 1.0, 1.0]
     index:  [1.0, 1.03, 1.05]

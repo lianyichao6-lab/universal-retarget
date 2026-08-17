@@ -195,15 +195,6 @@ def build_scaled_skeleton(mediapipe_kp, optimizer):
 
     if hasattr(optimizer, 'segment_scaling_full'):
         seg_full = optimizer.segment_scaling_full
-        lateral_scales = getattr(
-            optimizer, 'lateral_scaling', np.ones(len(mp_finger_indices))
-        ).copy()
-        if (
-            getattr(optimizer, 'preserve_pinch_lateral', False)
-            and hasattr(optimizer, '_compute_pinch_alpha')
-        ):
-            pinch_alphas = optimizer._compute_pinch_alpha(mediapipe_kp)
-            lateral_scales += pinch_alphas * (1.0 - lateral_scales)
         MP_MCP = [1, 5, 9, 13, 17]
         MP_PIP = [2, 6, 10, 14, 18]
         MP_DIP = [3, 7, 11, 15, 19]
@@ -213,9 +204,6 @@ def build_scaled_skeleton(mediapipe_kp, optimizer):
                 [MP_MCP[fi], MP_PIP[fi], MP_DIP[fi], MP_TIP[fi]], [0, 1, 2, 3]
             ):
                 vec = (mediapipe_kp[mp_idx] - wrist) * seg_full[local_fi, col]
-                if hasattr(optimizer, 'lateral_scaling'):
-                    lateral_axis = getattr(optimizer, 'lateral_axis', 1)
-                    vec[lateral_axis] *= lateral_scales[local_fi]
                 scaled_kp[mp_idx] = origin_pos + vec
 
         # ``mediapipe_kp`` is already the exact robot-specific preprocessed

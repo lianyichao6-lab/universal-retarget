@@ -1,6 +1,7 @@
 """Key-vector-based retargeting optimizer.
 
-Reference: dex-retargeting VectorOptimizer (arxiv 2506.11916)
+Reference: dex-retargeting VectorOptimizer, released with AnyTeleop
+(Qin et al., RSS 2023, arXiv:2307.04577)
 """
 
 from __future__ import annotations

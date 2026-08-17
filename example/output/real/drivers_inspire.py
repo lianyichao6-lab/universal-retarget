@@ -45,10 +45,11 @@ class InspireSerialOutput(HandOutput):
                 "Install it with `pip install pyserial`."
             ) from exc
 
-        self._port = serial.Serial(port_name, baudrate, timeout=0.01)
+        self._port = serial.Serial(port_name, baudrate, timeout=0.001)
         self._hand_id = int(hand_id)
         self._port_name = port_name
         self._baudrate = int(baudrate)
+        self.send_count = 0
         print(f"Connected to Inspire hand serial at {port_name} @ {baudrate} baud.")
 
     def _read_response(self) -> bytes:
@@ -79,6 +80,7 @@ class InspireSerialOutput(HandOutput):
         packet.append(checksum & 0xFF)
         self._port.write(packet)
         self._read_response()
+        self.send_count += 1
 
     def close(self):
         if self._port.is_open:

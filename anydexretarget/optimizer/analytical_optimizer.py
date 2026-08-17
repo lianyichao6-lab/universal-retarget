@@ -76,39 +76,6 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
                     self.segment_scaling_full[i] = np.array([1.0, scales[0], scales[1], scales[2]])
                     self.segment_scaling[i] = scales
 
-        # Optional anisotropic compression of the palm lateral direction.
-        # Gaia's finger roots are arranged primarily along optimizer-frame Y,
-        # so scaling only this component reduces MCP ab/adduction without
-        # shortening the fingers or changing their flexion component.
-        lateral_scaling_config = retarget_config.get('lateral_scaling', {})
-        if isinstance(lateral_scaling_config, (int, float)):
-            self.lateral_scaling = np.full(
-                nf, float(lateral_scaling_config), dtype=np.float64
-            )
-        elif isinstance(lateral_scaling_config, dict):
-            self.lateral_scaling = np.array([
-                lateral_scaling_config.get(name, 1.0) for name in finger_names
-            ], dtype=np.float64)
-        else:
-            raise ValueError(
-                'lateral_scaling must be a number or a per-finger mapping, got '
-                f'{type(lateral_scaling_config).__name__}'
-            )
-        if not np.all(np.isfinite(self.lateral_scaling)) or np.any(self.lateral_scaling <= 0.0):
-            raise ValueError(
-                'lateral_scaling values must be finite and greater than zero, got '
-                f'{self.lateral_scaling.tolist()}'
-            )
-        self.lateral_axis = int(retarget_config.get('lateral_axis', 1))
-        if self.lateral_axis not in (0, 1, 2):
-            raise ValueError(f'lateral_axis must be 0, 1, or 2, got {self.lateral_axis}')
-        # Preserve the uncompressed fingertip position/direction for the main
-        # pinch objective. The compressed FullHandVec term can still retain a
-        # small posture weight through pinch_full_hand_weight.
-        self.preserve_pinch_lateral = bool(
-            retarget_config.get('preserve_pinch_lateral', True)
-        )
-
         # Pinch thresholds (for non-thumb fingers)
         pinch_config = retarget_config.get('pinch_thresholds', {})
         if self.num_fingers == 4:
@@ -155,35 +122,11 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
     def _compute_adaptive_targets(
         self,
         mediapipe_keypoints: np.ndarray,
-        alphas: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Build mutually consistent TipDirVec and FullHandVec targets.
-
-        FullHandVec receives the configured lateral compression. When
-        ``preserve_pinch_lateral`` is enabled, the main pinch position and
-        direction remain derived from the uncompressed scaled skeleton.
-        """
-        uncompressed_full_hand_vectors = self._compute_full_hand_vectors(
+        """Build mutually consistent TipDirVec and FullHandVec targets."""
+        target_full_hand_vectors = self._compute_full_hand_vectors(
             mediapipe_keypoints, self.segment_scaling
         )
-        target_full_hand_vectors = uncompressed_full_hand_vectors.copy()
-        lateral = target_full_hand_vectors.reshape(3, self.num_fingers, 3)
-        lateral[:, :, self.lateral_axis] *= self.lateral_scaling[None, :]
-
-        # Gradually remove lateral compression as a finger enters pinch mode.
-        # At alpha=1 the entire target for that finger is identical to the
-        # original uncompressed target, so opposition is not biased inward.
-        if self.preserve_pinch_lateral and alphas is not None:
-            pinch_blend = np.asarray(alphas, dtype=np.float64)
-            if pinch_blend.shape != (self.num_fingers,):
-                raise ValueError(
-                    f'Expected pinch alphas shape ({self.num_fingers},), '
-                    f'got {pinch_blend.shape}'
-                )
-            uncompressed = uncompressed_full_hand_vectors.reshape(
-                3, self.num_fingers, 3
-            )
-            lateral += pinch_blend[None, :, None] * (uncompressed - lateral)
 
         if not self.pinch_targets_from_full_hand:
             target_tip_vectors = self._compute_tip_vectors(
@@ -193,13 +136,8 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             return target_tip_vectors, target_tip_dirs, target_full_hand_vectors
 
         nf = self.num_fingers
-        pinch_vectors = (
-            uncompressed_full_hand_vectors
-            if self.preserve_pinch_lateral
-            else target_full_hand_vectors
-        )
-        target_dip_vectors = pinch_vectors[nf:2 * nf]
-        target_tip_vectors = pinch_vectors[2 * nf:3 * nf].copy()
+        target_dip_vectors = target_full_hand_vectors[nf:2 * nf]
+        target_tip_vectors = target_full_hand_vectors[2 * nf:3 * nf].copy()
         distal_vectors = target_tip_vectors - target_dip_vectors
         distal_norms = np.linalg.norm(distal_vectors, axis=1, keepdims=True)
         target_tip_dirs = distal_vectors / (distal_norms + 1e-8)
@@ -228,7 +166,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             target_tip_vectors,
             target_tip_dirs,
             target_full_hand_vectors,
-        ) = self._compute_adaptive_targets(mediapipe_keypoints, alphas)
+        ) = self._compute_adaptive_targets(mediapipe_keypoints)
 
         if self._enable_timing:
             self._timing.preprocess_ms += (time.perf_counter() - t_preprocess_start) * 1000
@@ -258,7 +196,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             target_tip_vectors,
             target_tip_dirs,
             target_full_hand_vectors,
-        ) = self._compute_adaptive_targets(mediapipe_keypoints, alphas)
+        ) = self._compute_adaptive_targets(mediapipe_keypoints)
         loss, _ = self._loss_and_grad_analytical(
             qpos, target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, None
         )

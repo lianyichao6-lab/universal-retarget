@@ -18,7 +18,7 @@ retarget:
   pinch_targets_from_full_hand: true
   w_full_hand: 1.0
   # Keep 30% of the full PIP/DIP/TIP posture objective at full pinch.
-  pinch_full_hand_weight: 0.3
+  pinch_full_hand_weight: 0.2
   segment_scaling:
     thumb: [1.727, 1.53, 1.4985]
     index: [1.517, 1.524, 1.4016]
