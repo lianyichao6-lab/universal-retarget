@@ -34,7 +34,6 @@ retarget:
 
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
-  pinch_full_hand_weight: 0.2  # retain 20% FullHandVec posture objective during pinch
 
   # Per-finger segment scaling [PIP, DIP, TIP]
   # Adjust based on Shadow Hand kinematics

@@ -26,9 +26,6 @@ retarget:
 
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
-  # During pinch, retain 30% of the PIP/DIP/TIP posture objective instead
-  # of discarding the green full-skeleton fit completely.
-  pinch_full_hand_weight: 0.2
   segment_scaling:
     thumb: [1.263, 1.232, 1.3801]
     index: [1.407, 1.485, 1.455]

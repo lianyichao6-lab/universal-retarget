@@ -18,7 +18,6 @@ retarget:
   scaling: 0.8
   project_tip_dir: false
   w_full_hand: 1.0
-  pinch_full_hand_weight: 0.2  # retain 20% FullHandVec posture objective during pinch
 
   segment_scaling:
     thumb:  [0.179, 0.336, 0.522]

@@ -37,16 +37,6 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
 
         # FullHandVec parameters
         self.w_full_hand = retarget_config.get('w_full_hand', 1.0)
-        # Keep an optional fraction of FullHandVec active during pinch.
-        # Default 0.0 preserves the historical convex blend exactly.
-        self.pinch_full_hand_weight = float(
-            retarget_config.get('pinch_full_hand_weight', 0.0)
-        )
-        if not 0.0 <= self.pinch_full_hand_weight <= 1.0:
-            raise ValueError(
-                'pinch_full_hand_weight must be in [0, 1], got '
-                f'{self.pinch_full_hand_weight}'
-            )
         segment_scaling_config = retarget_config.get('segment_scaling', {})
         all_finger_names = ['thumb', 'index', 'middle', 'ring', 'pinky']
         # Select finger names based on num_fingers
@@ -103,6 +93,12 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             axis=0,
         )
 
+    # Cap alpha below 1.0 so FullHandVec never vanishes completely: at full
+    # pinch the blend still keeps (1 - PINCH_ALPHA_MAX) of the posture
+    # objective, which is what stops the intermediate joints from drifting
+    # away from the input skeleton once the fingertip objective is satisfied.
+    PINCH_ALPHA_MAX = 0.7
+
     def _compute_pinch_alpha(self, mediapipe_keypoints: np.ndarray) -> np.ndarray:
         """Compute alpha weights for each finger."""
         thumb_tip = mediapipe_keypoints[self.MP_TIP_INDICES[0]]
@@ -110,7 +106,11 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         non_thumb_mp_indices = self.mp_finger_indices[1:]  # skip thumb
         finger_tips = np.array([mediapipe_keypoints[self.MP_TIP_INDICES[i]] for i in non_thumb_mp_indices])
         distances = np.linalg.norm(finger_tips - thumb_tip, axis=1) * M_TO_CM
-        alphas_nt = np.clip((self.d2 - distances) / (self.d2 - self.d1 + 1e-8), 0.0, 1.0)
+        alphas_nt = np.clip(
+            (self.d2 - distances) / (self.d2 - self.d1 + 1e-8),
+            0.0,
+            self.PINCH_ALPHA_MAX,
+        )
         alpha_thumb = np.max(alphas_nt)
         return np.concatenate([[alpha_thumb], alphas_nt])
 
@@ -277,13 +277,6 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             J_diff = J_task[i] - J_link4[i]  # (3, nq)
             total_grad += grad_coeff * (diff_normed_dir[i] @ J_norm @ J_diff)
 
-        # FullHandVec historically vanished at alpha=1 (full pinch), which
-        # allowed the intermediate robot joints to diverge from the input
-        # skeleton as long as the fingertip objective was satisfied.  The
-        # optional pinch weight keeps a configured fraction of that posture
-        # objective active without changing any target-vector definitions.
-        full_hand_coeffs = (1.0 - alphas) + alphas * self.pinch_full_hand_weight
-
         # === Full Hand Vec Loss ===
         robot_pip_vec = link3_pos - wrist_pos  # (nf, 3)
         robot_dip_vec = link4_pos - wrist_pos  # (nf, 3)
@@ -315,7 +308,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         diff_normed_tip = diff_tip / (dist_tip[:, None] + 1e-8)
 
         for i in range(nf):
-            grad_coeff = full_hand_coeffs[i] * self.w_full_hand / 3.0
+            grad_coeff = (1.0 - alphas[i]) * self.w_full_hand / 3.0
             total_grad += grad_coeff * huber_grad_pip[i] * (diff_normed_pip[i] @ (J_link3[i] - J_wrist))
             total_grad += grad_coeff * huber_grad_dip[i] * (diff_normed_dip[i] @ (J_link4[i] - J_wrist))
             total_grad += grad_coeff * huber_grad_tip[i] * (diff_normed_tip[i] @ (J_task[i] - J_wrist))
@@ -323,7 +316,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         # === Total Loss ===
         loss_tip_dir_vec = self.w_pos * loss_tip_pos + self.w_dir * loss_tip_dir
         loss_full = self.w_full_hand * loss_full_hand
-        loss_per_finger = alphas * loss_tip_dir_vec + full_hand_coeffs * loss_full
+        loss_per_finger = alphas * loss_tip_dir_vec + (1.0 - alphas) * loss_full
         total_loss = np.sum(loss_per_finger)
 
         # === Regularization ===
