@@ -38,18 +38,6 @@ PARAM_FINGER_MAP = {
         "effect": "Compensates for length difference between human and robot pinky finger",
     },
 
-    # === Calibrated landmark offsets ===
-    "wrist_offset_cm": {
-        "fingers": ["index", "middle", "ring", "pinky"],
-        "desc": "Common non-thumb landmark offset [x, y, z] in centimetres",
-        "effect": "Moves the four non-thumb input chains together before optimization",
-    },
-    "thumb_offset_cm": {
-        "fingers": ["thumb"],
-        "desc": "Thumb landmark offset [x, y, z] in centimetres",
-        "effect": "Moves the complete thumb input chain before optimization",
-    },
-
     # === Global parameters ===
     "scaling": {
         "fingers": ["all"],

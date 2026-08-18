@@ -34,11 +34,6 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         self.w_dir = retarget_config.get('w_dir', 10.0)
         self.scaling = retarget_config.get('scaling', 1.0)
         self.project_tip_dir = retarget_config.get('project_tip_dir', False)
-        # Optionally derive the pinch fingertip position/direction from the
-        # same scaled FullHandVec targets used by the green skeleton.
-        self.pinch_targets_from_full_hand = bool(
-            retarget_config.get('pinch_targets_from_full_hand', False)
-        )
 
         # FullHandVec parameters
         self.w_full_hand = retarget_config.get('w_full_hand', 1.0)
@@ -123,24 +118,14 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         self,
         mediapipe_keypoints: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Build mutually consistent TipDirVec and FullHandVec targets."""
+        """Build TipDirVec and FullHandVec targets."""
         target_full_hand_vectors = self._compute_full_hand_vectors(
             mediapipe_keypoints, self.segment_scaling
         )
-
-        if not self.pinch_targets_from_full_hand:
-            target_tip_vectors = self._compute_tip_vectors(
-                mediapipe_keypoints, self.scaling
-            )
-            target_tip_dirs = self._compute_tip_dirs(mediapipe_keypoints)
-            return target_tip_vectors, target_tip_dirs, target_full_hand_vectors
-
-        nf = self.num_fingers
-        target_dip_vectors = target_full_hand_vectors[nf:2 * nf]
-        target_tip_vectors = target_full_hand_vectors[2 * nf:3 * nf].copy()
-        distal_vectors = target_tip_vectors - target_dip_vectors
-        distal_norms = np.linalg.norm(distal_vectors, axis=1, keepdims=True)
-        target_tip_dirs = distal_vectors / (distal_norms + 1e-8)
+        target_tip_vectors = self._compute_tip_vectors(
+            mediapipe_keypoints, self.scaling
+        )
+        target_tip_dirs = self._compute_tip_dirs(mediapipe_keypoints)
         return target_tip_vectors, target_tip_dirs, target_full_hand_vectors
 
     def solve(

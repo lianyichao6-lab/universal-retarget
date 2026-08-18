@@ -273,7 +273,6 @@ def _transform_input_keypoints(raw_kp, retargeter, hand):
     kp = apply_mediapipe_transformations(raw_kp, hand)
     if retargeter.rotation_xyz:
         kp = retargeter._apply_rotation(kp)
-    kp = retargeter.preprocess_transformed_keypoints(kp)
     return np.asarray(kp, dtype=np.float64)
 
 

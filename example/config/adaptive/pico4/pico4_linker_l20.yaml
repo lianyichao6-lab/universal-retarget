@@ -14,8 +14,6 @@ retarget:
   w_dir: 5.0
   scaling: 1.2
   project_tip_dir: false
-  # Use the same scaled green DIP/TIP targets during pinch.
-  pinch_targets_from_full_hand: true
   w_full_hand: 1.0
   # Keep 30% of the full PIP/DIP/TIP posture objective at full pinch.
   pinch_full_hand_weight: 0.2

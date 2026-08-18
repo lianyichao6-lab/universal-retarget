@@ -11,8 +11,6 @@ robot:
 retarget:
   huber_delta: 2.0
   norm_delta: 0.04
-  # Keep the four human MCP points from the transformed Pico input.
-  align_four_mcp_to_robot: false
   lp_alpha: 0.2
 
   key_vectors:

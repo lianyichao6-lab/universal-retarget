@@ -17,16 +17,12 @@ retarget:
 
   # Regularization
   norm_delta: 0.04             # Velocity regularization weight
-  # Keep the four human MCP points from the transformed Pico input.
-  align_four_mcp_to_robot: false
 
   # TipDirVec parameters
   w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
   w_dir: 4.0                   # Avoid distal direction dominating the whole finger pose
   scaling: 1.0                 # Global MediaPipe scaling parameter
   project_tip_dir: false       # Whether to project tip direction
-  # Use the exact scaled green DIP/TIP targets for pinch position/direction.
-  pinch_targets_from_full_hand: true
 
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
