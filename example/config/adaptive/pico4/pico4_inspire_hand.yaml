@@ -12,18 +12,19 @@ retarget:
   huber_delta: 2.0
   huber_delta_dir: 0.5
   norm_delta: 0.04
-  w_pos: 1.0
-  w_dir: 5.0
-  scaling: 1.0
+  w_pos: 5.0
+  w_dir: 1.0
   project_tip_dir: false
   w_full_hand: 1.0
 
+  pinch_scaling: 1.3444
+  alpha: 1.0
   segment_scaling:
-    thumb: [1.106, 1.301, 1.35]
-    index: [1.175, 1.20, 1.327]
-    middle: [1.130, 1.18, 1.31]
-    ring: [1.15, 1.22, 1.356]
-    pinky: [1.276, 1.32, 1.459]
+    thumb: [1.891, 0.995, 0.995, 1.675]
+    index: [1.622, 0.543, 0.543, 2.146]
+    middle: [1.669, 0.458, 0.458, 1.931]
+    ring: [1.745, 0.508, 0.508, 2.131]
+    pinky: [1.712, 0.735, 0.735, 1.945]
 
   pinch_thresholds:
     index: {d1: 2.0, d2: 8.0}

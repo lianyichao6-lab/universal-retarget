@@ -32,11 +32,14 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         self.huber_delta_dir = retarget_config.get('huber_delta_dir', 0.5)
         self.w_pos = retarget_config.get('w_pos', 1.0)
         self.w_dir = retarget_config.get('w_dir', 10.0)
-        self.scaling = retarget_config.get('scaling', 1.0)
         self.project_tip_dir = retarget_config.get('project_tip_dir', False)
+        self.pinch_scaling = float(retarget_config.get('pinch_scaling', 1.0))
+        self.pinch_alpha_max = float(retarget_config.get('alpha', self.PINCH_ALPHA_MAX))
 
         # FullHandVec parameters
         self.w_full_hand = retarget_config.get('w_full_hand', 1.0)
+        self.lateral_scaling = float(retarget_config.get('lateral_scaling', 1.0))
+        self.lateral_axis = int(retarget_config.get('lateral_axis', 1))
         segment_scaling_config = retarget_config.get('segment_scaling', {})
         all_finger_names = ['thumb', 'index', 'middle', 'ring', 'pinky']
         # Select finger names based on num_fingers
@@ -109,7 +112,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         alphas_nt = np.clip(
             (self.d2 - distances) / (self.d2 - self.d1 + 1e-8),
             0.0,
-            self.PINCH_ALPHA_MAX,
+            self.pinch_alpha_max,
         )
         alpha_thumb = np.max(alphas_nt)
         return np.concatenate([[alpha_thumb], alphas_nt])
@@ -117,14 +120,37 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
     def _compute_adaptive_targets(
         self,
         mediapipe_keypoints: np.ndarray,
+        alphas: Optional[np.ndarray] = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Build TipDirVec and FullHandVec targets."""
+        """Build TipDirVec and FullHandVec targets.
+
+        FullHandVec keeps the per-finger chain scaling used for the full-hand
+        posture target.  During a detected pinch, only the thumb and the active
+        pinch finger switch their tip-position target toward a uniformly scaled
+        wrist->tip vector so opposition contacts are not broken by per-finger
+        segment scaling.
+        """
+        nf = self.num_fingers
         target_full_hand_vectors = self._compute_full_hand_vectors(
-            mediapipe_keypoints, self.segment_scaling
+            mediapipe_keypoints, self.segment_scaling_full,
+            self.lateral_scaling, self.lateral_axis,
         )
-        target_tip_vectors = self._compute_tip_vectors(
-            mediapipe_keypoints, self.scaling
-        )
+        target_tip_vectors = target_full_hand_vectors[2 * nf:].copy()
+
+        if alphas is not None and self.pinch_scaling != 1.0 and nf > 1:
+            partner = int(np.argmax(alphas[1:]) + 1)
+            alpha = float(alphas[partner])
+            if alpha > 0.0:
+                beta = min(alpha / (self.pinch_alpha_max + 1e-8), 1.0)
+                pinch_tip_vectors = self._compute_tip_vectors(
+                    mediapipe_keypoints, self.pinch_scaling
+                )
+                for i in (0, partner):
+                    target_tip_vectors[i] = (
+                        (1.0 - beta) * target_tip_vectors[i]
+                        + beta * pinch_tip_vectors[i]
+                    )
+
         target_tip_dirs = self._compute_tip_dirs(mediapipe_keypoints)
         return target_tip_vectors, target_tip_dirs, target_full_hand_vectors
 
@@ -151,7 +177,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             target_tip_vectors,
             target_tip_dirs,
             target_full_hand_vectors,
-        ) = self._compute_adaptive_targets(mediapipe_keypoints)
+        ) = self._compute_adaptive_targets(mediapipe_keypoints, alphas)
 
         if self._enable_timing:
             self._timing.preprocess_ms += (time.perf_counter() - t_preprocess_start) * 1000
@@ -181,7 +207,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
             target_tip_vectors,
             target_tip_dirs,
             target_full_hand_vectors,
-        ) = self._compute_adaptive_targets(mediapipe_keypoints)
+        ) = self._compute_adaptive_targets(mediapipe_keypoints, alphas)
         loss, _ = self._loss_and_grad_analytical(
             qpos, target_tip_vectors, target_tip_dirs, target_full_hand_vectors, alphas, None
         )

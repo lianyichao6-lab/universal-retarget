@@ -113,9 +113,12 @@ example/config/
 │   ├── output/                            # Retarget-output post-processing, one script per hand type
 │   │   ├── real/                          # Real hardware drivers (drivers_wuji.py, drivers_shadow.py, ...)
 │   │   └── sim/                           # MuJoCo simulation qpos mapping (mujoco_output.py)
-│   ├── test/                              # Debug & visualization tools
-│   │   ├── debug_skeleton.py              # 3-skeleton comparison viewer
-│   │   └── calibrate_scaling.py            # Universal segment_scaling calibration
+│   ├── test/                              # Debug, visualization, and calibration tools
+│   │   ├── debug_skeleton.py              # Skeleton comparison viewer
+│   │   ├── calibrate.py                   # Unified calibration entrypoint
+│   │   ├── calibrate_rotation.py          # mediapipe_rotation calibration
+│   │   ├── calibrate_scaling.py           # segment_scaling calibration
+│   │   └── calibrate_pinch_scaling.py     # pinch_scaling calibration
 │   ├── config/
 │   │   ├── adaptive/                      # AdaptiveOptimizerAnalytical configs
 │   │   │   ├── avp/                       # Apple Vision Pro
@@ -305,7 +308,8 @@ python -c "import hand; print('Gaia HandSDK OK')"
 Compare three hand skeletons in the MuJoCo viewer to debug retargeting issues:
 
 - **Blue**: Raw MediaPipe skeleton (after coordinate transform, before scaling)
-- **Green**: Scaled target skeleton (what the optimizer tries to match)
+- **Yellow**: Raw skeleton uniformly scaled by `pinch_scaling`
+- **Green**: Full-hand target skeleton from `segment_scaling`
 - **Red**: Robot FK skeleton (retargeting result)
 
 ```bash
@@ -336,6 +340,28 @@ python test/debug_skeleton.py --robot inspire --input noitom --optimizer vector 
 # With your own recorded data
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
 ```
+
+#### calibrate.py
+
+Unified calibration entrypoint. Select the calibration behavior by the first argument and use `--robot` to choose the hand type:
+
+```bash
+cd example
+
+# Calibrate input rotation
+python test/calibrate.py rotation --robot linker_l20 --input pico4 --hand right
+
+# Calibrate full-hand segment_scaling
+python test/calibrate.py scaling --robot linker_l20 --input pico4 --hand right --write
+
+# Calibrate pinch_scaling from open-hand index reach
+python test/calibrate.py pinch --robot linker_l20 --input pico4 --hand right --write
+
+# Batch pinch_scaling for every adaptive config under one input source
+python test/calibrate.py pinch --input pico4 --hand right --all-configs --write
+```
+
+Adaptive configs expose `pinch_scaling` for the active pinch pair's tip-position target and `alpha` for the maximum pinch blend. With `alpha: 1.0`, a fully detected pinch uses the tip objective without residual full-hand target influence.
 
 #### calibrate_scaling.py
 

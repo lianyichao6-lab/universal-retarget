@@ -19,19 +19,20 @@ retarget:
   norm_delta: 0.04             # Velocity regularization weight
 
   # TipDirVec parameters
-  w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
-  w_dir: 4.0                   # Avoid distal direction dominating the whole finger pose
-  scaling: 1.0                 # Global MediaPipe scaling parameter
+  w_pos: 5.0                   # Tip position weight (wrist → tip vectors)
+  w_dir: 1.0                   # Avoid distal direction dominating the whole finger pose
   project_tip_dir: false       # Whether to project tip direction
 
   # FullHandVec parameters
   w_full_hand: 1.0             # Full hand vec weight
+  pinch_scaling: 1.5834
+  alpha: 1.0
   segment_scaling:
-    thumb: [1.263, 1.232, 1.3801]
-    index: [1.407, 1.485, 1.455]
-    middle: [1.389, 1.417, 1.415]
-    ring: [1.405, 1.486, 1.403]
-    pinky: [1.579, 1.578, 1.552]
+    thumb: [2.012, 1.54, 1.661, 1.5516]
+    index: [1.566, 1.645, 1.434, 1.3842]
+    middle: [1.637, 1.386, 1.215, 1.1982]
+    ring: [1.659, 1.471, 1.466, 1.4281]
+    pinky: [1.589, 2.338, 1.785, 1.44]
 
   # Pinch distance thresholds (cm) for each finger
   # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)

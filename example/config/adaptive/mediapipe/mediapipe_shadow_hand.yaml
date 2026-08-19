@@ -25,11 +25,10 @@ retarget:
   norm_delta: 0.04             # Velocity regularization weight
 
   # TipDirVec parameters
-  w_pos: 1.0                   # Tip position weight (wrist → tip vectors)
-  w_dir: 5.0                   # Tip direction weight (link4 → tip vectors)
+  w_pos: 5.0                   # Tip position weight (wrist → tip vectors)
+  w_dir: 1.0                   # Tip direction weight (link4 → tip vectors)
                                # Note: High w_dir conflicts with pinch optimization
                                # Use 5.0 for better pinch accuracy, 10.0 for finger direction
-  scaling: 0.81                # Scale MediaPipe to match Shadow Hand size (MP is ~24% larger)
   project_tip_dir: false       # Whether to project tip direction
 
   # FullHandVec parameters
@@ -37,20 +36,22 @@ retarget:
 
   # Per-finger segment scaling [PIP, DIP, TIP]
   # Adjust based on Shadow Hand kinematics
+  pinch_scaling: 1.0
+  alpha: 1.0
   segment_scaling:
-    thumb:  [0.884, 0.883, 0.854]
-    index:  [1.079, 1.03, 1.028]
+    thumb: [0.884, 0.883, 0.854]
+    index: [1.079, 1.03, 1.028]
     middle: [1.098, 1.051, 1.052]
-    ring:   [1.113, 1.085, 1.098]
-    pinky:  [1.142, 1.18, 1.243]
+    ring: [1.113, 1.085, 1.098]
+    pinky: [1.142, 1.18, 1.243]
 
   # Pinch distance thresholds (cm) for each finger
   # d < d1: TipDirVec mode (α=1), d > d2: FullHandVec mode (α=0)
   pinch_thresholds:
-    index:  { d1: 2.0, d2: 4.0 }
-    middle: { d1: 2.0, d2: 4.0 }
-    ring:   { d1: 2.0, d2: 4.0 }
-    pinky:  { d1: 2.0, d2: 4.0 }
+    index: {d1: 2.0, d2: 4.0}
+    middle: {d1: 2.0, d2: 4.0}
+    ring: {d1: 2.0, d2: 4.0}
+    pinky: {d1: 2.0, d2: 4.0}
 
   # MediaPipe rotation adjustment (degrees)
   mediapipe_rotation:

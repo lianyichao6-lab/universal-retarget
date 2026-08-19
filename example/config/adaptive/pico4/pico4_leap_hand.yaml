@@ -12,22 +12,23 @@ retarget:
   huber_delta: 2.0
   huber_delta_dir: 0.5
   norm_delta: 0.04
-  w_pos: 1.0
-  w_dir: 5.0
-  scaling: 1.2
+  w_pos: 5.0
+  w_dir: 1.0
   project_tip_dir: false
   w_full_hand: 1.0
 
+  pinch_scaling: 1.4555
+  alpha: 1.0
   segment_scaling:
-    thumb:  [1.15, 1.15, 1.15]
-    index:  [1.15, 1.15, 1.15]
-    middle: [1.15, 1.15, 1.15]
-    ring:   [1.15, 1.15, 1.15]
+    thumb: [1.51, 0.79, 1.665, 2.174]
+    index: [1.589, 0.639, 1.725, 2.383]
+    middle: [1.566, 0.538, 1.462, 2.012]
+    ring: [1.739, 0.572, 1.764, 2.367]
 
   pinch_thresholds:
-    index:  { d1: 2.0, d2: 4.0 }
-    middle: { d1: 2.0, d2: 4.0 }
-    ring:   { d1: 2.0, d2: 4.0 }
+    index: {d1: 2.0, d2: 4.0}
+    middle: {d1: 2.0, d2: 4.0}
+    ring: {d1: 2.0, d2: 4.0}
 
   mediapipe_rotation:
     x: 0.0

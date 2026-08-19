@@ -38,6 +38,7 @@ class BaseOptimizer(ABC):
 
     # MediaPipe keypoint indices
     MP_ORIGIN_IDX = 0  # Wrist
+    MP_MCP_INDICES = [1, 5, 9, 13, 17]  # Finger roots (thumb uses CMC=1)
     MP_TIP_INDICES = [4, 8, 12, 16, 20]  # Fingertips
     MP_PIP_INDICES = [2, 6, 10, 14, 18]  # PIP joints (thumb uses MCP=2)
     MP_DIP_INDICES = [3, 7, 11, 15, 19]  # DIP joints
@@ -208,8 +209,31 @@ class BaseOptimizer(ABC):
         # Build link indices
         self._build_link_indices()
 
+        # Cache the robot's own finger roots, expressed in the optimizer frame.
+        # These are mounting points fixed by the URDF, so one FK pass is enough.
+        # FullHandVec anchors each finger chain here instead of at the human
+        # wrist, which keeps the palm-length mismatch out of segment_scaling.
+        self.finger_root_vectors = self._compute_finger_root_vectors()
+
         # Store last solution for warm start
         self.last_qpos = None
+
+    def _compute_finger_root_vectors(self) -> np.ndarray:
+        """Return origin->finger-root vectors at the neutral pose, in cm."""
+        qpos = (
+            self.neutral_qpos.copy()
+            if self.neutral_qpos is not None
+            else np.zeros(self.robot.model.nq, dtype=np.float64)
+        )
+        self.robot.compute_forward_kinematics(qpos)
+        origin = self.robot.get_link_pose(
+            self.robot.get_link_index(self.origin_link_name)
+        )[:3, 3]
+        roots = np.zeros((self.num_fingers, 3), dtype=np.float64)
+        for i in range(min(self.num_fingers, len(self.link1_names))):
+            link_id = self.robot.get_link_index(self.link1_names[i])
+            roots[i] = self.robot.get_link_pose(link_id)[:3, 3] - origin
+        return roots * M_TO_CM
 
     @staticmethod
     def _resolve_link_offsets(offsets_config, count: int) -> np.ndarray:
@@ -503,23 +527,6 @@ class BaseOptimizer(ABC):
         self.last_qpos = full_qpos.astype(np.float64)
         return full_qpos.astype(np.float32)
 
-    def _compute_tip_vectors(self, keypoints: np.ndarray, scaling: float = 1.0) -> np.ndarray:
-        """Compute wrist->tip vectors.
-
-        Args:
-            keypoints: (21, 3) MediaPipe keypoints in meters
-            scaling: Global scaling factor
-
-        Returns:
-            vectors: (num_fingers, 3) tip vectors in cm
-        """
-        wrist = keypoints[self.MP_ORIGIN_IDX]
-        tip_indices = [self.MP_TIP_INDICES[i] for i in self.mp_finger_indices]
-        vectors = np.array([
-            keypoints[idx] - wrist for idx in tip_indices
-        ]) * scaling * M_TO_CM
-        return vectors.astype(np.float64)
-
     def _compute_tip_dirs(self, keypoints: np.ndarray) -> np.ndarray:
         """Compute DIP->tip direction vectors (normalized).
 
@@ -538,38 +545,71 @@ class BaseOptimizer(ABC):
             tip_dirs.append(dir_vec / (norm + 1e-8))
         return np.array(tip_dirs, dtype=np.float64)
 
-    def _compute_full_hand_vectors(self, keypoints: np.ndarray, scaling: np.ndarray) -> np.ndarray:
-        """Compute full hand vectors (wrist->PIP, wrist->DIP, wrist->TIP).
+    def _compute_tip_vectors(self, keypoints: np.ndarray, scaling: float = 1.0) -> np.ndarray:
+        """Compute uniformly scaled origin->tip targets in cm."""
+        keypoints_cm = np.asarray(keypoints, dtype=np.float64) * M_TO_CM
+        wrist = keypoints_cm[self.MP_ORIGIN_IDX]
+        tip_indices = [self.MP_TIP_INDICES[i] for i in self.mp_finger_indices]
+        return (keypoints_cm[tip_indices] - wrist) * float(scaling)
+
+    def _compute_full_hand_vectors(
+        self,
+        keypoints: np.ndarray,
+        scaling: np.ndarray,
+        lateral_scaling: float = 1.0,
+        lateral_axis: int = 1,
+    ) -> np.ndarray:
+        """Compute origin->PIP/DIP/TIP targets by growing each finger chain.
+
+        Every span from the wrist outwards is scaled independently, including
+        the wrist->MCP one: the chain is grown as
+
+            MCP = (MCP - wrist)  * s_mcp
+            PIP = MCP + (PIP - MCP) * s_pip
+            DIP = PIP + (DIP - PIP) * s_dip
+            TIP = DIP + (TIP - DIP) * s_tip
+
+        Nothing is anchored to the robot's own finger mounts.  Keeping the
+        human's palm directions means opposition contacts survive scaling,
+        while ``s_mcp`` still stretches the palm span to the robot's size.
 
         Args:
             keypoints: (21, 3) MediaPipe keypoints in meters
-            scaling: (num_fingers, 3) scaling factors for each finger and segment
+            scaling: (num_fingers, 4) per-finger wrist->MCP, MCP->PIP,
+                PIP->DIP, DIP->TIP factors
+            lateral_scaling: optional scale for the palm's lateral axis before
+                wrist->MCP scaling.  Values below 1.0 reduce MCP abduction
+                without changing the finger segment lengths.
+            lateral_axis: palm coordinate axis to scale
 
         Returns:
             vectors: (num_fingers*3, 3) vectors in cm [PIP*N, DIP*N, TIP*N]
         """
-        wrist = keypoints[self.MP_ORIGIN_IDX]
         nf = self.num_fingers
+        keypoints_cm = np.asarray(keypoints, dtype=np.float64) * M_TO_CM
+        scaling = np.asarray(scaling, dtype=np.float64)
+        if scaling.shape[1] != 4:
+            raise ValueError(
+                f"Expected (num_fingers, 4) scaling with an MCP column, got {scaling.shape}"
+            )
 
+        wrist = keypoints_cm[self.MP_ORIGIN_IDX]
+        mcp_indices = [self.MP_MCP_INDICES[i] for i in self.mp_finger_indices]
         pip_indices = [self.MP_PIP_INDICES[i] for i in self.mp_finger_indices]
         dip_indices = [self.MP_DIP_INDICES[i] for i in self.mp_finger_indices]
         tip_indices = [self.MP_TIP_INDICES[i] for i in self.mp_finger_indices]
 
-        # wrist -> PIP (N vectors)
-        pip_vectors = np.array([
-            keypoints[idx] - wrist for idx in pip_indices
-        ]) * scaling[:nf, 0:1]
+        palm = keypoints_cm[mcp_indices] - wrist
+        if lateral_scaling != 1.0:
+            palm[:, lateral_axis] *= lateral_scaling
+        proximal = keypoints_cm[pip_indices] - keypoints_cm[mcp_indices]
+        middle = keypoints_cm[dip_indices] - keypoints_cm[pip_indices]
+        distal = keypoints_cm[tip_indices] - keypoints_cm[dip_indices]
 
-        # wrist -> DIP (N vectors)
-        dip_vectors = np.array([
-            keypoints[idx] - wrist for idx in dip_indices
-        ]) * scaling[:nf, 1:2]
+        mcp_vectors = palm * scaling[:nf, 0:1]
+        pip_vectors = mcp_vectors + proximal * scaling[:nf, 1:2]
+        dip_vectors = pip_vectors + middle * scaling[:nf, 2:3]
+        tip_vectors = dip_vectors + distal * scaling[:nf, 3:4]
 
-        # wrist -> TIP (N vectors)
-        tip_vectors = np.array([
-            keypoints[idx] - wrist for idx in tip_indices
-        ]) * scaling[:nf, 2:3]
-
-        # Concatenate and convert to cm
-        vectors = np.vstack([pip_vectors, dip_vectors, tip_vectors]) * M_TO_CM
+        vectors = np.vstack([pip_vectors, dip_vectors, tip_vectors])
         return vectors.astype(np.float64)
