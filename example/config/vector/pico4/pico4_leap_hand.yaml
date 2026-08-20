@@ -15,21 +15,22 @@ retarget:
 
   key_vectors:
     # thumb
-    - {origin: base, task: thumb_dip,       origin_kp: 0, task_kp:  2, scale: 0.887}
-    - {origin: base, task: thumb_fingertip, origin_kp: 0, task_kp:  3, scale: 1.064}
-    - {origin: base, task: thumb_tip_head,  origin_kp: 0, task_kp:  4, scale: 1.304}
+  - {origin: base, task: thumb_dip, origin_kp: 0, task_kp: 2, scale: 1.065}
+  - {origin: base, task: thumb_fingertip, origin_kp: 0, task_kp: 3, scale: 1.237}
+  - {origin: base, task: thumb_tip_head, origin_kp: 0, task_kp: 4, scale: 1.455}
     # index
-    - {origin: base, task: dip,             origin_kp: 0, task_kp:  6, scale: 1.197}
-    - {origin: base, task: fingertip,       origin_kp: 0, task_kp:  7, scale: 1.238}
-    - {origin: base, task: index_tip_head,  origin_kp: 0, task_kp:  8, scale: 1.333}
+  - {origin: base, task: dip, origin_kp: 0, task_kp: 6, scale: 1.277}
+  - {origin: base, task: fingertip, origin_kp: 0, task_kp: 7, scale: 1.331}
+  - {origin: base, task: index_tip_head, origin_kp: 0, task_kp: 8, scale: 1.424}
     # middle
-    - {origin: base, task: dip_2,           origin_kp: 0, task_kp: 10, scale: 1.111}
-    - {origin: base, task: fingertip_2,     origin_kp: 0, task_kp: 11, scale: 1.148}
-    - {origin: base, task: middle_tip_head, origin_kp: 0, task_kp: 12, scale: 1.273}
+  - {origin: base, task: dip_2, origin_kp: 0, task_kp: 10, scale: 1.153}
+  - {origin: base, task: fingertip_2, origin_kp: 0, task_kp: 11, scale: 1.209}
+  - {origin: base, task: middle_tip_head, origin_kp: 0, task_kp: 12, scale: 
+      1.311}
     # ring
-    - {origin: base, task: dip_3,           origin_kp: 0, task_kp: 14, scale: 1.196}
-    - {origin: base, task: fingertip_3,     origin_kp: 0, task_kp: 15, scale: 1.23}
-    - {origin: base, task: ring_tip_head,   origin_kp: 0, task_kp: 16, scale: 1.371}
+  - {origin: base, task: dip_3, origin_kp: 0, task_kp: 14, scale: 1.22}
+  - {origin: base, task: fingertip_3, origin_kp: 0, task_kp: 15, scale: 1.292}
+  - {origin: base, task: ring_tip_head, origin_kp: 0, task_kp: 16, scale: 1.428}
 
   mediapipe_rotation:
     x: 0.0

@@ -25,7 +25,7 @@ Examples:
     python test/calibrate_rotation.py --robot shadow --input pico4 --hand right
     python test/calibrate_rotation.py --robot gaia --input avp --avp-ip 192.168.5.32
     python test/calibrate_rotation.py --robot wuji --input mediapipe --video data/right.mp4
-    python test/calibrate_rotation.py --robot wuji --input replay --play data/avp1.pkl --trust-pkl
+    python test/calibrate_rotation.py --robot wuji --input data/avp1.pkl --trust-pkl
 """
 
 from __future__ import annotations
@@ -150,7 +150,7 @@ def collect_human_roots(input_device, hand, duration):
 
 
 def collect_human_roots_from_pkl(pkl_path: Path, hand: str, trust_pkl: bool, limit=None):
-    """Same as ``collect_human_roots`` but reading a recorded pickle."""
+    """Collect transformed finger roots from a recorded hand-keypoint pickle."""
     if not trust_pkl:
         raise ValueError(
             "Refusing to load pickle without explicit trust. "
@@ -204,15 +204,15 @@ def build_parser():
     parser = argparse.ArgumentParser(
         description="Calibrate mediapipe_rotation from finger-root alignment"
     )
-    parser.add_argument("--config", default=None, help="Config YAML (overrides --robot/--input)")
     parser.add_argument("--robot", default="wuji", choices=sorted(ROBOT_NAME_MAP))
     parser.add_argument("--hand", default="right", choices=["left", "right"])
     parser.add_argument(
-        "--input", default="pico4",
-        choices=["mediapipe", "noitom", "quest3", "avp", "pico4", "replay"],
+        "--input",
+        default="pico4",
+        help=("实时输入源 mediapipe/noitom/quest3/avp/pico4，"
+              "或直接传入 .pkl 文件路径"),
     )
     parser.add_argument("--video", default=None, help="Video path for --input mediapipe")
-    parser.add_argument("--play", default=None, help="Recorded pickle for --input replay")
     parser.add_argument("--frames", type=int, default=None, help="Use only the first N pickle frames")
     parser.add_argument("--trust-pkl", action="store_true", help="Confirm the pickle is trusted")
     parser.add_argument("--show-video", action="store_true")
@@ -243,24 +243,32 @@ def main():
     args = build_parser().parse_args()
 
     robot_file = ROBOT_NAME_MAP.get(args.robot, args.robot)
-    if args.config:
-        config_file = Path(args.config)
-        if not config_file.is_absolute():
-            config_file = EXAMPLE_ROOT / config_file
-    elif args.input in INPUT_TO_CONFIG_DIR:
-        config_dir = INPUT_TO_CONFIG_DIR[args.input]
-        config_file = EXAMPLE_ROOT / f"config/adaptive/{config_dir}/{config_dir}_{robot_file}.yaml"
+    replay_path = None
+    input_value = args.input
+    if input_value.lower().endswith((".pkl", ".pickle")):
+        replay_path = Path(input_value)
+        if not replay_path.is_absolute():
+            replay_path = EXAMPLE_ROOT / replay_path
+        replay_path = replay_path.resolve()
+        stem = replay_path.stem.lower()
+        source = next((name for name in INPUT_TO_CONFIG_DIR if name in stem), None)
+        if source is None:
+            names = "/".join(INPUT_TO_CONFIG_DIR)
+            raise SystemExit(
+                f"无法从 pkl 文件名推断原始输入源；文件名需包含 {names} 之一"
+            )
     else:
-        # A recording carries no hint about which input source produced it, and
-        # the rotation differs per source, so guessing a config would silently
-        # compare against the wrong baseline.
-        raise SystemExit(
-            f"--input {args.input} 无法推断配置目录，请用 --config 显式指定，例如\n"
-            f"  --config config/adaptive/avp/avp_{robot_file}.yaml"
-        )
+        source = input_value.lower()
+        if source not in INPUT_TO_CONFIG_DIR:
+            names = "/".join(INPUT_TO_CONFIG_DIR)
+            raise SystemExit(f"未知 --input {input_value!r}；应为 {names} 或 .pkl 路径")
+
+    config_dir = INPUT_TO_CONFIG_DIR[source]
+    config_file = EXAMPLE_ROOT / f"config/adaptive/{config_dir}/{config_dir}_{robot_file}.yaml"
 
     print(f"配置文件: {config_file}")
-    print(f"机器人:   {robot_file}    手: {args.hand}    输入: {args.input}")
+    input_label = f"{replay_path}（原始输入源: {source}）" if replay_path else source
+    print(f"机器人:   {robot_file}    手: {args.hand}    输入: {input_label}")
 
     retargeter = Retargeter.from_yaml(str(config_file), args.hand)
     optimizer = retargeter.optimizer
@@ -273,16 +281,12 @@ def main():
         raise SystemExit("可用地标少于 3 个，无法拟合旋转")
     labels = [FINGER_NAMES[mp_fingers[i]] for i in keep]
 
-    if args.play or args.input == "replay":
-        pkl = Path(args.play) if args.play else None
-        if pkl is None:
-            raise SystemExit("--input replay 需要 --play 指定 pkl 路径")
-        if not pkl.is_absolute():
-            pkl = EXAMPLE_ROOT / pkl
+    if replay_path is not None:
         human_all, frames = collect_human_roots_from_pkl(
-            pkl, args.hand, args.trust_pkl, args.frames
+            replay_path, args.hand, args.trust_pkl, args.frames
         )
     else:
+        args.input = source
         device = create_input_device(args)
         _wait_for_capture_start(
             device,

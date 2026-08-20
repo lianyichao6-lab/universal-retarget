@@ -348,8 +348,12 @@ Unified calibration entrypoint. Select the calibration behavior by the first arg
 ```bash
 cd example
 
-# Calibrate input rotation
+# Calibrate input rotation from a live device
 python test/calibrate.py rotation --robot linker_l20 --input pico4 --hand right
+
+# Calibrate input rotation from a trusted recording; the filename must contain
+# its original source name, such as avp, pico4, noitom, quest3, or mediapipe
+python test/calibrate.py rotation --robot wuji --input data/avp1.pkl --hand right --trust-pkl
 
 # Calibrate full-hand segment_scaling
 python test/calibrate.py scaling --robot linker_l20 --input pico4 --hand right --write
@@ -358,7 +362,7 @@ python test/calibrate.py scaling --robot linker_l20 --input pico4 --hand right -
 python test/calibrate.py pinch --robot linker_l20 --input pico4 --hand right --write
 
 # Batch pinch_scaling for every adaptive config under one input source
-python test/calibrate.py pinch --input pico4 --hand right --all-configs --write
+python test/calibrate.py pinch --input pico4 --hand right --all-robots --write
 ```
 
 Adaptive configs expose `pinch_scaling` for the active pinch pair's tip-position target and `alpha` for the maximum pinch blend. With `alpha: 1.0`, a fully detected pinch uses the tip objective without residual full-hand target influence.

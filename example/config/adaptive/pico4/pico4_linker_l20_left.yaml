@@ -14,7 +14,7 @@ retarget:
   w_dir: 1.0
   project_tip_dir: false
   w_full_hand: 1.0
-  pinch_scaling: 1.5352
+  pinch_scaling: 1.5101
   alpha: 1.0
   mcp_lateral_scale: 0.60
   thumb_scale: 1.0

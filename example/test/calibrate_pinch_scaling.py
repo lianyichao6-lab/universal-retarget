@@ -7,8 +7,7 @@ origin->index-tip reach, and write that ratio to YAML.
 
 Example:
     python example/test/calibrate_pinch_scaling.py \
-        --config example/config/adaptive/pico4/pico4_linker_l20.yaml \
-        --input pico4 --hand right --write
+        --robot linker_l20 --input pico4 --hand right --write
 """
 
 from __future__ import annotations
@@ -149,18 +148,13 @@ def _collect_open_index_reach(input_device, retargeter, hand: str, duration: flo
 
 
 def _resolve_config(args) -> Path:
-    if args.config:
-        config_path = Path(args.config)
-        if not config_path.is_absolute():
-            config_path = PROJECT_ROOT / config_path
-        return config_path.resolve()
     robot_file = ROBOT_NAME_MAP[args.robot]
     adaptive_path, _ = _resolve_config_paths(args, robot_file)
     return adaptive_path.resolve()
 
 
 def _resolve_config_batch(args) -> list[Path]:
-    if args.all_configs:
+    if args.all_robots:
         config_dir = EXAMPLE_ROOT / f"config/adaptive/{args.input}"
         return sorted(config_dir.glob("*.yaml"))
     return [_resolve_config(args)]
@@ -174,8 +168,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Calibrate retarget.pinch_scaling from open-hand index reach",
     )
-    parser.add_argument("--config", default=None, help="Adaptive config YAML path")
-    parser.add_argument("--all-configs", action="store_true", help="采一次张手并批量写入当前 input 的所有 adaptive YAML")
+    parser.add_argument("--all-robots", action="store_true", help="采一次张手并批量写入当前 input 的所有 adaptive YAML")
     parser.add_argument("--robot", default="wuji", choices=list(ROBOT_NAME_MAP.keys()))
     parser.add_argument("--hand", default="right", choices=["left", "right"])
     parser.add_argument("--input", default="mediapipe", choices=["mediapipe", "noitom", "quest3", "avp", "pico4"])
@@ -205,8 +198,6 @@ def main() -> None:
 
     if args.write and args.dry_run:
         parser.error("--write and --dry-run cannot be used together")
-    if args.config and args.all_configs:
-        parser.error("--config and --all-configs cannot be used together")
     if args.duration <= 0 or args.pose_delay < 0:
         parser.error("--duration must be positive; --pose-delay must be >= 0")
 

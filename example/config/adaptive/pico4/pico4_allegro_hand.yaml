@@ -17,13 +17,13 @@ retarget:
   project_tip_dir: false
   w_full_hand: 1.0
 
-  pinch_scaling: 0.9719
+  pinch_scaling: 0.9561
   alpha: 1.0
   segment_scaling:
-    thumb: [1.391, 1.713, 0.632, 3.715]
-    index: [0.503, 0.428, 2.581, 3.653]
-    middle: [0.008, 0.361, 2.187, 3.085]
-    ring: [0.554, 0.383, 2.639, 3.628]
+    thumb: [1.385, 1.704, 0.631, 3.663]
+    index: [0.501, 0.427, 2.566, 3.638]
+    middle: [0.008, 0.359, 2.185, 3.078]
+    ring: [0.552, 0.382, 2.613, 3.616]
 
   pinch_thresholds:
     index: {d1: 2.0, d2: 4.0}

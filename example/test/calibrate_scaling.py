@@ -1,13 +1,7 @@
 """Calibrate segment_scaling for any robot hand and input source.
 
-Supports two calibration modes:
-
-* ``open``: robust open-hand morphology calibration.  This is the legacy
-  robot-distance / human-distance estimate, but uses medians instead of means.
-* ``functional``: starts from the open-hand estimate and then captures four
-  thumb-to-finger pinch poses.  Fingertip scales are jointly refined so the
-  scaled green skeleton preserves opposition contacts instead of optimizing
-  neutral/open-hand lengths only.
+Uses robust open-hand morphology calibration: robot link lengths are divided
+by median human segment lengths from a natural open-hand capture.
 
 Outputs recommended segment_scaling values and optionally writes them back to
 both Adaptive and Vector config YAML files.
@@ -19,10 +13,8 @@ Usage:
     python test/calibrate_scaling.py --robot wuji --input mediapipe
     python test/calibrate_scaling.py --robot wuji --input noitom
     python test/calibrate_scaling.py --robot wuji --input quest3
-    python test/calibrate_scaling.py --config config/adaptive/avp/avp_wuji_hand.yaml --input avp
+    python test/calibrate_scaling.py --robot wuji --input avp
     python test/calibrate_scaling.py --robot wuji --input mediapipe --optimizer both --write
-    python test/calibrate_scaling.py --robot gaia --input pico4 --hand right --calibration-mode functional
-    python test/calibrate_scaling.py --robot gaia --input pico4 --hand right --calibration-mode functional --optimizer both --write
 """
 
 import argparse
@@ -45,8 +37,15 @@ if str(EXAMPLE_ROOT) not in sys.path:
 
 from anydexretarget import Retargeter
 from anydexretarget.mediapipe import apply_mediapipe_transformations
+from anydexretarget.optimizer.utils import CM_TO_M
 
 FINGER_NAMES = ["thumb", "index", "middle", "ring", "pinky"]
+
+# MediaPipe landmark indices, mirrored from BaseOptimizer.
+MP_MCP_INDICES = [1, 5, 9, 13, 17]
+MP_PIP_INDICES = [2, 6, 10, 14, 18]
+MP_DIP_INDICES = [3, 7, 11, 15, 19]
+MP_TIP_INDICES = [4, 8, 12, 16, 20]
 
 ROBOT_NAME_MAP = {
     "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
@@ -104,17 +103,14 @@ def _write_adaptive(config_path: Path, result: dict, backup: bool = True):
     for fname, vals in result.items():
         if fname not in seg:
             continue
-        # Three-value format is [PIP, DIP, TIP].  Four-value format is
-        # [MCP, PIP, DIP, TIP], so preserve the independently configured MCP
-        # scale (Linker L20) and write calibration values into slots 1:4.
+        # Calibration now produces the full [MCP, PIP, DIP, TIP] set because the
+        # wrist->MCP span is scaled like any other.  Legacy three-value entries
+        # are grown in place so the comment layout of the file survives.
         dst = seg[fname]
-        start = 1 if len(dst) == 4 else 0
-        if len(dst) - start < len(vals):
-            raise ValueError(
-                f"segment_scaling.{fname} has unsupported length {len(dst)}"
-            )
+        while len(dst) < len(vals):
+            dst.append(1.0)
         for i, v in enumerate(vals):
-            dst[start + i] = v
+            dst[i] = v
 
     with open(config_path, "w") as f:
         ryaml.dump(doc, f)
@@ -143,22 +139,19 @@ def _write_vector(config_path: Path, result: dict, backup: bool = True):
         ryaml.dump(doc, f)
 
 
-def write_configs(args, robot_file, result, explicit_config_path=None):
+def write_configs(args, robot_file, result, cumulative_result, explicit_config_path=None):
     """Write calibration result to adaptive and/or vector config files.
 
-    If --config was given, only that single file is written regardless of
-    --optimizer.  Otherwise both adaptive/vector paths are resolved
-    automatically and written according to --optimizer.
+    The two optimizers scale different things, so they take different numbers.
+    ``result`` holds per-segment phalanx ratios for adaptive ``segment_scaling``;
+    ``cumulative_result`` holds origin-to-joint ratios for the vector
+    optimizer, whose ``key_vectors`` entries use ``origin_kp: 0`` and therefore
+    still scale wrist-anchored vectors.
+
+    Adaptive/vector paths are resolved automatically from --robot and --input,
+    then written according to --optimizer.
     """
     optimizer_mode = getattr(args, "optimizer", "both")
-
-    # Single explicit config path
-    if explicit_config_path:
-        config_path = Path(explicit_config_path)
-        if not config_path.is_absolute():
-            config_path = EXAMPLE_ROOT / config_path
-        _write_single(config_path, result, args)
-        return
 
     adaptive_path, vector_path = _resolve_config_paths(args, robot_file)
     targets = []
@@ -176,20 +169,20 @@ def write_configs(args, robot_file, result, explicit_config_path=None):
             if opt_type == "adaptive":
                 _write_adaptive(path, result, backup=True)
             else:
-                _write_vector(path, result, backup=True)
+                _write_vector(path, cumulative_result, backup=True)
             print(f"  已写入 ({opt_type}): {path}")
         except Exception as e:
             print(f"  写入失败 ({path}): {e}")
 
 
-def _write_single(config_path: Path, result: dict, args):
+def _write_single(config_path: Path, result: dict, cumulative_result: dict, args):
     """Write to a single explicitly-specified config file, auto-detecting type."""
     try:
         with open(config_path) as f:
             raw = yaml.safe_load(f)
         opt_type_str = raw.get("optimizer", {}).get("type", "")
         if "KeyVector" in opt_type_str:
-            _write_vector(config_path, result, backup=True)
+            _write_vector(config_path, cumulative_result, backup=True)
             print(f"  已写入 (vector): {config_path}")
         else:
             _write_adaptive(config_path, result, backup=True)
@@ -212,7 +205,11 @@ def get_robot_distances(optimizer):
 
     Returns:
         cumulative: (pip_dists, dip_dists, tip_dists) — origin→link3/link4/tip
-        segment: (seg_pip, seg_dip, seg_tip) — origin→link3, link3→link4, link4→tip
+        segment: (seg_pip, seg_dip, seg_tip) — link1→link3, link3→link4, link4→tip
+
+    The per-segment values are what ``segment_scaling`` calibrates against:
+    FullHandVec grows each chain from the robot's own finger root, so the
+    first segment is measured from link1 rather than from the origin.
     """
     robot = optimizer.robot
     nf = optimizer.num_fingers
@@ -233,6 +230,7 @@ def get_robot_distances(optimizer):
             result.append(_get_link_pos(robot, link_names[fi], off))
         return result
 
+    root_pos = pos_for(getattr(optimizer, 'link1_names', []), None)
     pip_pos = pos_for(
         getattr(optimizer, 'link3_names', []),
         getattr(optimizer, 'link3_offsets', None),
@@ -251,11 +249,15 @@ def get_robot_distances(optimizer):
     dip_dists = [float(np.linalg.norm(p - origin_pos)) if p is not None else None for p in dip_pos]
     tip_dists = [float(np.linalg.norm(p - origin_pos)) if p is not None else None for p in tip_pos]
 
-    # Per-segment: link3→link4, link4→tip
-    seg_pip = pip_dists  # origin→link3
+    # Per-segment: link1→link3, link3→link4, link4→tip
+    seg_pip = []
     seg_dip = []
     seg_tip = []
     for fi in range(nf):
+        if fi < len(root_pos) and root_pos[fi] is not None and pip_pos[fi] is not None:
+            seg_pip.append(float(np.linalg.norm(pip_pos[fi] - root_pos[fi])))
+        else:
+            seg_pip.append(None)
         if pip_pos[fi] is not None and dip_pos[fi] is not None:
             seg_dip.append(float(np.linalg.norm(dip_pos[fi] - pip_pos[fi])))
         else:
@@ -276,8 +278,100 @@ def _transform_input_keypoints(raw_kp, retargeter, hand):
     return np.asarray(kp, dtype=np.float64)
 
 
+def collect_median_keypoints(input_device, hand, duration, label="采集中"):
+    """Median of the transformed keypoints over a capture, before rotation.
+
+    Batch calibration reuses one capture across every robot, and each robot
+    applies its own ``mediapipe_rotation``, so the rotation is deliberately
+    left off here and applied per robot later.
+
+    Returns:
+        (median_keypoints, accepted_frames, seen_frames)
+    """
+    samples = []
+    seen = 0
+    start = time.time()
+    last_print = 0.0
+    while time.time() - start < duration:
+        fingers_data = input_device.get_fingers_data()
+        raw_kp = fingers_data[f"{hand}_fingers"]
+        if np.allclose(raw_kp, 0):
+            continue
+        kp = apply_mediapipe_transformations(np.asarray(raw_kp), hand)
+        seen += 1
+        samples.append(kp)
+
+        elapsed = time.time() - start
+        if elapsed - last_print >= 1.0:
+            last_print = elapsed
+            print(
+                f"  {label}... {elapsed:.0f}/{duration:.0f}s  "
+                f"(有效 {len(samples)}/{seen} 帧)",
+                flush=True,
+            )
+
+    if not samples:
+        return None, 0, seen
+    return _robust_center(np.asarray(samples)), len(samples), seen
+
+
+DEGENERATE_SEGMENT_M = 5e-4  # 0.5 mm: below this a robot link has no length
+
+
+def palm_scale_for_finger(robot_root_len, human_palm_len):
+    """Scale that stretches the human wrist->MCP span to the robot's.
+
+    FullHandVec scales this span like any other, so the palm-length mismatch
+    is absorbed here instead of by the phalanx factors.
+    """
+    if human_palm_len > 1e-4 and robot_root_len > 1e-6:
+        return round(robot_root_len / human_palm_len, 3)
+    return 1.0
+
+
+def segment_scales_for_finger(robot_segments, human_segments):
+    """Three per-segment scales, merging phalanges when a robot link is absent.
+
+    Inspire, Ability and ROHand only have two moving phalanges, so their
+    ``link1_names`` and ``link3_names`` name the same link and the first robot
+    segment has zero length.  Scaling the human proximal phalanx by zero would
+    throw it away.  Because the chain accumulates,
+
+        root + prox * s + mid * s  ==  root + (DIP - MCP) * s
+
+    using one shared scale for the first two segments maps the human's whole
+    proximal-plus-middle span onto the robot's single first link instead.
+
+    Args:
+        robot_segments: (root->link3, link3->link4, link4->tip) lengths in m.
+        human_segments: (MCP->PIP, PIP->DIP, DIP->TIP) lengths in m.
+
+    Returns:
+        (scales, merged) where ``merged`` flags the two-phalanx fallback.
+    """
+    r0, r1, r2 = (float(v or 0.0) for v in robot_segments)
+    h0, h1, h2 = (float(v or 0.0) for v in human_segments)
+
+    def safe(robot_len, human_len, default=1.0):
+        return round(robot_len / human_len, 3) if human_len > 1e-4 else default
+
+    if r0 < DEGENERATE_SEGMENT_M:
+        shared = safe(r1, h0 + h1)
+        return [shared, shared, safe(r2, h2)], True
+    return [safe(r0, h0), safe(r1, h1), safe(r2, h2)], False
+
+
+def _phalanx_segments(kp, mp_finger_index):
+    """Three phalanx vectors (MCP->PIP, PIP->DIP, DIP->TIP) of one finger."""
+    mcp = kp[MP_MCP_INDICES[mp_finger_index]]
+    pip = kp[MP_PIP_INDICES[mp_finger_index]]
+    dip = kp[MP_DIP_INDICES[mp_finger_index]]
+    tip = kp[MP_TIP_INDICES[mp_finger_index]]
+    return np.stack([pip - mcp, dip - pip, tip - dip])
+
+
 def _robust_center(values):
-    """Robust scalar/vector center used to suppress Pico tracking spikes."""
+    """Robust scalar/vector center used to suppress tracking spikes."""
     arr = np.asarray(values, dtype=np.float64)
     if arr.size == 0:
         return None
@@ -298,7 +392,7 @@ def _wait_for_capture_start(input_device, message):
         try:
             import cv2
             key = cv2.waitKey(1) & 0xFF
-            if key in (ord('s'), 13, ord(' ')):
+            if key in (ord("s"), 13, ord(" ")):
                 return
         except Exception:
             pass
@@ -325,149 +419,18 @@ def _pose_countdown(input_device, delay):
     print("  开始采集。", flush=True)
 
 
-def collect_pinch_vectors(
-    input_device,
-    retargeter,
-    hand,
-    finger_index,
-    duration,
-    max_gap_m,
-):
-    """Collect wrist→thumb-tip and wrist→finger-tip vectors during a pinch.
-
-    Only frames whose unscaled thumb/finger tip gap is below ``max_gap_m`` are
-    accepted.  Returning vectors (rather than lengths) lets the functional
-    calibration directly minimize the green skeleton's opposition gap.
-    """
-    optimizer = retargeter.optimizer
-    mp_thumb = optimizer.mp_finger_indices[0]
-    mp_finger = optimizer.mp_finger_indices[finger_index]
-    thumb_tip_idx = optimizer.MP_TIP_INDICES[mp_thumb]
-    finger_tip_idx = optimizer.MP_TIP_INDICES[mp_finger]
-
-    thumb_vectors = []
-    finger_vectors = []
-    raw_gaps = []
-    seen = 0
-    start = time.time()
-    last_print = 0.0
-    while time.time() - start < duration:
-        fingers_data = input_device.get_fingers_data()
-        raw_kp = fingers_data[f"{hand}_fingers"]
-        if np.allclose(raw_kp, 0):
-            continue
-        kp = _transform_input_keypoints(raw_kp, retargeter, hand)
-        wrist = kp[0]
-        thumb_tip = kp[thumb_tip_idx]
-        finger_tip = kp[finger_tip_idx]
-        gap = float(np.linalg.norm(thumb_tip - finger_tip))
-        seen += 1
-        if np.isfinite(gap) and gap <= max_gap_m:
-            thumb_vectors.append(thumb_tip - wrist)
-            finger_vectors.append(finger_tip - wrist)
-            raw_gaps.append(gap)
-
-        elapsed = time.time() - start
-        if elapsed - last_print >= 1.0:
-            last_print = elapsed
-            print(
-                f"  采集中... {elapsed:.0f}/{duration:.0f}s  "
-                f"(有效 {len(raw_gaps)}/{seen} 帧, "
-                f"阈值 {max_gap_m * 100:.1f}cm)",
-                flush=True,
-            )
-
-    if not raw_gaps:
-        return None
-    return {
-        "thumb_vector": _robust_center(thumb_vectors),
-        "finger_vector": _robust_center(finger_vectors),
-        "raw_gap": float(_robust_center(raw_gaps)),
-        "valid_frames": len(raw_gaps),
-        "seen_frames": seen,
-    }
-
-
-def refine_tip_scales_for_pinches(
-    initial_tip_scales,
-    pinch_samples,
-    prior_weight=1.0,
-    pinch_weight=4.0,
-    max_relative_change=0.25,
-):
-    """Jointly refine fingertip scales using captured opposition contacts.
-
-    The least-squares objective is
-
-        prior_weight * Σ ((s_i - s0_i) / s0_i)^2
-        + pinch_weight * Σ ||s_thumb*v_thumb - s_i*v_i||^2 / L_i^2
-
-    where ``s0`` is the open-hand morphology estimate.  The first term keeps
-    robot/human reach matching; the second makes the actual scaled green tips
-    agree during opposition.  Bounds prevent a bad capture from producing an
-    unsafe jump in scale.
-    """
-    initial = np.asarray(initial_tip_scales, dtype=np.float64)
-    if initial.ndim != 1 or np.any(initial <= 0):
-        raise ValueError("initial_tip_scales must be a positive 1-D array")
-    if prior_weight <= 0 or pinch_weight < 0:
-        raise ValueError("prior_weight must be > 0 and pinch_weight must be >= 0")
-    if not 0 <= max_relative_change < 1:
-        raise ValueError("max_relative_change must be in [0, 1)")
-
-    n = len(initial)
-    rows = []
-    rhs = []
-
-    # Relative prior: (s_i - s0_i) / s0_i = 0.
-    prior_scale = np.sqrt(prior_weight)
-    for i in range(n):
-        row = np.zeros(n, dtype=np.float64)
-        row[i] = prior_scale / initial[i]
-        rows.append(row)
-        rhs.append(prior_scale)
-
-    contact_scale = np.sqrt(pinch_weight)
-    for finger_index, sample in sorted(pinch_samples.items()):
-        if sample is None or not (0 < finger_index < n):
-            continue
-        vt = np.asarray(sample["thumb_vector"], dtype=np.float64)
-        vf = np.asarray(sample["finger_vector"], dtype=np.float64)
-        length_ref = max(0.5 * (np.linalg.norm(vt) + np.linalg.norm(vf)), 1e-6)
-        for axis in range(3):
-            row = np.zeros(n, dtype=np.float64)
-            row[0] = contact_scale * vt[axis] / length_ref
-            row[finger_index] = -contact_scale * vf[axis] / length_ref
-            rows.append(row)
-            rhs.append(0.0)
-
-    A = np.asarray(rows, dtype=np.float64)
-    b = np.asarray(rhs, dtype=np.float64)
-    solution, *_ = np.linalg.lstsq(A, b, rcond=None)
-
-    lower = initial * (1.0 - max_relative_change)
-    upper = initial * (1.0 + max_relative_change)
-    return np.clip(solution, lower, upper)
-
-
-def _scaled_pinch_gap(sample, tip_scales, finger_index):
-    if sample is None:
-        return None
-    vt = np.asarray(sample["thumb_vector"], dtype=np.float64)
-    vf = np.asarray(sample["finger_vector"], dtype=np.float64)
-    return float(np.linalg.norm(tip_scales[0] * vt - tip_scales[finger_index] * vf))
-
-
 def collect_human_distances(input_device, retargeter, hand, duration):
     """Collect input data for `duration` seconds and compute robust median distances.
 
     Returns:
         frames: number of valid frames
         cumulative: (pip_median, dip_median, tip_median) — wrist→PIP/DIP/TIP
-        segment: (seg_pip, seg_dip, seg_tip) — wrist→PIP, PIP→DIP, DIP→TIP
+        segment: (seg_pip, seg_dip, seg_tip) — MCP→PIP, PIP→DIP, DIP→TIP
+        palm: wrist→MCP median per finger, the span segment_scaling[0] scales
     """
     optimizer = retargeter.optimizer
     nf = optimizer.num_fingers
+    mcp_idx = [optimizer.MP_MCP_INDICES[i] for i in optimizer.mp_finger_indices]
     pip_idx = [optimizer.MP_PIP_INDICES[i] for i in optimizer.mp_finger_indices]
     dip_idx = [optimizer.MP_DIP_INDICES[i] for i in optimizer.mp_finger_indices]
     tip_idx = [optimizer.MP_TIP_INDICES[i] for i in optimizer.mp_finger_indices]
@@ -478,6 +441,7 @@ def collect_human_distances(input_device, retargeter, hand, duration):
     seg_pip_buf = [[] for _ in range(nf)]
     seg_dip_buf = [[] for _ in range(nf)]
     seg_tip_buf = [[] for _ in range(nf)]
+    palm_buf = [[] for _ in range(nf)]
 
     start = time.time()
     frames = 0
@@ -492,15 +456,17 @@ def collect_human_distances(input_device, retargeter, hand, duration):
 
         wrist = kp[0]
         for i in range(nf):
+            p_mcp = kp[mcp_idx[i]]
             p_pip = kp[pip_idx[i]]
             p_dip = kp[dip_idx[i]]
             p_tip = kp[tip_idx[i]]
-            # Cumulative
+            # Cumulative (diagnostics only)
             pip_buf[i].append(float(np.linalg.norm(p_pip - wrist)))
             dip_buf[i].append(float(np.linalg.norm(p_dip - wrist)))
             tip_buf[i].append(float(np.linalg.norm(p_tip - wrist)))
-            # Per-segment
-            seg_pip_buf[i].append(float(np.linalg.norm(p_pip - wrist)))
+            # Per-segment lengths — these drive segment_scaling
+            palm_buf[i].append(float(np.linalg.norm(p_mcp - wrist)))
+            seg_pip_buf[i].append(float(np.linalg.norm(p_pip - p_mcp)))
             seg_dip_buf[i].append(float(np.linalg.norm(p_dip - p_pip)))
             seg_tip_buf[i].append(float(np.linalg.norm(p_tip - p_dip)))
         frames += 1
@@ -511,14 +477,125 @@ def collect_human_distances(input_device, retargeter, hand, duration):
             print(f"  采集中... {elapsed:.0f}/{duration:.0f}s  ({frames} 帧)", flush=True)
 
     if frames == 0:
-        return frames, None, None
+        return frames, None, None, None
 
     def robust_list(bufs):
         return [float(_robust_center(b)) if b else 0.0 for b in bufs]
 
     cumulative = (robust_list(pip_buf), robust_list(dip_buf), robust_list(tip_buf))
     segment = (robust_list(seg_pip_buf), robust_list(seg_dip_buf), robust_list(seg_tip_buf))
-    return frames, cumulative, segment
+    return frames, cumulative, segment, robust_list(palm_buf)
+
+
+def calibrate_one_robot(args, robot_file, open_kp):
+    """Derive segment_scaling for a single robot from shared human captures.
+
+    ``open_kp`` holds un-rotated keypoints so every robot can apply its own
+    ``mediapipe_rotation`` before measuring.
+
+    Returns:
+        (result, cumulative_result, fi_names, merged_fingers) or None when the
+        robot has no config for this input source.
+    """
+    adaptive_path, _ = _resolve_config_paths(args, robot_file)
+    if not adaptive_path.exists():
+        return None
+
+    retargeter = Retargeter.from_yaml(str(adaptive_path), args.hand)
+    optimizer = retargeter.optimizer
+    mp_fingers = list(optimizer.mp_finger_indices)
+    fi_names = [FINGER_NAMES[i] for i in mp_fingers]
+
+    def rotated(kp):
+        return retargeter._apply_rotation(kp) if retargeter.rotation_xyz else kp
+
+    kp_open = rotated(open_kp)
+    (pip_robot, dip_robot, tip_robot), (rseg_pip, rseg_dip, rseg_tip) = \
+        get_robot_distances(optimizer)
+
+    def ratio(robot_d, human_d):
+        if robot_d and human_d and human_d > 1e-4:
+            return round(robot_d / human_d, 3)
+        return 1.0
+
+    wrist = kp_open[0]
+    result = {}
+    cumulative_result = {}
+    merged_fingers = []
+    robot_roots_m = optimizer.finger_root_vectors * CM_TO_M
+    for i, fi in enumerate(mp_fingers):
+        segs = np.linalg.norm(_phalanx_segments(kp_open, fi), axis=1)
+        scales, merged = segment_scales_for_finger(
+            (rseg_pip[i], rseg_dip[i], rseg_tip[i]), segs
+        )
+        palm = palm_scale_for_finger(
+            float(np.linalg.norm(robot_roots_m[i])),
+            float(np.linalg.norm(kp_open[MP_MCP_INDICES[fi]] - wrist)),
+        )
+        result[fi_names[i]] = [palm] + scales
+        if merged:
+            merged_fingers.append(fi_names[i])
+        cumulative_result[fi_names[i]] = [
+            ratio(pip_robot[i], float(np.linalg.norm(kp_open[MP_PIP_INDICES[fi]] - wrist))),
+            ratio(dip_robot[i], float(np.linalg.norm(kp_open[MP_DIP_INDICES[fi]] - wrist))),
+            ratio(tip_robot[i], float(np.linalg.norm(kp_open[MP_TIP_INDICES[fi]] - wrist))),
+        ]
+
+    return result, cumulative_result, fi_names, merged_fingers
+
+
+def run_batch_calibration(args):
+    """Capture the human hand once and calibrate every configured robot."""
+    device = create_input_device(args)
+
+    _wait_for_capture_start(
+        device,
+        "请自然伸直并张开所有手指。不要握拳；按 Enter/空格/s 后有 "
+        f"{args.pose_delay:g} 秒调整姿势，再采集 {args.duration:.0f} 秒...",
+    )
+    _pose_countdown(device, args.pose_delay)
+    open_kp, frames, _ = collect_median_keypoints(device, args.hand, args.duration)
+    if open_kp is None:
+        print("未收到有效数据，请检查输入设备。")
+        return
+    print(f"张手采集完成，共 {frames} 帧")
+
+    print(f"\n{'='*68}")
+    print(f"逐机器人标定（{args.input} 输入）")
+    print(f"{'='*68}")
+
+    written, skipped = [], []
+    for short_name, robot_file in ROBOT_NAME_MAP.items():
+        outcome = calibrate_one_robot(args, robot_file, open_kp)
+        if outcome is None:
+            skipped.append(short_name)
+            continue
+        result, cumulative_result, fi_names, merged_fingers = outcome
+
+        print(f"\n--- {short_name} ({robot_file})")
+        print(f"    {'手指':8s}  {'腕→MCP':>8s}  {'MCP→PIP':>8s}  {'PIP→DIP':>8s}  {'DIP→TIP':>8s}")
+        for name in fi_names:
+            v = result[name]
+            print(f"    {name:8s}  " + "  ".join(f"{x:>8.3f}" for x in v))
+        if merged_fingers:
+            print(f"      注意: {', '.join(merged_fingers)} 只有两节指骨，"
+                  f"已把人手近节+中节合并映射到机械手第一节（前两个系数相同）")
+
+        if args.dry_run:
+            continue
+        if args.write:
+            write_configs(args, robot_file, result, cumulative_result)
+            written.append(short_name)
+
+    print(f"\n{'='*68}")
+    if args.dry_run:
+        print("dry-run：仅显示建议值，未写入任何配置。")
+    elif args.write:
+        print(f"已写入 {len(written)} 个机器人: {', '.join(written)}")
+    else:
+        print("未指定 --write，未写入任何配置。加 --write 可批量落盘。")
+    if skipped:
+        print(f"跳过（该输入源无配置）: {', '.join(skipped)}")
 
 
 def create_input_device(args):
@@ -571,11 +648,14 @@ def main():
         description="Calibrate segment_scaling for any robot hand and input source",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--config", default=None,
-                        help="Config YAML path (overrides --robot and --input for config lookup)")
     parser.add_argument("--robot", default="wuji",
                         choices=list(ROBOT_NAME_MAP.keys()),
                         help="Robot hand type (default: wuji)")
+    parser.add_argument("--all-robots", action="store_true",
+                        help="Calibrate every robot for this input source from a "
+                             "single hand capture. segment_scaling divides robot "
+                             "link lengths by human phalanx lengths, and the human "
+                             "side is rotation-invariant, so one capture serves all.")
     parser.add_argument("--hand", default="right", choices=["left", "right"])
     parser.add_argument("--input", default="mediapipe",
                         choices=["mediapipe", "noitom", "quest3", "avp", "pico4"],
@@ -585,29 +665,8 @@ def main():
     parser.add_argument("--show-video", action="store_true")
     parser.add_argument("--duration", type=float, default=5.0,
                         help="采集时长（秒），默认 5")
-    parser.add_argument(
-        "--calibration-mode",
-        default="open",
-        choices=["open", "functional"],
-        help=("open=仅张手长度标定；functional=张手初值 + 四次对指任务标定 "
-              "（Gaia/Pico 推荐）"),
-    )
-    parser.add_argument("--pinch-duration", type=float, default=3.0,
-                        help="functional 模式下每个对指动作的采集时长（秒），默认 3")
     parser.add_argument("--pose-delay", type=float, default=2.0,
                         help="按 Enter/空格/s 后留给调整姿势的时间（秒），默认 2")
-    parser.add_argument("--pinch-max-gap", type=float, default=3.5,
-                        help="接受对指帧的原始指尖距离阈值（厘米），默认 3.5")
-    parser.add_argument("--pinch-weight", type=float, default=4.0,
-                        help="对指接触相对于张手长度初值的权重，默认 4.0")
-    parser.add_argument("--scale-prior-weight", type=float, default=1.0,
-                        help="保留张手长度初值的权重，默认 1.0")
-    parser.add_argument("--functional-base", default="current", choices=["current", "open"],
-                        help="functional 初值：current=当前配置（推荐），open=张手距离比")
-    parser.add_argument("--max-tip-scale-change", type=float, default=0.10,
-                        help="对指阶段允许 TIP scale 相对初值最大变化，默认 0.10")
-    parser.add_argument("--min-distal-ratio", type=float, default=0.6,
-                        help="绿色 DIP→TIP 至少保留机器人末节长度的比例，默认 0.6")
     # Noitom
     parser.add_argument("--noitom-local-ip", default="0.0.0.0")
     parser.add_argument("--noitom-local-port", type=int, default=8000)
@@ -640,30 +699,24 @@ def main():
     args = parser.parse_args()
     if args.write and args.dry_run:
         parser.error("--write and --dry-run cannot be used together")
-    if args.duration <= 0 or args.pinch_duration <= 0:
-        parser.error("--duration and --pinch-duration must be positive")
+    if args.duration <= 0:
+        parser.error("--duration must be positive")
     if args.pose_delay < 0:
         parser.error("--pose-delay must be >= 0")
-    if args.pinch_max_gap <= 0:
-        parser.error("--pinch-max-gap must be positive")
-    if args.pinch_weight < 0 or args.scale_prior_weight <= 0:
-        parser.error("--pinch-weight must be >= 0 and --scale-prior-weight must be > 0")
-    if not 0 <= args.max_tip_scale_change < 1:
-        parser.error("--max-tip-scale-change must be in [0, 1)")
-    if not 0 <= args.min_distal_ratio <= 1:
-        parser.error("--min-distal-ratio must be in [0, 1]")
+    if args.all_robots:
+        print(f"批量标定 | 输入源: {args.input} | 手: {args.hand}")
+        run_batch_calibration(args)
+        return
 
     # Resolve config path
     robot_file = ROBOT_NAME_MAP.get(args.robot, args.robot)
     config_dir = INPUT_TO_CONFIG_DIR[args.input]
-    config_path = args.config if args.config \
-        else f"config/adaptive/{config_dir}/{config_dir}_{robot_file}.yaml"
+    config_path = f"config/adaptive/{config_dir}/{config_dir}_{robot_file}.yaml"
     config_file = EXAMPLE_ROOT / config_path
 
     print(f"配置文件: {config_file}")
     print(f"输入源:   {args.input}")
     print(f"机器人:   {robot_file}")
-    print(f"标定模式: {args.calibration_mode}")
     if args.input == "pico4":
         if args.pico4_mode == "direct":
             print(f"Pico4模式: direct (tcp={args.pico4_port}, udp_broadcast={args.pico4_broadcast_port})")
@@ -674,19 +727,6 @@ def main():
     optimizer = retargeter.optimizer
     nf = optimizer.num_fingers
     fi_names = [FINGER_NAMES[i] for i in optimizer.mp_finger_indices]
-    configured_scaling = None
-    if hasattr(optimizer, "segment_scaling"):
-        configured_scaling = np.asarray(optimizer.segment_scaling, dtype=np.float64).copy()
-    elif hasattr(optimizer, "_task_kp_indices") and hasattr(optimizer, "_vector_scalings"):
-        configured_scaling = np.ones((nf, 3), dtype=np.float64)
-        for task_kp, scale in zip(optimizer._task_kp_indices, optimizer._vector_scalings):
-            mapping = _KP_TO_FINGER_LEVEL.get(int(task_kp))
-            if mapping is None:
-                continue
-            finger_name, level = mapping
-            if finger_name in fi_names:
-                configured_scaling[fi_names.index(finger_name), level] = float(scale)
-
     # ── Robot FK distances ───────────────────────────────────────────────────
     print("\n正在计算机器人 FK 距离（中性位姿）...")
     (pip_robot, dip_robot, tip_robot), (rseg_pip, rseg_dip, rseg_tip) = \
@@ -721,7 +761,7 @@ def main():
     print("开始采集张手姿态...")
 
     # ── Collect ──────────────────────────────────────────────────────────────
-    frames, cumulative, segment = collect_human_distances(
+    frames, cumulative, segment, hpalm = collect_human_distances(
         input_device, retargeter, args.hand, args.duration
     )
 
@@ -733,37 +773,6 @@ def main():
     hseg_pip, hseg_dip, hseg_tip = segment
 
     print(f"张手采集完成，共 {frames} 帧")
-
-    pinch_samples = {}
-    if args.calibration_mode == "functional":
-        print(f"\n{'='*68}")
-        print("开始任务标定：依次用拇指与四指指腹自然对指。")
-        print("这里标定的是绿色目标骨架的接触保持，不要求握紧或用力挤压。")
-        max_gap_m = args.pinch_max_gap / 100.0
-        for finger_index in range(1, nf):
-            finger_name = fi_names[finger_index]
-            _wait_for_capture_start(
-                input_device,
-                f"请准备拇指-{finger_name}自然对指；按 Enter/空格/s 后有 "
-                f"{args.pose_delay:g} 秒调整姿势，再采集 {args.pinch_duration:.0f} 秒...",
-            )
-            _pose_countdown(input_device, args.pose_delay)
-            sample = collect_pinch_vectors(
-                input_device,
-                retargeter,
-                args.hand,
-                finger_index,
-                args.pinch_duration,
-                max_gap_m,
-            )
-            pinch_samples[finger_index] = sample
-            if sample is None:
-                print(f"  警告：{finger_name} 没有满足距离阈值的有效帧，将保留张手初值。")
-            else:
-                print(
-                    f"  {finger_name}: 有效 {sample['valid_frames']}/{sample['seen_frames']} 帧, "
-                    f"原始 gap 中位数 {sample['raw_gap'] * 100:.2f}cm"
-                )
 
     print(f"\n{'='*68}")
     print(f"人手输入距离（变换后中位数）")
@@ -786,111 +795,47 @@ def main():
             return round(robot_d / human_d, 3)
         return 1.0
 
+    # segment_scaling scales every span of the chain independently, so each
+    # factor is calibrated against its own robot link: the wrist->MCP factor
+    # stretches the palm, the other three the phalanges.
+    robot_roots_m = optimizer.finger_root_vectors * CM_TO_M
     open_result = {}
     for i, fname in enumerate(fi_names):
-        open_result[fname] = [
+        scales, merged = segment_scales_for_finger(
+            (rseg_pip[i], rseg_dip[i], rseg_tip[i]),
+            (hseg_pip[i], hseg_dip[i], hseg_tip[i]),
+        )
+        palm = palm_scale_for_finger(
+            float(np.linalg.norm(robot_roots_m[i])), float(hpalm[i])
+        )
+        open_result[fname] = [palm] + scales
+        if merged:
+            print(f"  注意: {fname} 只有两节指骨，已合并近节+中节（第 2、3 个系数相同）")
+
+    result = {name: list(vals) for name, vals in open_result.items()}
+
+    # Cumulative ratios are no longer what segment_scaling means, but they
+    # still make a useful sanity check on overall reach.
+    cumulative_result = {}
+    for i, fname in enumerate(fi_names):
+        cumulative_result[fname] = [
             ratio(pip_robot[i], pip_human[i]),
             ratio(dip_robot[i], dip_human[i]),
             ratio(tip_robot[i], tip_human[i]),
-        ]
-
-    # Raw open-hand ratios are useful diagnostics, but Linker-style fixed palm
-    # mounts and the movable human thumb CMC make them unsafe as an automatic
-    # overwrite.  Functional mode therefore refines the current tuned config by
-    # default; --functional-base open explicitly opts into the raw ratios.
-    result = {name: list(vals) for name, vals in open_result.items()}
-    if (
-        args.calibration_mode == "functional"
-        and args.functional_base == "current"
-        and configured_scaling is not None
-    ):
-        for i, name in enumerate(fi_names):
-            result[name] = [float(v) for v in configured_scaling[i]]
-        print(f"\n{'='*68}")
-        print("functional 初值使用当前配置（不会用原始张手 ratio 覆盖 PIP/DIP）")
-        print(f"{'='*68}")
-        for name in fi_names:
-            print(f"  {name:8s}: {result[name]}")
-
-    # Functional refinement only changes TIP scales.  PIP/DIP remain tied to
-    # the robust open-hand morphology estimate, while TIP scales are solved
-    # jointly so the scaled green skeleton preserves opposition contacts.
-    initial_tip_scales = np.array([result[name][2] for name in fi_names], dtype=np.float64)
-    if args.calibration_mode == "functional" and any(
-        sample is not None for sample in pinch_samples.values()
-    ):
-        refined_tip_scales = refine_tip_scales_for_pinches(
-            initial_tip_scales,
-            pinch_samples,
-            prior_weight=args.scale_prior_weight,
-            pinch_weight=args.pinch_weight,
-            max_relative_change=args.max_tip_scale_change,
-        )
-
-        # Structural guard: never let contact fitting pull a green fingertip
-        # behind its DIP in the captured open pose.  Keep at least a fraction of
-        # the robot's physical distal-link length in radial reach.
-        for i, name in enumerate(fi_names):
-            if not tip_human[i] or not dip_human[i]:
-                continue
-            dip_scale = float(result[name][1])
-            min_tip_reach = (
-                dip_scale * dip_human[i]
-                + args.min_distal_ratio * float(rseg_tip[i] or 0.0)
-            )
-            min_tip_scale = min_tip_reach / tip_human[i]
-            if refined_tip_scales[i] < min_tip_scale:
-                print(
-                    f"  结构约束: {name} TIP {refined_tip_scales[i]:.4f} → "
-                    f"{min_tip_scale:.4f}（防止 TIP 缩到 DIP 后方）"
-                )
-                refined_tip_scales[i] = min_tip_scale
-
-        print(f"\n{'='*68}")
-        print("对指任务修正（仅 TIP scale）")
-        print(f"{'='*68}")
-        print(f"  {'手指':8s}  {'张手初值':>9s}  {'任务修正':>9s}  {'变化':>9s}")
-        for i, name in enumerate(fi_names):
-            change = 100.0 * (refined_tip_scales[i] / initial_tip_scales[i] - 1.0)
-            print(
-                f"  {name:8s}  {initial_tip_scales[i]:>9.4f}  "
-                f"{refined_tip_scales[i]:>9.4f}  {change:>+8.1f}%"
-            )
-            result[name][2] = round(float(refined_tip_scales[i]), 4)
-
-        print("\n  绿色 TIP 对指 gap（修正前 → 修正后）:")
-        for finger_index, sample in sorted(pinch_samples.items()):
-            if sample is None:
-                continue
-            before = _scaled_pinch_gap(sample, initial_tip_scales, finger_index)
-            after = _scaled_pinch_gap(sample, refined_tip_scales, finger_index)
-            print(
-                f"  thumb-{fi_names[finger_index]:7s}: "
-                f"{before * 100:6.2f}cm → {after * 100:6.2f}cm"
-            )
-
-    # Per-segment ratios (for reference)
-    seg_result = {}
-    for i, fname in enumerate(fi_names):
-        seg_result[fname] = [
-            ratio(rseg_pip[i], hseg_pip[i]),
-            ratio(rseg_dip[i], hseg_dip[i]),
-            ratio(rseg_tip[i], hseg_tip[i]),
         ]
 
     print(f"\n{'='*68}")
     print(f"标定结果")
     print(f"{'='*68}")
 
-    label = "任务约束后的建议值" if args.calibration_mode == "functional" else "累计距离 ratio"
-    print(f"\n  segment_scaling（{label}，用于配置文件）:")
-    print(f"  {'手指':8s}  {'PIP':>6s}  {'DIP':>6s}  {'TIP':>6s}")
+    print("\n  segment_scaling（逐段骨长 ratio，用于配置文件）:")
+    print(f"  {'手指':8s}  {'腕→MCP':>8s}  {'MCP→PIP':>8s}  {'PIP→DIP':>8s}  {'DIP→TIP':>8s}")
     for fname, vals in result.items():
-        print(f"  {fname:8s}  {vals[0]:>6.3f}  {vals[1]:>6.3f}  {vals[2]:>6.3f}")
+        print(f"  {fname:8s}  " + "  ".join(f"{x:>8.3f}" for x in vals))
 
-    print(f"\n  逐段 ratio（参考）:")
+    print(f"\n  累计距离 ratio（仅供参考，不再用于配置）:")
     print(f"  {'手指':8s}  {'o→L3':>6s}  {'L3→L4':>6s}  {'L4→tip':>6s}")
-    for fname, vals in seg_result.items():
+    for fname, vals in cumulative_result.items():
         print(f"  {fname:8s}  {vals[0]:>6.3f}  {vals[1]:>6.3f}  {vals[2]:>6.3f}")
 
     print(f"\n复制以下内容到配置文件的 segment_scaling 部分:")
@@ -902,18 +847,15 @@ def main():
     print(f"\n{'='*68}")
     if args.write:
         print("写入配置文件...")
-        write_configs(args, robot_file, result, explicit_config_path=args.config)
+        write_configs(args, robot_file, result, cumulative_result)
     else:
         # Show which files would be written
-        if args.config:
-            targets_info = [args.config]
-        else:
-            adaptive_path, vector_path = _resolve_config_paths(args, robot_file)
-            targets_info = []
-            if args.optimizer in ("adaptive", "both") and adaptive_path.exists():
-                targets_info.append(str(adaptive_path))
-            if args.optimizer in ("vector", "both") and vector_path.exists():
-                targets_info.append(str(vector_path))
+        adaptive_path, vector_path = _resolve_config_paths(args, robot_file)
+        targets_info = []
+        if args.optimizer in ("adaptive", "both") and adaptive_path.exists():
+            targets_info.append(str(adaptive_path))
+        if args.optimizer in ("vector", "both") and vector_path.exists():
+            targets_info.append(str(vector_path))
 
         if targets_info:
             print("目标配置文件:")
@@ -924,7 +866,7 @@ def main():
             else:
                 answer = input("\n是否写入？[y=写入 / n=跳过]: ").strip().lower()
                 if answer == "y":
-                    write_configs(args, robot_file, result, explicit_config_path=args.config)
+                    write_configs(args, robot_file, result, cumulative_result)
                 else:
                     print("已跳过写入。")
         else:

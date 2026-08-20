@@ -27,14 +27,14 @@ retarget:
   w_full_hand: 1.0             # Full hand vec weight
 
   # Per-finger segment scaling [PIP, DIP, TIP]
-  pinch_scaling: 1.2081
+  pinch_scaling: 1.1884
   alpha: 1.0
   segment_scaling:
-    thumb: [1.192, 1.344, 1.143, 0.949]
-    index: [1.163, 1.176, 1.195, 1.232]
-    middle: [1.207, 0.99, 1.013, 1.04]
-    ring: [1.218, 1.051, 1.222, 1.224]
-    pinky: [1.148, 1.67, 1.488, 1.354]
+    thumb: [1.187, 1.337, 1.141, 0.936]
+    index: [1.158, 1.171, 1.188, 1.227]
+    middle: [1.202, 0.986, 1.012, 1.038]
+    ring: [1.213, 1.047, 1.21, 1.219]
+    pinky: [1.142, 1.671, 1.488, 1.345]
 
   # Pinch distance thresholds (cm) for each finger
   pinch_thresholds:
