@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-High-precision hand pose retargeting system. Supports two optimizers (**Adaptive** and **KeyVector**), multiple dexterous hands, and multiple hand-tracking input sources for simulation and teleoperation.
+High-precision hand pose retargeting system. Supports two optimizers, multiple dexterous hands, and multiple hand-tracking input sources for simulation and reality.
 
 ## Demo
 
