@@ -6,6 +6,7 @@ send them to real hardware via:
 - TCP socket bridge (Shadow Hand)
 - direct serial protocol (Inspire RH56DFX)
 - Gaia HandSDK (GaiaHand20 / Gaia20)
+- RS485 Modbus (Linker L20)
 """
 
 import argparse
@@ -22,7 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from anydexretarget import Retargeter
-from output.real import GaiaHand20Output, InspireSerialOutput, ShadowTCPOutput, WujiOutput
+from output.real import GaiaHand20Output, InspireSerialOutput, LinkerL20Output, ShadowTCPOutput, WujiOutput
 
 
 # -------------------- Teleoperation --------------------
@@ -68,6 +69,15 @@ def run_teleop(
     gaia_enable_delay: float = 1.0,
     gaia_command_hz: float = 100.0,
     gaia_zero_on_close: bool = False,
+    l20_port: str = "/dev/ttyUSB0",
+    l20_baudrate: int = 460800,
+    l20_slave_id: int | None = None,
+    l20_speed: int = 200,
+    l20_current_limit: int = 200,
+    l20_clear_faults: bool = False,
+    l20_open_on_exit: bool = False,
+    l20_print_registers: bool = False,
+    l20_dry_run: bool = False,
 ):
     """Run teleoperation with real hardware.
 
@@ -166,6 +176,18 @@ def run_teleop(
             command_hz=gaia_command_hz,
             zero_on_close=gaia_zero_on_close,
         )
+    elif robot_type == "linker_l20":
+        output = LinkerL20Output(
+            port=l20_port,
+            baudrate=l20_baudrate,
+            slave_id=l20_slave_id if l20_slave_id is not None else (0x29 if hand_side == "right" else 0x2A),
+            speed=l20_speed,
+            current_limit=l20_current_limit,
+            clear_faults=l20_clear_faults,
+            open_on_exit=l20_open_on_exit,
+            print_registers=l20_print_registers,
+            dry_run=l20_dry_run,
+        )
     else:
         raise ValueError(f"Unknown robot type: {robot_type}")
 
@@ -241,6 +263,13 @@ def run_teleop(
                 f"(slcan={gaia_use_slcan}, main_board={gaia_has_main_board}, "
                 f"command_hz={gaia_command_hz:g}, pip_scale={gaia_pip_scale:g}, "
                 f"thumb_pip_scale={gaia_thumb_pip_scale:g})"
+            )
+        elif robot_type == "linker_l20":
+            effective_l20_slave_id = l20_slave_id if l20_slave_id is not None else (0x29 if hand_side == "right" else 0x2A)
+            print(
+                f"  Linker L20 RS485: {l20_port} @ {l20_baudrate} "
+                f"(slave_id={effective_l20_slave_id}, speed={l20_speed}, "
+                f"current_limit={l20_current_limit}, dry_run={l20_dry_run})"
             )
         print("=" * 50)
 
@@ -318,6 +347,12 @@ Examples:
   # GaiaHand20 through HandSDK using the local Pico relay daemon
   python teleop_real.py --robot gaia --input pico4 --hand right --pico4-mode relay --gaia-port /dev/ttyACM0
 
+  # Linker L20 through RS485 Modbus
+  python teleop_real.py --robot linker_l20 --input pico4 --hand right --pico4-mode relay --l20-port /dev/ttyUSB0
+
+  # Linker L20 dry-run register print without opening serial
+  python teleop_real.py --robot linker_l20 --play data/avp1.pkl --l20-dry-run --l20-print-registers
+
   # GaiaHand20 without main board (direct serial)
   python teleop_real.py --robot gaia --play data/avp1.pkl --gaia-port /dev/ttyUSB0 --gaia-baudrate 230400 --no-gaia-use-slcan --no-gaia-has-main-board
 
@@ -338,7 +373,7 @@ Examples:
                         choices=["adaptive", "vector"],
                         help="Optimizer type: adaptive (default) or vector (KeyVectorOptimizer)")
     parser.add_argument("--robot", type=str, default="wuji",
-                        choices=["wuji", "shadow", "inspire", "gaia"],
+                        choices=["wuji", "shadow", "inspire", "gaia", "linker_l20"],
                         help="Robot hand type (default: wuji)")
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"],
                         help="Hand side (default: right)")
@@ -432,6 +467,26 @@ Examples:
     parser.add_argument("--gaia-zero-on-close", action="store_true",
                         help="Return GaiaHand20 to zero before disabling it on exit")
 
+    # Linker L20 RS485 options
+    parser.add_argument("--l20-port", type=str, default="/dev/ttyUSB0",
+                        help="Linker L20 serial/RS485 port (default: /dev/ttyUSB0)")
+    parser.add_argument("--l20-baudrate", type=int, default=460800,
+                        help="Linker L20 baudrate (default: 460800)")
+    parser.add_argument("--l20-slave-id", type=lambda x: int(x, 0), default=None,
+                        help="Linker L20 Modbus slave id (default: 0x29 right, 0x2A left)")
+    parser.add_argument("--l20-speed", type=int, default=200,
+                        help="Linker L20 speed register value, 0-255 (default: 200)")
+    parser.add_argument("--l20-current-limit", type=int, default=200,
+                        help="Linker L20 current-limit register value, 0-255 (default: 200)")
+    parser.add_argument("--l20-clear-faults", action="store_true",
+                        help="Clear Linker L20 fault registers during startup")
+    parser.add_argument("--l20-open-on-exit", action="store_true",
+                        help="Return Linker L20 to open-palm registers before closing")
+    parser.add_argument("--l20-print-registers", action="store_true",
+                        help="Print Linker L20 register commands")
+    parser.add_argument("--l20-dry-run", action="store_true",
+                        help="Compute and print Linker L20 registers without opening serial")
+
 
     args = parser.parse_args()
 
@@ -464,6 +519,7 @@ Examples:
             "shadow": "shadow_hand",
             "inspire": "inspire_hand",
             "gaia": "gaia_hand20",
+            "linker_l20": "linker_l20",
         }
         input_to_dir = {
             "quest3": "quest3",
@@ -516,6 +572,15 @@ Examples:
         gaia_enable_delay=args.gaia_enable_delay,
         gaia_command_hz=args.gaia_command_hz,
         gaia_zero_on_close=args.gaia_zero_on_close,
+        l20_port=args.l20_port,
+        l20_baudrate=args.l20_baudrate,
+        l20_slave_id=args.l20_slave_id,
+        l20_speed=args.l20_speed,
+        l20_current_limit=args.l20_current_limit,
+        l20_clear_faults=args.l20_clear_faults,
+        l20_open_on_exit=args.l20_open_on_exit,
+        l20_print_registers=args.l20_print_registers,
+        l20_dry_run=args.l20_dry_run,
     )
 
     if log is not None and len(log) > 0:
