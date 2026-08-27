@@ -16,6 +16,7 @@ retarget:
   w_full_hand: 1.0
   pinch_scaling: 1.4799
   alpha: 1.0
+  w_contact: 6.0
   lateral_scaling: 0.85
 
   segment_scaling:

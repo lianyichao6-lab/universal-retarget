@@ -19,6 +19,7 @@ retarget:
 
   pinch_scaling: 1.3224
   alpha: 1.0
+  w_contact: 6.0
   segment_scaling:
     thumb: [1.883, 0.992, 0.992, 1.652]
     index: [1.615, 0.541, 0.541, 2.136]

@@ -343,6 +343,16 @@ python test/debug_skeleton.py --robot sharpa --input avp --avp-ip 192.168.5.32 -
 python test/debug_skeleton.py --robot shadow --play path/to/record.pkl
 ```
 
+#### adaptive contact loss
+
+Adaptive 配置提供 `w_contact`，用于在检测到 pinch 时增加额外的指尖接触目标。该项只在 pinch alpha 非零时生效，partner 是 pinch alpha 最大的非拇指手指：
+
+```text
+L_contact = w_contact * alpha * ||thumb_tip - partner_tip||²
+```
+
+增大 `w_contact` 可以增强拇指与目标手指的指尖接触，但过大可能牺牲整体手型自然度。
+
 #### calibrate_scaling.py
 
 为任意灵巧手和输入源标定 `segment_scaling`。采集用户伸直手指的数据，计算机器人 FK 距离与人手距离的比值。

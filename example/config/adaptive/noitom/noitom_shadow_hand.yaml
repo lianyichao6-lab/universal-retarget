@@ -29,6 +29,7 @@ retarget:
   # Per-finger segment scaling [PIP, DIP, TIP]
   pinch_scaling: 1.0
   alpha: 1.0
+  w_contact: 6.0
   segment_scaling:
     thumb: [1.0, 1.0, 1.0]
     index: [1.0, 1.03, 1.05]

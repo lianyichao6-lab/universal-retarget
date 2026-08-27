@@ -16,6 +16,7 @@ retarget:
   w_full_hand: 1.0
   pinch_scaling: 1.5101
   alpha: 1.0
+  w_contact: 6.0
   mcp_lateral_scale: 0.60
   thumb_scale: 1.0
   thumb_inward_offset: -0.02

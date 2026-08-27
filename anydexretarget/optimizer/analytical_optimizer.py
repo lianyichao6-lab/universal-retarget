@@ -32,6 +32,7 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         self.huber_delta_dir = retarget_config.get('huber_delta_dir', 0.5)
         self.w_pos = retarget_config.get('w_pos', 1.0)
         self.w_dir = retarget_config.get('w_dir', 10.0)
+        self.w_contact = retarget_config.get('w_contact', 0.0)
         self.project_tip_dir = retarget_config.get('project_tip_dir', False)
         self.pinch_scaling = float(retarget_config.get('pinch_scaling', 1.0))
         self.pinch_alpha_max = float(retarget_config.get('alpha', self.PINCH_ALPHA_MAX))
@@ -344,6 +345,16 @@ class AdaptiveOptimizerAnalytical(BaseOptimizer):
         loss_full = self.w_full_hand * loss_full_hand
         loss_per_finger = alphas * loss_tip_dir_vec + (1.0 - alphas) * loss_full
         total_loss = np.sum(loss_per_finger)
+
+        # === Contact Loss ===
+        if self.w_contact > 0.0 and nf > 1 and len(alphas) > 1:
+            partner = int(np.argmax(alphas[1:]) + 1)
+            alpha = float(alphas[partner])
+            if alpha > 0.0:
+                contact_diff = task_pos[0] - task_pos[partner]
+                contact_weight = self.w_contact * alpha
+                total_loss += contact_weight * float(np.dot(contact_diff, contact_diff))
+                total_grad += 2.0 * contact_weight * (contact_diff @ (J_task[0] - J_task[partner]))
 
         # === Regularization ===
         if last_qpos is not None:

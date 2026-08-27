@@ -48,6 +48,7 @@ retarget:
 
   pinch_scaling: 1.2291
   alpha: 1.0
+  w_contact: 6.0
 render:
   camera:
     azimuth: 135

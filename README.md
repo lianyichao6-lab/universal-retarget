@@ -365,7 +365,13 @@ python test/calibrate.py pinch --robot linker_l20 --input pico4 --hand right --w
 python test/calibrate.py pinch --input pico4 --hand right --all-robots --write
 ```
 
-Adaptive configs expose `pinch_scaling` for the active pinch pair's tip-position target and `alpha` for the maximum pinch blend. With `alpha: 1.0`, a fully detected pinch uses the tip objective without residual full-hand target influence.
+Adaptive configs expose `pinch_scaling` for the active pinch pair's tip-position target, `alpha` for the maximum pinch blend, and `w_contact` for an extra fingertip contact objective. With `alpha: 1.0`, a fully detected pinch uses the tip objective without residual full-hand target influence. When the detected pinch alpha is non-zero, contact loss penalizes the distance between the thumb tip and the non-thumb fingertip with the largest alpha:
+
+```text
+L_contact = w_contact * alpha * ||thumb_tip - partner_tip||²
+```
+
+Increasing `w_contact` improves fingertip contact, but values that are too high can distort the overall hand posture.
 
 #### calibrate_scaling.py
 

@@ -26,6 +26,7 @@ retarget:
   w_full_hand: 1.0             # Full hand vec weight
   pinch_scaling: 1.2427
   alpha: 1.0
+  w_contact: 6.0
   segment_scaling:
     thumb: [0.888, 2.326, 1.391, 0.957]
     index: [1.158, 1.223, 1.497, 1.227]
