@@ -1,0 +1,182 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mujoco model="gaiahand20_left">
+  <compiler angle="radian" meshdir="." autolimits="true" inertiafromgeom="false" />
+  <option timestep="0.002" gravity="0 0 0" integrator="implicitfast" />
+  <statistic center="0 0 0.075" extent="0.22" />
+  <visual>
+    <global offwidth="1280" offheight="1280" />
+    <quality shadowsize="4096" />
+  </visual>
+  <default>
+    <joint damping="0.08" armature="0.0001" limited="true" />
+    <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" />
+    <position kp="8" kv="0.3" ctrllimited="true" />
+  </default>
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072" />
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300" />
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2" />
+    <mesh name="left_base_link_mesh" file="meshes/left/left_base_link.STL" />
+    <mesh name="left_thumb_link_1_mesh" file="meshes/left/left_thumb_link_1.STL" />
+    <mesh name="left_thumb_link_2_mesh" file="meshes/left/left_thumb_link_2.STL" />
+    <mesh name="left_thumb_link_3_mesh" file="meshes/left/left_thumb_link_3.STL" />
+    <mesh name="left_thumb_link_4_mesh" file="meshes/left/left_thumb_link_4.STL" />
+    <mesh name="left_index_link_1_mesh" file="meshes/left/left_index_link_1.STL" />
+    <mesh name="left_index_link_2_mesh" file="meshes/left/left_index_link_2.STL" />
+    <mesh name="left_index_link_3_mesh" file="meshes/left/left_index_link_3.STL" />
+    <mesh name="left_index_link_4_mesh" file="meshes/left/left_index_link_4.STL" />
+    <mesh name="left_middle_link_1_mesh" file="meshes/left/left_middle_link_1.STL" />
+    <mesh name="left_middle_link_2_mesh" file="meshes/left/left_middle_link_2.STL" />
+    <mesh name="left_middle_link_3_mesh" file="meshes/left/left_middle_link_3.STL" />
+    <mesh name="left_middle_link_4_mesh" file="meshes/left/left_middle_link_4.STL" />
+    <mesh name="left_ring_link_1_mesh" file="meshes/left/left_ring_link_1.STL" />
+    <mesh name="left_ring_link_2_mesh" file="meshes/left/left_ring_link_2.STL" />
+    <mesh name="left_ring_link_3_mesh" file="meshes/left/left_ring_link_3.STL" />
+    <mesh name="left_ring_link_4_mesh" file="meshes/left/left_ring_link_4.STL" />
+    <mesh name="left_little_link_1_mesh" file="meshes/left/left_little_link_1.STL" />
+    <mesh name="left_little_link_2_mesh" file="meshes/left/left_little_link_2.STL" />
+    <mesh name="left_little_link_3_mesh" file="meshes/left/left_little_link_3.STL" />
+    <mesh name="left_little_link_4_mesh" file="meshes/left/left_little_link_4.STL" />
+  </asset>
+  <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true" />
+    <light pos="0.5 0.5 1" dir="-0.5 -0.5 -1" />
+    <geom name="floor" pos="0 0 -0.001" size="0 0 0.05" type="plane" material="groundplane" />
+    <body name="left_base_link">
+      <geom name="left_base_link_visual" mesh="left_base_link_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      <body name="left_thumb_link_1" pos="-0.012686 -0.032394 0.06846" quat="0.00017288067122 -0.707106759408 0.000178075367534 -0.707106759408">
+        <inertial pos="-4.45425113837147E-06 2.73197841531986E-05 0.0126698081457872" mass="0.00215958911797" diaginertia="1e-07 1e-07 1.11057014172e-07" />
+        <joint name="left_thumb_joint_1" type="hinge" axis="0 0 1" range="-0.7 0.7" />
+        <geom name="left_thumb_link_1_visual" mesh="left_thumb_link_1_mesh" rgba="1 1 1 1" />
+        <body name="left_thumb_link_2" pos="0 0 0.02255" quat="-2.59734346696e-06 0.707105482506 2.59735300756e-06 0.707108079855">
+          <inertial pos="0.01 1.38777878078145E-17 3.46944695195361E-18" mass="0.00190392221156" diaginertia="1e-07 1e-07 1e-07" />
+          <joint name="left_thumb_joint_2" type="hinge" axis="0 0 1" range="-1 1.5" />
+          <geom name="left_thumb_link_2_visual" mesh="left_thumb_link_2_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+          <body name="left_thumb_link_3" pos="0.02 0 0" quat="0.707105482511 0.707108079859 0 0">
+            <inertial pos="0.0194250949317203 -0.00575056850276964 1.15613549579036E-06" mass="0.00347675744561" diaginertia="2.82115220622e-07 6.68708023956e-07 5.05040324243e-07" />
+            <joint name="left_thumb_joint_3" type="hinge" axis="0 0 1" range="0 1.5" />
+            <geom name="left_thumb_link_3_visual" mesh="left_thumb_link_3_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+            <body name="left_thumb_link_4" pos="0.0437 0 0">
+              <inertial pos="0.020352767593123 -0.00513863221873198 -5.06281622906363E-07" mass="0.00332864524929" diaginertia="1.69927280978e-07 6.88956967522e-07 6.08520223543e-07" />
+              <joint name="left_thumb_joint_4" type="hinge" axis="0 0 1" range="0 1.5" />
+              <geom name="left_thumb_link_4_visual" mesh="left_thumb_link_4_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+              <body name="left_thumb_tip" pos="0.041 0 0" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="left_index_link_1" pos="-0.0014859 -0.035855 0.13061" quat="0.00017288067122 -0.707106759408 0.000178075367534 -0.707106759408">
+        <inertial pos="-4.85722573273506E-17 -6.93889390390723E-18 -0.00398398682166268" mass="0.000282122826671" diaginertia="1e-07 1e-07 1e-07" />
+        <joint name="left_index_joint_1" type="hinge" axis="0 0 1" range="-0.7 0.34" />
+        <geom name="left_index_link_1_visual" mesh="left_index_link_1_mesh" rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+        <body name="left_index_link_2" pos="0.0105 0 0" quat="0.707105482511 0.707108079859 0 0">
+          <inertial pos="0.0209410264860948 -0.000898698179335078 4.14835501227895E-07" mass="0.00316302771885" diaginertia="2.30919426587e-07 6.18115773333e-07 4.98047054758e-07" />
+          <joint name="left_index_joint_2" type="hinge" axis="0 0 1" range="0 1.5" />
+          <geom name="left_index_link_2_visual" mesh="left_index_link_2_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+          <body name="left_index_link_3" pos="0.0489 0.00312 0">
+            <inertial pos="0.0107721571396885 -0.00317608053119267 -4.12749758746389E-08" mass="0.00243281058534" diaginertia="1.35089165012e-07 2.28255754535e-07 1.7129392611e-07" />
+            <joint name="left_index_joint_3" type="hinge" axis="0 0 1" range="0 1.5" />
+            <geom name="left_index_link_3_visual" mesh="left_index_link_3_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+            <body name="left_index_link_4" pos="0.03 0 0">
+              <inertial pos="0.00934458303737801 -0.00489105678300095 -2.23737680528358E-07" mass="0.00276527786017" diaginertia="1.19031041443e-07 3.10610144953e-07 2.54740669247e-07" />
+              <joint name="left_index_joint_4" type="hinge" axis="0 0 1" range="0 1.5708" />
+              <geom name="left_index_link_4_visual" mesh="left_index_link_4_mesh" rgba="0.729411764705882 0.552941176470588 0.145098039215686 1" />
+              <body name="left_index_tip" pos="0.028 0 0" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="left_middle_link_1" pos="-0.0014859 -0.011303 0.1346" quat="0.00017288067122 -0.707106759408 0.000178075367534 -0.707106759408">
+        <inertial pos="-6.93889390390723E-18 2.51534904016637E-17 -0.00398398682166312" mass="0.000282122826671" diaginertia="1e-07 1e-07 1e-07" />
+        <joint name="left_middle_joint_1" type="hinge" axis="0 0 1" range="-0.523 0.523" />
+        <geom name="left_middle_link_1_visual" mesh="left_middle_link_1_mesh" rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+        <body name="left_middle_link_2" pos="0.0105 0 0" quat="0.707105482511 0.707108079859 0 0">
+          <inertial pos="0.0209410264860953 -0.000898698179337076 4.38904648095324E-07" mass="0.00316302771885" diaginertia="2.30919426587e-07 6.18115773334e-07 4.98047054759e-07" />
+          <joint name="left_middle_joint_2" type="hinge" axis="0 0 1" range="0 1.5" />
+          <geom name="left_middle_link_2_visual" mesh="left_middle_link_2_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+          <body name="left_middle_link_3" pos="0.0489 0.00312 0">
+            <inertial pos="0.0107721572423141 -0.00317608021815707 -1.68172914292303E-08" mass="0.00243281059098" diaginertia="1.35089161452e-07 2.28255745793e-07 1.71293926737e-07" />
+            <joint name="left_middle_joint_3" type="hinge" axis="0 0 1" range="0 1.5" />
+            <geom name="left_middle_link_3_visual" mesh="left_middle_link_3_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+            <body name="left_middle_link_4" pos="0.03 0 0">
+              <inertial pos="0.00934458303736932 -0.00489105678300072 -1.99668531155554E-07" mass="0.00276527786017" diaginertia="1.19031041443e-07 3.10610144953e-07 2.54740669247e-07" />
+              <joint name="left_middle_joint_4" type="hinge" axis="0 0 1" range="0 1.5708" />
+              <geom name="left_middle_link_4_visual" mesh="left_middle_link_4_mesh" rgba="0.729411764705882 0.552941176470588 0.145098039215686 1" />
+              <body name="left_middle_tip" pos="0.028 0 0" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="left_ring_link_1" pos="-0.0014859 0.013189 0.12958" quat="0.00017288067122 -0.707106759408 0.000178075367534 -0.707106759408">
+        <inertial pos="1.38777878078145E-17 -4.85722573273506E-17 -0.00398398682166268" mass="0.000282122826671" diaginertia="1e-07 1e-07 1e-07" />
+        <joint name="left_ring_joint_1" type="hinge" axis="0 0 1" range="-0.349 0.61" />
+        <geom name="left_ring_link_1_visual" mesh="left_ring_link_1_mesh" rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+        <body name="left_ring_link_2" pos="0.0105 0 0" quat="0.707105482511 0.707108079859 0 0">
+          <inertial pos="0.020941026486081 -0.000898698179364388 4.3890465183799E-07" mass="0.00316302771886" diaginertia="2.30919426588e-07 6.18115773334e-07 4.9804705476e-07" />
+          <joint name="left_ring_joint_2" type="hinge" axis="0 0 1" range="0 1.5" />
+          <geom name="left_ring_link_2_visual" mesh="left_ring_link_2_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+          <body name="left_ring_link_3" pos="0.0489 0.00312 0">
+            <inertial pos="0.0107721570262131 -0.00317607941965603 -1.71308353752453E-08" mass="0.00243281077425" diaginertia="1.3508917029e-07 2.28255753425e-07 1.7129393549e-07" />
+            <joint name="left_ring_joint_3" type="hinge" axis="0 0 1" range="0 1.5" />
+            <geom name="left_ring_link_3_visual" mesh="left_ring_link_3_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+            <body name="left_ring_link_4" pos="0.03 0 0">
+              <inertial pos="0.00934458374253974 -0.0048910569075713 -2.00143561397692E-07" mass="0.00276527757404" diaginertia="1.19031026808e-07 3.10610143624e-07 2.54740668263e-07" />
+              <joint name="left_ring_joint_4" type="hinge" axis="0 0 1" range="0 1.5708" />
+              <geom name="left_ring_link_4_visual" mesh="left_ring_link_4_mesh" rgba="0.729411764705882 0.552941176470588 0.145098039215686 1" />
+              <body name="left_ring_tip" pos="0.028 0 0" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="left_little_link_1" pos="-0.0014859 0.037596 0.12257" quat="0.00017288067122 -0.707106759408 0.000178075367534 -0.707106759408">
+        <inertial pos="1.83880688453542E-16 1.59594559789866E-16 -0.0039839868216629" mass="0.000282122826671" diaginertia="1e-07 1e-07 1e-07" />
+        <joint name="left_little_joint_1" type="hinge" axis="0 0 1" range="-0.698 0" />
+        <geom name="left_little_link_1_visual" mesh="left_little_link_1_mesh" rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+        <body name="left_little_link_2" pos="0.0105 0 0" quat="0.707105482511 0.707108079859 0 0">
+          <inertial pos="0.0209410264860816 -0.0008986981793635 4.38904652261263E-07" mass="0.00316302771886" diaginertia="2.30919426588e-07 6.18115773334e-07 4.9804705476e-07" />
+          <joint name="left_little_joint_2" type="hinge" axis="0 0 1" range="0 1.5" />
+          <geom name="left_little_link_2_visual" mesh="left_little_link_2_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+          <body name="left_little_link_3" pos="0.0489 0.00312 0">
+            <inertial pos="0.0107721571371943 -0.00317608051353124 -1.72046493648881E-08" mass="0.00243281058916" diaginertia="1.35089165136e-07 2.2825575459e-07 1.71293926248e-07" />
+            <joint name="left_little_joint_3" type="hinge" axis="0 0 1" range="0 1.5" />
+            <geom name="left_little_link_3_visual" mesh="left_little_link_3_mesh" rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+            <body name="left_little_link_4" pos="0.03 0 0">
+              <inertial pos="0.00934458303737884 -0.00489105678299984 -1.99668530709296E-07" mass="0.00276527786017" diaginertia="1.19031041443e-07 3.10610144953e-07 2.54740669247e-07" />
+              <joint name="left_little_joint_4" type="hinge" axis="0 0 1" range="0 1.5708" />
+              <geom name="left_little_link_4_visual" mesh="left_little_link_4_mesh" rgba="0.729411764705882 0.552941176470588 0.145098039215686 1" />
+              <body name="left_little_tip" pos="0.028 0 0" />
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <position name="left_thumb_joint_1_actuator" joint="left_thumb_joint_1" ctrlrange="-0.7 0.7" />
+    <position name="left_thumb_joint_2_actuator" joint="left_thumb_joint_2" ctrlrange="-1 1.5" />
+    <position name="left_thumb_joint_3_actuator" joint="left_thumb_joint_3" ctrlrange="0 1.5" />
+    <position name="left_thumb_joint_4_actuator" joint="left_thumb_joint_4" ctrlrange="0 1.5" />
+    <position name="left_index_joint_1_actuator" joint="left_index_joint_1" ctrlrange="-0.7 0.34" />
+    <position name="left_index_joint_2_actuator" joint="left_index_joint_2" ctrlrange="0 1.5" />
+    <position name="left_index_joint_3_actuator" joint="left_index_joint_3" ctrlrange="0 1.5" />
+    <position name="left_index_joint_4_actuator" joint="left_index_joint_4" ctrlrange="0 1.5708" />
+    <position name="left_middle_joint_1_actuator" joint="left_middle_joint_1" ctrlrange="-0.523 0.523" />
+    <position name="left_middle_joint_2_actuator" joint="left_middle_joint_2" ctrlrange="0 1.5" />
+    <position name="left_middle_joint_3_actuator" joint="left_middle_joint_3" ctrlrange="0 1.5" />
+    <position name="left_middle_joint_4_actuator" joint="left_middle_joint_4" ctrlrange="0 1.5708" />
+    <position name="left_ring_joint_1_actuator" joint="left_ring_joint_1" ctrlrange="-0.349 0.61" />
+    <position name="left_ring_joint_2_actuator" joint="left_ring_joint_2" ctrlrange="0 1.5" />
+    <position name="left_ring_joint_3_actuator" joint="left_ring_joint_3" ctrlrange="0 1.5" />
+    <position name="left_ring_joint_4_actuator" joint="left_ring_joint_4" ctrlrange="0 1.5708" />
+    <position name="left_little_joint_1_actuator" joint="left_little_joint_1" ctrlrange="-0.698 0" />
+    <position name="left_little_joint_2_actuator" joint="left_little_joint_2" ctrlrange="0 1.5" />
+    <position name="left_little_joint_3_actuator" joint="left_little_joint_3" ctrlrange="0 1.5" />
+    <position name="left_little_joint_4_actuator" joint="left_little_joint_4" ctrlrange="0 1.5708" />
+  </actuator>
+  <equality>
+    <joint name="left_index_joint_4_mimic" joint1="left_index_joint_4" joint2="left_index_joint_3" polycoef="0 1 0 0 0" solref="0.004 1" />
+    <joint name="left_middle_joint_4_mimic" joint1="left_middle_joint_4" joint2="left_middle_joint_3" polycoef="0 1 0 0 0" solref="0.004 1" />
+    <joint name="left_ring_joint_4_mimic" joint1="left_ring_joint_4" joint2="left_ring_joint_3" polycoef="0 1 0 0 0" solref="0.004 1" />
+    <joint name="left_little_joint_4_mimic" joint1="left_little_joint_4" joint2="left_little_joint_3" polycoef="0 1 0 0 0" solref="0.004 1" />
+  </equality>
+</mujoco>

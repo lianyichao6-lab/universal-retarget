@@ -1,0 +1,43 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.DS_Store
+.venv/
+.venv-*/
+.tools/
+
+# Python build artifacts
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+
+# Logs
+logs/
+MUJOCO_LOG.TXT
+
+# Temporary files
+*.tmp
+*.log
+
+# Sharpa source files (large)
+assets/sharpa-urdf-usd-xml-main.zip
+assets/sharpa-urdf-usd-xml-main/
+*.bak-*
+
+# HUG local model assets (large/licensed; keep on disk, never commit)
+external/
+external/hug/checkpoints/*.safetensors
+external/hug/assets/mano_models/
+external/hug/data/**/grasp_pred/
+
+# Local experiment outputs and generated MuJoCo artifacts
+outputs/
+reports/
+MJMODEL.TXT
+example/MJDATA.TXT
+example/mjmodel.xml
+example/mjmodel.mjb

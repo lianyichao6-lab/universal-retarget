@@ -1,0 +1,48 @@
+# LinkerHand L25 Pico 4 simulation bootstrap configuration.
+#
+# Pico4 emits wrist-relative 21x3 joints. The coordinate correction below is
+# inherited from the upstream Linker L20 Pico4 path so that the live input has
+# a known-good frame convention. Retargeting weights and segment scales remain
+# an execution baseline until L25-specific skeleton calibration is recorded.
+
+optimizer:
+  type: "AdaptiveOptimizerAnalytical"
+
+robot:
+  type: "linkerhand_l25"
+
+retarget:
+  huber_delta: 2.0
+  huber_delta_dir: 0.5
+  norm_delta: 0.04
+  w_pos: 5.0
+  w_dir: 1.0
+  project_tip_dir: false
+  w_full_hand: 1.0
+  pinch_scaling: 1.5352
+  alpha: 1.0
+  lateral_scaling: 0.7
+  segment_scaling:
+    thumb: [1.275, 1.875, 1.335, 1.147]
+    index: [1.761, 1.183, 1.521, 1.097]
+    middle: [1.856, 0.996, 1.289, 0.926]
+    ring: [1.893, 1.058, 1.555, 1.089]
+    pinky: [1.833, 1.68, 1.894, 1.205]
+
+  pinch_thresholds:
+    index: {d1: 2.0, d2: 4.0}
+    middle: {d1: 2.0, d2: 4.0}
+    ring: {d1: 2.0, d2: 4.0}
+    pinky: {d1: 2.0, d2: 4.0}
+
+  mediapipe_rotation:
+    right: {x: -10.0, y: 0.0, z: -10.0}
+    left: {x: 10.0, y: 0.0, z: 10.0}
+
+  lp_alpha: 0.4
+
+render:
+  camera:
+    azimuth: 180
+    elevation: 20.0
+    distance: 0.5
