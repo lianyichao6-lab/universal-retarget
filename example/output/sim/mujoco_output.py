@@ -70,6 +70,21 @@ ROBOT_HAND_CONFIGS = {
             "pinky_mcp_roll", "pinky_mcp_pitch", "pinky_pip",
         ],
     },
+    "linkerhand_l25": {
+        "model_path": lambda side: str(
+            PROJECT_ROOT / "assets" / "linkerhand_l25" / f"linkerhand_l25_{side}_mujoco.xml"
+        ),
+        # The generated L25 MJCF keeps URDF traversal order, while Pinocchio
+        # returns its independent/mimic-expanded joints in a different order.
+        "qpos_joint_names": [
+            "thumb_cmc_roll", "thumb_cmc_yaw", "thumb_cmc_pitch", "thumb_mcp", "thumb_ip",
+            "index_mcp_roll", "index_mcp_pitch", "index_pip", "index_dip",
+            "middle_mcp_roll", "middle_mcp_pitch", "middle_pip", "middle_dip",
+            "ring_mcp_roll", "ring_mcp_pitch", "ring_pip", "ring_dip",
+            "pinky_mcp_roll", "pinky_mcp_pitch", "pinky_pip", "pinky_dip",
+        ],
+        "direct_qpos": True,
+    },
     "rohand": {
         "model_path": lambda side: str(PROJECT_ROOT / "assets" / "rohand" / f"rohand_{side}_mujoco.xml"),
         "qpos_mapping": [3, 4, 1, 2, 0, 13, 14, 11, 12, 10, 18, 19, 16, 17, 15, 8, 9, 6, 7, 5, 20, 21, 23, 24, 22],
@@ -124,8 +139,10 @@ def map_retarget_qpos(
     if hand_cfg.get("needs_menagerie_mapping"):
         return map_urdf_to_mujoco_menagerie(qpos)
 
-    actuator_joint_names = hand_cfg.get("actuator_joint_names")
-    if actuator_joint_names is not None:
+    target_joint_names = hand_cfg.get("actuator_joint_names")
+    if target_joint_names is None:
+        target_joint_names = hand_cfg.get("qpos_joint_names")
+    if target_joint_names is not None:
         if joint_names is None:
             raise ValueError("joint_names are required for name-based actuator mapping")
         qpos = np.asarray(qpos)
@@ -142,10 +159,10 @@ def map_retarget_qpos(
         if duplicates:
             raise ValueError(f"Duplicate retarget joint names: {duplicates}")
         index_by_name = {name: idx for idx, name in enumerate(normalized_names)}
-        missing = [name for name in actuator_joint_names if name.lower() not in index_by_name]
+        missing = [name for name in target_joint_names if name.lower() not in index_by_name]
         if missing:
             raise ValueError(f"Retarget output is missing actuator joints: {missing}")
-        indices = [index_by_name[name.lower()] for name in actuator_joint_names]
+        indices = [index_by_name[name.lower()] for name in target_joint_names]
         return qpos[indices]
 
     if "qpos_mapping" in hand_cfg:
@@ -175,9 +192,9 @@ def retarget_to_mujoco_target(
 
     target = np.asarray(target, dtype=np.float32)
     if len(target) != target_len:
-        if hand_cfg.get("actuator_joint_names") is not None:
+        if hand_cfg.get("actuator_joint_names") is not None or hand_cfg.get("qpos_joint_names") is not None:
             raise ValueError(
-                "Name-based actuator mapping must exactly match MuJoCo control "
+                "Name-based MuJoCo mapping must exactly match the target "
                 f"size: mapped={len(target)}, target_len={target_len}"
             )
         buf = np.zeros(target_len, dtype=np.float32)

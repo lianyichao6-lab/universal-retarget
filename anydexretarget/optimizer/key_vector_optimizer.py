@@ -19,11 +19,12 @@ class KeyVectorOptimizer(BaseOptimizer):
 
     Each key vector is defined by an (origin_link, task_link) pair on the robot,
     matched to a (origin_kp, task_kp) MediaPipe keypoint pair.
-    The optimizer minimizes the mean Huber distance between robot vectors and
-    scaled human vectors.
+    The optimizer minimizes the weighted mean Huber distance between robot
+    vectors and scaled human vectors. Entries without an explicit weight use
+    ``1.0``, preserving the original unweighted mean behavior.
 
     Loss:
-        L(q) = (1/N) * Σᵢ Huber(‖[FK(task_i)-FK(origin_i)] - scale_i*(mp[task_kp_i]-mp[origin_kp_i])‖)
+        L(q) = (1/Σᵢwᵢ) * Σᵢ wᵢ * Huber(‖[FK(task_i)-FK(origin_i)] - scale_i*(mp[task_kp_i]-mp[origin_kp_i])‖)
              + norm_delta * ‖q - q_prev‖²
 
     Config (retarget.key_vectors, required):
@@ -34,6 +35,7 @@ class KeyVectorOptimizer(BaseOptimizer):
         - origin_kp: MediaPipe origin keypoint index
         - task_kp:   MediaPipe task keypoint index
         - scale:     scale applied to human vector (default 1.0)
+        - weight:    relative objective weight (default 1.0, must be finite and > 0)
     """
 
     def __init__(self, config: dict):
@@ -134,6 +136,12 @@ class KeyVectorOptimizer(BaseOptimizer):
         self._origin_kp_indices = np.array([kv['origin_kp'] for kv in kv_config], dtype=int)
         self._task_kp_indices   = np.array([kv['task_kp']   for kv in kv_config], dtype=int)
         self._vector_scalings   = np.array([kv.get('scale', 1.0) for kv in kv_config], dtype=np.float64)
+        self._vector_weights    = np.array([kv.get('weight', 1.0) for kv in kv_config], dtype=np.float64)
+        if not np.all(np.isfinite(self._vector_weights)) or np.any(self._vector_weights <= 0.0):
+            raise ValueError(
+                "Every retarget.key_vectors[].weight must be a finite value greater than zero"
+            )
+        self._weight_sum = float(np.sum(self._vector_weights))
         self.num_vectors        = len(kv_config)
 
     # ------------------------------------------------------------------
@@ -201,18 +209,23 @@ class KeyVectorOptimizer(BaseOptimizer):
         diff      = robot_vec - target_vectors           # (N, 3)
         dist      = np.linalg.norm(diff, axis=1)         # (N,)
 
-        # Mean Huber loss
-        total_loss = float(np.mean(huber_loss_np(dist, self.huber_delta)))
+        # Weighted mean Huber loss. Missing YAML weights default to one, so
+        # existing robot configurations retain the original arithmetic mean.
+        total_loss = float(
+            np.dot(self._vector_weights, huber_loss_np(dist, self.huber_delta))
+            / self._weight_sum
+        )
 
         # Analytical gradient via chain rule
         huber_grad  = huber_loss_grad_np(dist, self.huber_delta)  # (N,)
         diff_normed = diff / (dist[:, None] + 1e-8)               # (N, 3)
 
         total_grad = np.zeros(self.num_joints, dtype=np.float64)
-        N = self.num_vectors
-        for i in range(N):
+        for i in range(self.num_vectors):
             J_diff = J_task[i] - J_origin[i]                      # (3, nq)
-            total_grad += (huber_grad[i] / N) * (diff_normed[i] @ J_diff)
+            total_grad += (
+                self._vector_weights[i] * huber_grad[i] / self._weight_sum
+            ) * (diff_normed[i] @ J_diff)
 
         # Regularization: penalize large joint velocity
         if last_qpos is not None:

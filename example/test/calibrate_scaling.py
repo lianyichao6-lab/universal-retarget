@@ -52,7 +52,7 @@ ROBOT_NAME_MAP = {
     "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
     "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
     "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-    "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
+    "linker_l20": "linker_l20", "l25": "linkerhand_l25", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
     "gaia": "gaia_hand20",
 }
 

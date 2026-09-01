@@ -1,6 +1,22 @@
 [中文](README.zh.md) | English
 
-# AnyDexRetarget
+# Universal Retarget
+
+Universal Retarget is an experimental dexterous-hand grasp generation and cross-embodiment retargeting workspace built on [AnyDexRetarget](https://github.com/qqsq12321/AnyDexRetarget). The verified L25 path connects multi-view RGB-D capture, Hunyuan3D shape completion, HUG MANO grasp sampling, four retargeting backends, object-relative optimization, collision-aware refinement, MuJoCo inspection, and bounded LinkerHand CAN execution.
+
+```text
+Gemini 335 RGB-D -> Hunyuan3D mesh + hybrid point cloud
+  -> HUG MANO / CanonicalGraspState
+  -> AnyDex Vector | AnyDex Adaptive | DexPilot | JointAngle
+  -> object-relative L25 qpos -> collision-aware refinement
+  -> MuJoCo -> LinkerHand L25 hardware
+```
+
+The cup experiment was validated end to end with `Vector + candidate_017`, including a successful physical pickup. This remains a research pipeline without arm planning, force closure, tactile feedback, or a general grasp-success guarantee.
+
+See [`docs/cli_reference.md`](docs/cli_reference.md) for verified commands and [`docs/hug_retargeting.md`](docs/hug_retargeting.md) for the HUG integration boundary. Large third-party repositories, model weights, MANO assets, environments, camera captures, and generated outputs are intentionally excluded from Git.
+
+## Upstream AnyDexRetarget
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -398,6 +414,13 @@ python test/visualize_scaling.py --robot allegro --play data/avp1.pkl --hand rig
 ```
 
 ## API Reference
+
+### Verified Workspace CLIs
+
+The canonical commands for the verified L25 MediaPipe and HUG pipelines are
+maintained in [`docs/cli_reference.md`](docs/cli_reference.md). Run those
+commands from the repository root with `.venv/bin/python`.
+
 
 ### Basic Usage
 

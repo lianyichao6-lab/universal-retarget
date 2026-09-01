@@ -1,0 +1,62 @@
+# LinkerHand L25 - KeyVectorOptimizer (MediaPipe video/camera input), calibrated from L25 FK and right.mp4.
+# norm_delta=0.06: higher than AVP because monocular depth is noisier
+
+optimizer:
+  type: "KeyVectorOptimizer"
+
+robot:
+  type: "linkerhand_l25"
+
+retarget:
+  huber_delta: 2.0
+  norm_delta: 0.06
+  lp_alpha: 0.4
+  key_vectors:
+    # thumb
+  - {origin: hand_base_link, task: thumb_proximal, origin_kp: 0, task_kp: 2, scale:
+      1.208}
+  - {origin: hand_base_link, task: thumb_distal, origin_kp: 0, task_kp: 3, scale:
+      1.122}
+  - {origin: hand_base_link, task: thumb_distal, origin_kp: 0, task_kp: 4,
+      task_offset: [-0.008849, -0.000018, 0.030758], scale: 1.106}
+    # index
+  - {origin: hand_base_link, task: index_middle, origin_kp: 0, task_kp: 6, scale:
+      1.451}
+  - {origin: hand_base_link, task: index_distal, origin_kp: 0, task_kp: 7, scale:
+      1.385}
+  - {origin: hand_base_link, task: index_distal, origin_kp: 0, task_kp: 8,
+      task_offset: [-0.015799, -0.000013, 0.022931], scale: 1.335}
+    # middle
+  - {origin: hand_base_link, task: middle_middle, origin_kp: 0, task_kp: 10,
+      scale: 1.473}
+  - {origin: hand_base_link, task: middle_distal, origin_kp: 0, task_kp: 11,
+      scale: 1.405}
+  - {origin: hand_base_link, task: middle_distal, origin_kp: 0, task_kp: 12,
+      task_offset: [-0.015799, -0.000013, 0.022931], scale: 1.354}
+    # ring
+  - {origin: hand_base_link, task: ring_middle, origin_kp: 0, task_kp: 14, scale:
+      1.509}
+  - {origin: hand_base_link, task: ring_distal, origin_kp: 0, task_kp: 15, scale:
+      1.487}
+  - {origin: hand_base_link, task: ring_distal, origin_kp: 0, task_kp: 16,
+      task_offset: [-0.015799, -0.000013, 0.022931], scale: 1.445}
+    # pinky
+  - {origin: hand_base_link, task: pinky_middle, origin_kp: 0, task_kp: 18,
+      scale: 1.632}
+  - {origin: hand_base_link, task: pinky_distal, origin_kp: 0, task_kp: 19,
+      scale: 1.68}
+  - {origin: hand_base_link, task: pinky_distal, origin_kp: 0, task_kp: 20,
+      task_offset: [-0.015799, -0.000013, 0.022931], scale: 1.676}
+
+  # Fitted from 254 right.mp4 MediaPipe frames by calibrate_rotation.py.
+  # The L20 bootstrap z=-100 deg left L25 finger roots rotated by ~90 deg.
+  mediapipe_rotation:
+    x: -4.9
+    y: -3.8
+    z: -24.4
+
+render:
+  camera:
+    azimuth: 180
+    elevation: 20
+    distance: 0.5

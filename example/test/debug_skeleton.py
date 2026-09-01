@@ -81,6 +81,8 @@ def draw_skeleton(scn, points, connections, color, radius=0.001, offset=None):
             continue
         p1 = points[i]
         p2 = points[j]
+        if not (np.isfinite(p1).all() and np.isfinite(p2).all()):
+            continue
 
         if scn.ngeom >= scn.maxgeom:
             break
@@ -108,6 +110,8 @@ def draw_skeleton(scn, points, connections, color, radius=0.001, offset=None):
     for idx in range(len(points)):
         if scn.ngeom >= scn.maxgeom:
             break
+        if not np.isfinite(points[idx]).all():
+            continue
         g = scn.geoms[scn.ngeom]
         mujoco.mjv_initGeom(
             g,
@@ -200,11 +204,27 @@ def build_scaled_skeleton(mediapipe_kp, optimizer):
         MP_DIP = [3, 7, 11, 15, 19]
         MP_TIP = [4, 8, 12, 16, 20]
         for local_fi, fi in enumerate(mp_finger_indices):
-            for mp_idx, col in zip(
-                [MP_MCP[fi], MP_PIP[fi], MP_DIP[fi], MP_TIP[fi]], [0, 1, 2, 3]
-            ):
-                vec = (mediapipe_kp[mp_idx] - wrist) * seg_full[local_fi, col]
-                scaled_kp[mp_idx] = origin_pos + vec
+            # Match AdaptiveOptimizerAnalytical._compute_full_hand_vectors:
+            # grow every downstream point from the preceding scaled point.
+            mcp_idx, pip_idx, dip_idx, tip_idx = (
+                MP_MCP[fi], MP_PIP[fi], MP_DIP[fi], MP_TIP[fi]
+            )
+            palm = mediapipe_kp[mcp_idx] - wrist
+            lateral_scaling = getattr(optimizer, "lateral_scaling", 1.0)
+            lateral_axis = getattr(optimizer, "lateral_axis", 1)
+            if lateral_scaling != 1.0:
+                palm = palm.copy()
+                palm[lateral_axis] *= lateral_scaling
+            scaled_kp[mcp_idx] = origin_pos + palm * seg_full[local_fi, 0]
+            scaled_kp[pip_idx] = scaled_kp[mcp_idx] + (
+                mediapipe_kp[pip_idx] - mediapipe_kp[mcp_idx]
+            ) * seg_full[local_fi, 1]
+            scaled_kp[dip_idx] = scaled_kp[pip_idx] + (
+                mediapipe_kp[dip_idx] - mediapipe_kp[pip_idx]
+            ) * seg_full[local_fi, 2]
+            scaled_kp[tip_idx] = scaled_kp[dip_idx] + (
+                mediapipe_kp[tip_idx] - mediapipe_kp[dip_idx]
+            ) * seg_full[local_fi, 3]
 
         # ``mediapipe_kp`` is already the exact robot-specific preprocessed
         # optimizer input.  Do not apply Linker L20 preprocessing a second time
@@ -257,7 +277,7 @@ def main():
     parser.add_argument("--robot", default="leap",
         choices=["shadow", "wuji", "allegro", "leap",
                  "inspire", "ability", "svh", "rohand",
-                 "linkerhand_l21", "linker_l20", "unitree_dex5", "sharpa", "gaia"],
+                 "linkerhand_l21", "linker_l20", "l25", "unitree_dex5", "sharpa", "gaia"],
                         help="Robot hand type (default: leap)")
     parser.add_argument("--hand", default="right", choices=["left", "right"])
     parser.add_argument("--input", default="camera", choices=["camera", "video", "replay", "noitom", "realsense", "avp", "quest3", "pico4"])
@@ -285,7 +305,7 @@ def main():
         "shadow": "shadow_hand", "wuji": "wuji_hand", "allegro": "allegro_hand",
         "leap": "leap_hand", "inspire": "inspire_hand", "ability": "ability_hand",
         "svh": "svh_hand", "rohand": "rohand", "linkerhand_l21": "linkerhand_l21",
-        "linker_l20": "linker_l20", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
+        "linker_l20": "linker_l20", "l25": "linkerhand_l25", "unitree_dex5": "unitree_dex5_hand", "sharpa": "sharpa_hand",
         "gaia": "gaia_hand20",
     }
     robot_file = robot_name_map.get(args.robot, args.robot)
