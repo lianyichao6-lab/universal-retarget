@@ -54,7 +54,7 @@ def tactile_state_from_wrenches(
         raise ValueError("wrenches must contain only finite values")
     if not np.isfinite(contact_force_threshold) or contact_force_threshold < 0:
         raise ValueError("contact_force_threshold must be finite and non-negative")
-    contact = np.linalg.norm(values[:, :3], axis=1) >= float(contact_force_threshold)
+    contact = np.linalg.norm(values[:, :3], axis=1) > float(contact_force_threshold)
     return TactileState(timestamp_s, contact, values)
 
 
