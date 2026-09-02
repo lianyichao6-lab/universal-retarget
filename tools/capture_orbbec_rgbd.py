@@ -16,6 +16,7 @@ from cv_bridge import CvBridge
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, Image
+from tf2_ros import Buffer, TransformException, TransformListener
 
 
 class RgbdCapture(Node):
@@ -35,6 +36,11 @@ class RgbdCapture(Node):
         self.last_save_at = 0.0
         self.started_at = time.monotonic()
         self.invalid_depth_frames = 0
+        self.tf_buffer: Buffer | None = None
+        self.tf_listener: TransformListener | None = None
+        if args.base_frame:
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.create_subscription(
             CameraInfo, args.camera_info_topic, self._on_camera_info, qos_profile_sensor_data
@@ -96,6 +102,33 @@ class RgbdCapture(Node):
             return self.output
         return self.output / f"view_{self.view_count:03d}"
 
+    def _capture_anchor_pose(self, message: Image) -> tuple[np.ndarray, str] | None:
+        if self.tf_buffer is None:
+            return None
+        anchor_frame = self.args.camera_frame or message.header.frame_id
+        if not anchor_frame:
+            raise RuntimeError("RGB image has no frame_id; pass --camera-frame explicitly")
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.args.base_frame, anchor_frame, message.header.stamp,
+                timeout=rclpy.duration.Duration(seconds=self.args.tf_timeout_seconds),
+            )
+        except TransformException as exc:
+            raise RuntimeError(
+                f"Unable to capture TF {self.args.base_frame} <- {anchor_frame}: {exc}"
+            ) from exc
+        q = transform.transform.rotation
+        x, y, z, w = (float(q.x), float(q.y), float(q.z), float(q.w))
+        norm = np.linalg.norm((x, y, z, w))
+        if norm <= 1e-9:
+            raise RuntimeError("TF rotation quaternion has zero length")
+        x, y, z, w = np.asarray((x, y, z, w), dtype=np.float64) / norm
+        rotation = np.asarray(((1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)), (2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)), (2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y))), dtype=np.float64)
+        result = np.eye(4, dtype=np.float64)
+        result[:3, :3] = rotation
+        result[:3, 3] = (transform.transform.translation.x, transform.transform.translation.y, transform.transform.translation.z)
+        return result, anchor_frame
+
     def save(self) -> None:
         if self.frame is None or self.camera_info is None:
             raise RuntimeError("No synchronized RGB-D frame is available yet")
@@ -104,6 +137,7 @@ class RgbdCapture(Node):
             return
         rgb, depth_mm, rgb_msg, depth_msg = self.frame
         nonzero = depth_mm[depth_mm > 0]
+        anchor_pose = self._capture_anchor_pose(rgb_msg)
         output = self._output_directory()
         if output.exists() and any(output.iterdir()):
             raise FileExistsError(
@@ -135,6 +169,18 @@ class RgbdCapture(Node):
             "depth_nonzero_pixels": int(nonzero.size),
             "intrinsics": intrinsics.tolist(),
         }
+        if anchor_pose is not None:
+            transform, anchor_frame = anchor_pose
+            metadata["robot_base_frame"] = self.args.base_frame
+            metadata["anchor_frame"] = anchor_frame
+            metadata["T_robot_base_anchor_capture"] = transform.tolist()
+            np.savez_compressed(
+                output / "anchor_pose.npz",
+                T_robot_base_anchor_capture=transform,
+                base_frame=np.asarray(self.args.base_frame),
+                anchor_frame=np.asarray(anchor_frame),
+                capture_timestamp_s=np.asarray(self._stamp(rgb_msg), dtype=np.float64),
+            )
         (output / "capture_metadata.json").write_text(
             json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
         )
@@ -157,6 +203,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rgb-topic", default="/scene_camera/color/image_raw")
     parser.add_argument("--depth-topic", default="/scene_camera/depth/image_raw")
     parser.add_argument("--camera-info-topic", default="/scene_camera/color/camera_info")
+    parser.add_argument(
+        "--base-frame",
+        help="Optional robot base TF frame. When set, save capture-time base-to-camera TF.",
+    )
+    parser.add_argument(
+        "--camera-frame",
+        help="Camera TF frame override; default is RGB Image.header.frame_id.",
+    )
+    parser.add_argument("--tf-timeout-seconds", type=float, default=0.25)
     parser.add_argument("--preview", action="store_true", help="SPACE saves; Q or ESC cancels.")
     parser.add_argument(
         "--multi-view",
@@ -190,11 +245,12 @@ def main() -> None:
     if (
         args.timeout < 0
         or args.warmup_seconds < 0
+        or args.tf_timeout_seconds < 0
         or args.depth_unit_mm <= 0
         or not 0 < args.min_valid_depth_ratio <= 1
     ):
         raise ValueError(
-            "timeout cannot be negative; depth-unit-mm must be positive; "
+            "timeout and tf-timeout-seconds cannot be negative; depth-unit-mm must be positive; "
             "min-valid-depth-ratio must be in (0, 1]"
         )
     if args.multi_view and not args.preview:

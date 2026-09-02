@@ -149,3 +149,68 @@ python3 tools/check_deployment_manifest.py \
 8. Execute arm-to-pregrasp with the L25 open.
 9. Preshape the L25, approach slowly, close, hold and perform a small lift.
 10. Save commanded and measured arm/hand states for every attempt.
+
+
+## Local Luban bridge simulation
+
+Capture the hand-mounted Gemini with the robot base frame so the saved anchor
+view includes `anchor_pose.npz` at the RGB-D timestamp:
+
+~~~bash
+/usr/bin/python3 tools/capture_orbbec_rgbd.py \
+  --preview --timeout 0 \
+  --base-frame r_base_link \
+  --camera-frame hand_camera_color_optical_frame \
+  --output outputs/deployment_runs/run_001/view_000
+~~~
+
+After the normal reconstruction, HUG and L25 planning flow exports
+`grasp_execution_plan.npz`, create a calibration-resolved Luban request. The
+base-anchor file must be the matching `anchor_pose.npz`; never substitute the
+current arm pose after the arm has moved.
+
+~~~bash
+.venv/bin/python tools/prepare_luban_grasp_request.py \
+  --grasp-contract grasp_execution_plan.npz \
+  --base-anchor-capture view_000/anchor_pose.npz \
+  --flange-hand calibration/flange_to_l25_hand.npz \
+  --pregrasp-offset-hand-m 0 0 -0.10 \
+  --output luban_grasp_request.npz
+~~~
+
+Run Luban locally with:
+
+~~~bash
+cd /home/evolabs-5080/lianyichao/luban_framework
+source /opt/ros/jazzy/setup.bash
+# Run Luban's supported full build first. A partially copied install tree is not
+# sufficient because launch_onboard_nodes also needs the robot descriptions,
+# controllers, planner and program packages.
+./scripts/build.sh
+source .ws/devel/setup.bash
+LUBAN_FRAMEWORK_ROOT=$PWD \
+LUBAN_ROBOT_MODEL=dual_arm_ar508_l20 RIGHT_HAND_MODEL=l25 LEFT_HAND_MODEL=l25 MOCK=1 NO_PICO=1 RVIZ=1 \
+  ros2 launch luban_bringup launch_onboard_nodes.py
+~~~
+
+If the Framework is run inside its supported Docker container, the same
+workspace root is `/evo`; set `LUBAN_FRAMEWORK_ROOT=/evo` there. `MOCK=1`
+selects `mock_components/GenericSystem` and must be retained for this local
+validation. Do not use a partially copied `install/` tree as an overlay.
+
+The default executor mode is a dry-run;
+the `preview` stage only publishes `/anydex/right_l25_wrist_goal` for RViz.
+
+~~~bash
+/usr/bin/python3 tools/luban_ros_grasp_execute.py \
+  --request luban_grasp_request.npz
+
+/usr/bin/python3 tools/luban_ros_grasp_execute.py \
+  --request luban_grasp_request.npz \
+  --stage pregrasp --execute --confirm AR5_L25_CLEAR
+~~~
+
+Use `approach` and `close` as separate operator-confirmed stages before `all`.
+Luban receives a `PoseStamped` on `/right_arm/target_pose` and exactly 16
+active L25 joint radians on `/right_hand_controller/commands`; the internal
+21-DoF L25 qpos is not published directly.

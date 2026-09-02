@@ -41,6 +41,16 @@ planning:
   pregrasp_offset_hand_m: REQUIRED_AFTER_TEACH_VALIDATION
   operator_confirmation_required: true
 
+luban_bridge:
+  arm_target_topic: /right_arm/target_pose
+  arm_motion_done_topic: /right_arm/motion_done
+  hand_command_topic: /right_hand_controller/commands
+  hand_motion_done_topic: /right_hand/motion_done
+  diagnostic_wrist_topic: /anydex/right_l25_wrist_goal
+  active_hand_joint_count: 16
+  command_units: radians
+  capture_pose_file: anchor_pose.npz
+
 safety:
   arm_speed_scale: 0.1
   hand_speed: 20
