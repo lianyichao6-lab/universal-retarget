@@ -84,8 +84,14 @@ class RosJointStateBridge:
             except ValueError as exc:
                 self.node.get_logger().warning(str(exc))
 
-    def spin_once(self) -> None:
-        self._rclpy.spin_once(self.node, timeout_sec=0.0)
+    def spin_once(self) -> bool:
+        try:
+            self._rclpy.spin_once(self.node, timeout_sec=0.0)
+        except Exception as exc:
+            if type(exc).__name__ == "RCLError":
+                return False
+            raise
+        return True
 
     def close(self) -> None:
         self.node.destroy_node()
@@ -121,7 +127,8 @@ def main() -> int:
         with mujoco.viewer.launch_passive(model, data) as viewer:
             while viewer.is_running():
                 started = time.perf_counter()
-                bridge.spin_once()
+                if not bridge.spin_once():
+                    break
                 mujoco.mj_forward(model, data)
                 viewer.sync()
                 time.sleep(max(0.0, period - (time.perf_counter() - started)))
