@@ -113,7 +113,7 @@ Generate the manifest on the source workstation after committing all code:
   --asset hug-patch=deployment/patches/hug-workspace.patch \
   --asset hug-requirements=deployment/patches/hug-requirements-local.txt \
   --asset hug-checkpoint=external/hug/checkpoints/hug_full.safetensors \
-  --asset hug-mano-assets=external/hug/data/mano \
+  --asset hug-mano-assets=external/hug/assets \
   --asset hunyuan-model=external/hunyuan3d2_models/hunyuan3d-dit-v2-mv-turbo \
   --asset dinov2-cache=/home/evolabs-5080/.cache/huggingface/hub/models--facebook--dinov2-with-registers-base \
   --asset cup-regression=outputs/reconstruction/cup_session_run1/deployment \
