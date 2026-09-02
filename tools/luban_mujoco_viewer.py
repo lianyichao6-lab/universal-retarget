@@ -111,14 +111,15 @@ def apply_viewer_style(model) -> None:
     model.vis.headlight.diffuse = np.asarray((0.8, 0.8, 0.8), dtype=np.float32)
 
 
-def add_blue_floor(viewer) -> None:
+def add_blue_floor(viewer, data) -> None:
     """Add a blue non-colliding reference plane to the viewer scene."""
     import mujoco
     scene = viewer.user_scn
+    floor_z = float(np.min(data.geom_xpos[:, 2]) - 0.02)
     if scene.maxgeom < 1:
         return
     mujoco.mjv_initGeom(scene.geoms[0], mujoco.mjtGeom.mjGEOM_PLANE,
-                        np.asarray((3.0, 3.0, 1.0)), np.asarray((0.0, 0.0, -0.001)),
+                        np.asarray((3.0, 3.0, 1.0)), np.asarray((0.0, 0.0, floor_z)),
                         np.eye(3).ravel(), np.asarray((0.08, 0.32, 0.78, 1.0)))
     scene.ngeom = 1
 
@@ -143,6 +144,7 @@ def main() -> int:
 
     model = mujoco.MjModel.from_xml_path(str(model_path))
     data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
     apply_viewer_style(model)
     addresses = model_joint_qpos_addresses(model)
     bridge = RosJointStateBridge(model, data, addresses, args.joint_topic)
@@ -150,7 +152,7 @@ def main() -> int:
     period = 1.0 / args.fps
     try:
         with mujoco.viewer.launch_passive(model, data) as viewer:
-            add_blue_floor(viewer)
+            add_blue_floor(viewer, data)
             while viewer.is_running():
                 started = time.perf_counter()
                 if not bridge.spin_once():
