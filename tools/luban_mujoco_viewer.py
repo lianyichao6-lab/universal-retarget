@@ -99,6 +99,30 @@ class RosJointStateBridge:
             self._rclpy.shutdown()
 
 
+def apply_viewer_style(model) -> None:
+    """Increase workstation contrast for the dark MuJoCo background."""
+    import mujoco
+    blue = np.asarray((0.08, 0.32, 0.78, 1.0), dtype=np.float32)
+    for geom_id in range(model.ngeom):
+        name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or ""
+        if any(token in name.lower() for token in ("table", "workstation", "pillar")):
+            model.geom_rgba[geom_id] = blue
+    model.vis.headlight.ambient = np.asarray((0.45, 0.45, 0.45), dtype=np.float32)
+    model.vis.headlight.diffuse = np.asarray((0.8, 0.8, 0.8), dtype=np.float32)
+
+
+def add_blue_floor(viewer) -> None:
+    """Add a blue non-colliding reference plane to the viewer scene."""
+    import mujoco
+    scene = viewer.user_scn
+    if scene.maxgeom < 1:
+        return
+    mujoco.mjv_initGeom(scene.geoms[0], mujoco.mjtGeom.mjGEOM_PLANE,
+                        np.asarray((3.0, 3.0, 1.0)), np.asarray((0.0, 0.0, -0.001)),
+                        np.eye(3).ravel(), np.asarray((0.08, 0.32, 0.78, 1.0)))
+    scene.ngeom = 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, required=True, help="Luban temporary URDF/MJCF model")
@@ -119,12 +143,14 @@ def main() -> int:
 
     model = mujoco.MjModel.from_xml_path(str(model_path))
     data = mujoco.MjData(model)
+    apply_viewer_style(model)
     addresses = model_joint_qpos_addresses(model)
     bridge = RosJointStateBridge(model, data, addresses, args.joint_topic)
     print(f"Loaded {model_path} ({model.njnt} joints); following {args.joint_topic}")
     period = 1.0 / args.fps
     try:
         with mujoco.viewer.launch_passive(model, data) as viewer:
+            add_blue_floor(viewer)
             while viewer.is_running():
                 started = time.perf_counter()
                 if not bridge.spin_once():
