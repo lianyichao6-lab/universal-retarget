@@ -97,10 +97,10 @@ def build_grasp_execution_plan(
         "requires_target_machine_calibration": np.asarray(True),
         "source_final_l25_plan": np.asarray(str(Path(source_plan).resolve())),
         "source_reconstruction_result": np.asarray(
-            "" if reconstruction_result is None else str(Path(reconstruction_result).resolve())
+            "" if reconstruction_result is None else str(Path(reconstruction_result))
         ),
         "source_object_mesh": np.asarray(
-            "" if object_mesh is None else str(Path(object_mesh).resolve())
+            "" if object_mesh is None else str(Path(object_mesh))
         ),
         "candidate_id": np.asarray(candidate_id),
         "robot": np.asarray("l25"),

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -12,11 +13,24 @@ import numpy as np
 from anydexretarget.deployment import build_grasp_execution_plan
 
 
+def _strict_json_value(value: object) -> object:
+    if isinstance(value, float) and not np.isfinite(value):
+        return None
+    if isinstance(value, list):
+        return [_strict_json_value(item) for item in value]
+    return value
+
+
 def _json_value(value: np.ndarray) -> object:
     array = np.asarray(value)
-    if array.shape == ():
-        return array.item()
-    return array.tolist()
+    raw = array.item() if array.shape == () else array.tolist()
+    return _strict_json_value(raw)
+
+
+def _relative_reference(path: Path | None, output: Path) -> Path | None:
+    if path is None:
+        return None
+    return Path(os.path.relpath(path.resolve(), output.parent.resolve()))
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,8 +63,8 @@ def main() -> None:
         anchor_frame=args.anchor_frame,
         hand_side=args.hand_side,
         candidate_id=candidate_id,
-        object_mesh=args.object_mesh,
-        reconstruction_result=args.reconstruction_result,
+        object_mesh=_relative_reference(args.object_mesh, args.output),
+        reconstruction_result=_relative_reference(args.reconstruction_result, args.output),
         pregrasp_offset_hand_m=(
             None
             if args.pregrasp_offset_hand_m is None
@@ -65,7 +79,7 @@ def main() -> None:
         "arm IK, collision checking, operator confirmation and emergency stop remain required."
     )
     report_path = args.output.with_suffix(".json")
-    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    report_path.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     print("Grasp execution contract written")
     print(f"  candidate: {candidate_id}")
     print(f"  anchor frame: {args.anchor_frame}")

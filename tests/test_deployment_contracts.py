@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -62,3 +63,35 @@ def test_pregrasp_offset_is_applied_in_hand_coordinates() -> None:
 def test_non_rigid_rotation_is_rejected() -> None:
     with pytest.raises(ValueError, match="orthonormal"):
         rigid_transform(np.eye(3) * 2.0, np.zeros(3))
+
+
+def test_execution_report_uses_strict_json_null_for_undefined_pregrasp() -> None:
+    from tools.export_grasp_execution_plan import _json_value
+
+    result = build_grasp_execution_plan(
+        _plan(),
+        source_plan=Path("final_plan.npz"),
+        anchor_frame="waist_camera_color_optical_frame",
+    )
+    report = {key: _json_value(value) for key, value in result.items()}
+    encoded = json.dumps(report, allow_nan=False)
+    decoded = json.loads(encoded)
+
+    assert decoded["pregrasp_offset_hand_m"] == [None, None, None]
+    assert all(value is None for row in decoded["T_anchor_pregrasp_l25_hand"] for value in row)
+
+
+def test_execution_plan_preserves_portable_asset_references() -> None:
+    result = build_grasp_execution_plan(
+        _plan(),
+        source_plan=Path("final_plan.npz"),
+        anchor_frame="waist_camera_color_optical_frame",
+        object_mesh=Path("reconstruction/object_mesh_anchor.ply"),
+        reconstruction_result=Path("reconstruction/reconstruction_metadata.json"),
+    )
+
+    assert result["source_object_mesh"].item() == "reconstruction/object_mesh_anchor.ply"
+    assert (
+        result["source_reconstruction_result"].item()
+        == "reconstruction/reconstruction_metadata.json"
+    )

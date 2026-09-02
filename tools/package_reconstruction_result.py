@@ -120,8 +120,8 @@ def main() -> None:
         "anchor_frame": args.anchor_frame,
         "units": "meter",
         "coordinate_convention": "OpenCV optical: +X right, +Y down, +Z forward",
-        "mesh": str(mesh_output.resolve()),
-        "surface_pointcloud": str(cloud_output.resolve()),
+        "mesh": mesh_output.name,
+        "surface_pointcloud": cloud_output.name,
         "source_mesh": str(args.mesh.resolve()),
         "source_pointcloud": str(args.surface_pointcloud.resolve()),
         "source_sha256": {
