@@ -38,7 +38,8 @@ luban:
 frames:
   world: world
   arm_base: r_base_link
-  arm_flange: r_flange
+  # The bundled AR5/L25 URDF exposes r_tcp as the fixed mount parent.
+  arm_flange: r_tcp
   hand_base: r_hand_base_link
   camera_anchor: waist_camera_color_optical_frame
 
