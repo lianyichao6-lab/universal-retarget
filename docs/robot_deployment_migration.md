@@ -5,10 +5,10 @@ HUG, reconstruction and L25 pipeline to another robot computer.
 
 ## Scope
 
-The first deployment uses the waist Gemini 335Lg as the HUG anchor, the head
-Gemini 335Lg as an optional supplementary view, an L25 right hand, interactive
-object selection, operator confirmation and a manually taught reachable arm
-seed. MANUS teleoperation and automatic active vision are not part of this MVP.
+The first deployment uses the hand-mounted Gemini 335Lg as the HUG anchor and
+the head-mounted ZED 2i for coarse global observation. It also uses an L25 right
+hand, interactive object selection, operator confirmation and a manually taught
+reachable arm seed. MANUS teleoperation and automatic active vision are not part of this MVP.
 
 ## Portable reconstruction boundary
 
@@ -28,7 +28,7 @@ Package the current Hunyuan result:
   --mesh "$SCENE/hunyuan_mv_mesh_photo_aligned.ply" \
   --surface-pointcloud "$SCENE/hunyuan_hybrid_pointcloud.npz" \
   --backend hunyuan3d2-multiview \
-  --anchor-frame waist_camera_color_optical_frame \
+  --anchor-frame hand_camera_color_optical_frame \
   --output-dir "$SCENE/deployment/reconstruction"
 ~~~
 
@@ -52,7 +52,7 @@ Export the final collision-aware L25 plan:
   --object-mesh "$SCENE/deployment/reconstruction/object_mesh_anchor.ply" \
   --reconstruction-result \
     "$SCENE/deployment/reconstruction/reconstruction_metadata.json" \
-  --anchor-frame waist_camera_color_optical_frame \
+  --anchor-frame hand_camera_color_optical_frame \
   --candidate-id "$BEST" \
   --output "$SCENE/deployment/grasp_execution_plan.npz"
 ~~~
@@ -139,9 +139,9 @@ python3 tools/check_deployment_manifest.py \
 
 ## Target-machine order
 
-1. Fill config/deployment/dual_gemini335lg_l25.template.yaml.
-2. Bring up head camera, waist camera, arm and L25 independently.
-3. Calibrate robot-base to both cameras and arm-flange to L25 hand base.
+1. Fill config/deployment/zed2i_gemini335lg_l25.template.yaml.
+2. Bring up the head ZED 2i, hand Gemini, arm and L25 independently.
+3. Calibrate robot-base to the ZED, arm-flange to the Gemini and arm-flange to the L25 hand base.
 4. Validate the point-cloud overlay in robot_base.
 5. Teach a reachable pregrasp seed by hand.
 6. Transform T_anchor_l25_hand into an arm flange target and run IK only.

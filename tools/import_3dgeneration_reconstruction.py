@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--anchor-pointcloud", type=Path, required=True, help="Masked Gemini RGB-D cloud in anchor optical frame.")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--backend", default="3dgenerationpipeline-fine")
-    parser.add_argument("--anchor-frame", default="waist_camera_color_optical_frame")
+    parser.add_argument("--anchor-frame", default="hand_camera_color_optical_frame")
     alignment = parser.add_mutually_exclusive_group(required=True)
     alignment.add_argument("--transform", type=Path, help="Measured 4x4 T_anchor_object (.npy/.npz/.json/.txt).")
     alignment.add_argument("--auto-align", action="store_true", help="Estimate rigid pose from the partial RGB-D surface; inspect the overlay.")

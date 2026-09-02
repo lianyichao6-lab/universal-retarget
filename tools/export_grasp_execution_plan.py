@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--object-mesh", type=Path)
     parser.add_argument("--reconstruction-result", type=Path)
-    parser.add_argument("--anchor-frame", default="waist_camera_color_optical_frame")
+    parser.add_argument("--anchor-frame", default="hand_camera_color_optical_frame")
     parser.add_argument("--hand-side", choices=("left", "right"), default="right")
     parser.add_argument("--candidate-id")
     parser.add_argument(

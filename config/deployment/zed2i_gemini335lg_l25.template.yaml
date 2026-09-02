@@ -15,23 +15,27 @@ hand:
   flange_to_hand_transform: REQUIRED_ON_TARGET
 
 cameras:
-  anchor: waist
-  waist:
+  anchor: hand
+  hand:
     model: orbbec_gemini335lg
     serial_number: REQUIRED
-    color_optical_frame: waist_camera_color_optical_frame
+    color_optical_frame: hand_camera_color_optical_frame
     depth_registered_to_color: true
-    base_to_camera_transform: REQUIRED_ON_TARGET
+    flange_to_camera_transform: REQUIRED_ON_TARGET
+    transform_is_dynamic: true
   head:
-    model: orbbec_gemini335lg
+    model: stereolabs_zed2i
     serial_number: REQUIRED
-    color_optical_frame: head_camera_color_optical_frame
+    color_optical_frame: REQUIRED_ON_TARGET
     depth_registered_to_color: true
     base_to_camera_transform: REQUIRED_ON_TARGET
-    transform_is_dynamic: REQUIRED
+    transform_is_dynamic: REQUIRED_ON_TARGET
 
 planning:
   reconstruction_backend: hunyuan3d2-multiview
+  reconstruction_backends:
+    - hunyuan3d2-multiview
+    - 3dgenerationpipeline-metric
   reconstruction_contract: reconstruction_schema_v1
   grasp_execution_contract: grasp_execution_schema_v1
   pregrasp_offset_hand_m: REQUIRED_AFTER_TEACH_VALIDATION

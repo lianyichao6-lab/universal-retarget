@@ -40,7 +40,7 @@ PYTHONPATH="$PWD" \
     --anchor-pointcloud "$SCENE/view_000/object_pointcloud.npz" \
     --auto-align \
     --backend 3dgenerationpipeline-fine \
-    --anchor-frame waist_camera_color_optical_frame \
+    --anchor-frame hand_camera_color_optical_frame \
     --output-dir "$SCENE/3dgeneration/reconstruction"
 ```
 
@@ -64,7 +64,7 @@ PYTHONPATH="$PWD" \
 
 For deployment, use a measured or pose-estimator-produced rigid transform.
 The matrix convention is `T_anchor_object`: it maps metre-valued object-frame
-points into `waist_camera_color_optical_frame`.
+points into `hand_camera_color_optical_frame`.
 
 ```bash
 PYTHONPATH="$PWD" \
@@ -74,7 +74,7 @@ PYTHONPATH="$PWD" \
     --anchor-pointcloud "$SCENE/view_000/object_pointcloud.npz" \
     --transform /absolute/path/to/T_anchor_object.json \
     --backend 3dgenerationpipeline-fine \
-    --anchor-frame waist_camera_color_optical_frame \
+    --anchor-frame hand_camera_color_optical_frame \
     --output-dir "$SCENE/3dgeneration/reconstruction" \
     --overwrite
 ```

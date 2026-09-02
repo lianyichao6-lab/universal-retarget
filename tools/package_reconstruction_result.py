@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mesh", type=Path, required=True)
     parser.add_argument("--surface-pointcloud", type=Path, required=True)
     parser.add_argument("--backend", required=True)
-    parser.add_argument("--anchor-frame", default="waist_camera_color_optical_frame")
+    parser.add_argument("--anchor-frame", default="hand_camera_color_optical_frame")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--source-metadata", type=Path)
     parser.add_argument("--overwrite", action="store_true")
