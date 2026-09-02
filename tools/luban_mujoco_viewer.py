@@ -107,6 +107,9 @@ def apply_viewer_style(model) -> None:
         name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or ""
         if any(token in name.lower() for token in ("table", "workstation", "pillar")):
             model.geom_rgba[geom_id] = blue
+            material_id = int(model.geom_matid[geom_id])
+            if material_id >= 0:
+                model.mat_rgba[material_id] = blue
     model.vis.headlight.ambient = np.asarray((0.45, 0.45, 0.45), dtype=np.float32)
     model.vis.headlight.diffuse = np.asarray((0.8, 0.8, 0.8), dtype=np.float32)
 
