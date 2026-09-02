@@ -36,6 +36,12 @@ A future custom reconstruction model replaces only the two input paths and
 backend name. HUG continues to consume object_surface_anchor.npz and contact or
 collision planning consumes object_mesh_anchor.ply.
 
+`3DGenerationPipeline` now has a dedicated importer that performs metric-unit
+validation, object-to-anchor alignment, mesh surface sampling, measured RGB-D
+preservation and packaging in one command. See
+`docs/3dgeneration_reconstruction_adapter.md`. Keep Hunyuan as the regression
+backend until both backends have been compared on the same captured scenes.
+
 ## Portable arm and hand boundary
 
 Export the final collision-aware L25 plan:

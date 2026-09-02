@@ -79,7 +79,7 @@ def main() -> None:
     overlay = cv2.addWeighted(fill, args.alpha, image, 1.0 - args.alpha, 0.0)
     contours, _ = cv2.findContours(silhouette, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(overlay, contours, -1, (0, 255, 255), 2, lineType=cv2.LINE_AA)
-    cv2.putText(overlay, "cyan: aligned Hunyuan mesh silhouette", (18, 36),
+    cv2.putText(overlay, "cyan: aligned reconstruction mesh", (18, 36),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
