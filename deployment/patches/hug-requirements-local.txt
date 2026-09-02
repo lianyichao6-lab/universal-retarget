@@ -1,0 +1,15 @@
+# HUG runtime dependencies for the workspace .venv.
+# Install PyTorch first from the CUDA wheel index and torch-cluster from pyg.org;
+# see docs/hug_retargeting.md for the exact commands.
+transformers==5.14.1
+viser==1.0.30
+tyro==1.0.15
+safetensors==0.8.0
+omegaconf==2.3.1
+roma==1.5.7
+rich==14.3.4
+plotly==6.9.0
+Pillow
+opencv-python
+manotorch @ git+https://github.com/lixiny/manotorch.git@a2a70c591f91551078b7bb2af9b5d9f275b626e0
+chumpy @ git+https://github.com/mattloper/chumpy.git@580566eafc9ac68b2614b64d6f7aaa84eebb70da

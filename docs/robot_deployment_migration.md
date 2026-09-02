@@ -80,6 +80,23 @@ Clone repositories and check out the manifest commits. Recreate Python virtual
 environments and rebuild ROS 2 packages on the target. Do not copy .venv,
 .venv-hunyuan3d or luban_framework/install between computers.
 
+The HUG checkout intentionally stays on its upstream commit. Reproduce the
+workspace integration by applying the tracked patch from the AnyDexRetarget
+root:
+
+~~~bash
+HUG_BASE=$(cat deployment/patches/hug-base-commit.txt)
+git -C external/hug checkout "$HUG_BASE"
+git -C external/hug apply "$PWD/deployment/patches/hug-workspace.patch"
+
+# Install after the CUDA-compatible torch packages documented in
+# docs/hug_retargeting.md.
+.venv/bin/pip install -r deployment/patches/hug-requirements-local.txt
+~~~
+
+`external/hug/data/custom/custom.pkl` is generated input data and is not part
+of the patch. The target machine must capture or copy its own scene data.
+
 Required large assets include the HUG checkpoint, Hunyuan weights and the
 DINOv2 Hugging Face cache. Store them outside Git and verify their hashes with
 the deployment manifest.
@@ -91,9 +108,15 @@ Generate the manifest on the source workstation after committing all code:
   --workspace /home/evolabs-5080/lianyichao \
   --repo universal-retarget=/home/evolabs-5080/lianyichao/AnyDexRetarget \
   --repo luban=/home/evolabs-5080/lianyichao/luban_framework \
+  --repo hunyuan-source=external/hunyuan3d2 \
+  --repo somehand-source=external/somehand \
+  --asset hug-patch=deployment/patches/hug-workspace.patch \
+  --asset hug-requirements=deployment/patches/hug-requirements-local.txt \
   --asset hug-checkpoint=external/hug/checkpoints/hug_full.safetensors \
+  --asset hug-mano-assets=external/hug/data/mano \
   --asset hunyuan-model=external/hunyuan3d2_models/hunyuan3d-dit-v2-mv-turbo \
   --asset dinov2-cache=/home/evolabs-5080/.cache/huggingface/hub/models--facebook--dinov2-with-registers-base \
+  --asset cup-regression=outputs/reconstruction/cup_session_run1/deployment \
   --output outputs/deployment/deployment_manifest.json
 ~~~
 

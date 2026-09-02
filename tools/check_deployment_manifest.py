@@ -85,13 +85,14 @@ def main() -> None:
             continue
         if args.verify_hashes:
             count, size, digest = _tree_identity(path)
-            if (
-                count != expected["file_count"]
-                or size != expected["size_bytes"]
-                or digest != expected["sha256_tree"]
-            ):
+            matches = (
+                count == expected["file_count"]
+                and size == expected["size_bytes"]
+                and digest == expected["sha256_tree"]
+            )
+            if not matches:
                 failures.append(f"{name}: content hash or size mismatch")
-            print(f"asset {name}: {'ok' if not failures or not failures[-1].startswith(name + ':') else 'MISMATCH'}")
+            print(f"asset {name}: {'ok' if matches else 'MISMATCH'}")
         else:
             print(f"asset {name}: present (hash skipped)")
 
