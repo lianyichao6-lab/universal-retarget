@@ -13,11 +13,6 @@ Example:
     qpos = retargeter.retarget(raw_keypoints)  # (21, 3) -> (22,)
 """
 
-from .retarget import Retargeter
-from .optimizer import BaseOptimizer, LPFilter
-from .mediapipe import apply_mediapipe_transformations
-from .hand_frame import CanonicalHandFrame
-
 __all__ = [
     "Retargeter",
     "BaseOptimizer",
@@ -25,3 +20,20 @@ __all__ = [
     "apply_mediapipe_transformations",
     "CanonicalHandFrame",
 ]
+
+
+def __getattr__(name):
+    """Load heavyweight retargeting dependencies only when requested."""
+    if name == "Retargeter":
+        from .retarget import Retargeter
+        return Retargeter
+    if name in {"BaseOptimizer", "LPFilter"}:
+        from .optimizer import BaseOptimizer, LPFilter
+        return {"BaseOptimizer": BaseOptimizer, "LPFilter": LPFilter}[name]
+    if name == "apply_mediapipe_transformations":
+        from .mediapipe import apply_mediapipe_transformations
+        return apply_mediapipe_transformations
+    if name == "CanonicalHandFrame":
+        from .hand_frame import CanonicalHandFrame
+        return CanonicalHandFrame
+    raise AttributeError(name)

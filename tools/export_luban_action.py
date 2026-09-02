@@ -58,10 +58,10 @@ def main() -> int:
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(args.output, **result)
-    report = {
-        key: (value.item() if np.asarray(value).shape == () else np.asarray(value).tolist())
-        for key, value in result.items()
-    }
+    report = {}
+    for key, value in result.items():
+        array = np.asarray(value)
+        report[key] = array.item() if array.shape == () else array.tolist()
     report["safety"] = "planning-only export; no ROS publisher or hardware command"
     args.output.with_suffix(".json").write_text(
         json.dumps(report, indent=2) + "\n", encoding="utf-8"
