@@ -114,6 +114,12 @@ def apply_viewer_style(model) -> None:
     model.vis.headlight.diffuse = np.asarray((0.8, 0.8, 0.8), dtype=np.float32)
 
 
+def configure_camera(viewer, model) -> None:
+    """Frame the full negative-z Luban workstation in the initial camera."""
+    viewer.cam.lookat[:] = np.asarray(model.stat.center, dtype=np.float64)
+    viewer.cam.distance = max(float(model.stat.extent) * 2.4, 0.8)
+
+
 def add_blue_floor(viewer, data) -> None:
     """Add a blue non-colliding reference plane to the viewer scene."""
     import mujoco
@@ -155,6 +161,7 @@ def main() -> int:
     period = 1.0 / args.fps
     try:
         with mujoco.viewer.launch_passive(model, data) as viewer:
+            configure_camera(viewer, model)
             add_blue_floor(viewer, data)
             while viewer.is_running():
                 started = time.perf_counter()
