@@ -100,16 +100,7 @@ class RosJointStateBridge:
 
 
 def apply_viewer_style(model) -> None:
-    """Increase workstation contrast for the dark MuJoCo background."""
-    import mujoco
-    blue = np.asarray((0.08, 0.32, 0.78, 1.0), dtype=np.float32)
-    for geom_id in range(model.ngeom):
-        name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or ""
-        if any(token in name.lower() for token in ("table", "workstation", "pillar")):
-            model.geom_rgba[geom_id] = blue
-            material_id = int(model.geom_matid[geom_id])
-            if material_id >= 0:
-                model.mat_rgba[material_id] = blue
+    """Keep source materials and improve only neutral scene lighting."""
     model.vis.headlight.ambient = np.asarray((0.45, 0.45, 0.45), dtype=np.float32)
     model.vis.headlight.diffuse = np.asarray((0.8, 0.8, 0.8), dtype=np.float32)
 
@@ -129,7 +120,7 @@ def add_blue_floor(viewer, data) -> None:
         return
     mujoco.mjv_initGeom(scene.geoms[0], mujoco.mjtGeom.mjGEOM_PLANE,
                         np.asarray((3.0, 3.0, 1.0)), np.asarray((0.0, 0.0, floor_z)),
-                        np.eye(3).ravel(), np.asarray((0.08, 0.32, 0.78, 1.0)))
+                        np.eye(3).ravel(), np.asarray((0.34, 0.44, 0.56, 1.0)))
     scene.ngeom = 1
 
 
