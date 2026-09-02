@@ -20,6 +20,7 @@ from anydexretarget.l25_retarget_backend import BACKENDS, ADAPTIVE_CONFIG
 
 ROOT = Path(__file__).resolve().parents[1]
 RERANK_TOOL = ROOT / "tools/rerank_l25_object_relative_candidates.py"
+MESH_PROXY_TOOL = ROOT / "tools/prepare_mujoco_mesh_proxy.py"
 DEFAULT_BACKENDS = ("vector", "adaptive", "dexpilot", "joint_angle")
 
 
@@ -68,7 +69,18 @@ def main() -> None:
     parser.add_argument("--max-evaluations", type=int, default=160)
     parser.add_argument("--collision-max-joint-delta-rad", type=float, default=0.10)
     parser.add_argument("--max-penetration-mm", type=float, default=5.0)
-    parser.add_argument("--max-tip-mean-error-mm", type=float, default=10.0)
+    parser.add_argument("--max-self-penetration-mm", type=float, default=0.5)
+    parser.add_argument("--max-contact-mean-error-mm", type=float, default=10.0)
+    parser.add_argument(
+        "--max-tip-mean-error-mm",
+        type=float,
+        dest="max_contact_mean_error_mm",
+        help=argparse.SUPPRESS,
+        default=argparse.SUPPRESS,
+    )
+    parser.add_argument("--min-joint-margin", type=float, default=0.01)
+    parser.add_argument("--max-mesh-faces", type=int, default=180_000)
+    parser.add_argument("--limit", type=int)
     args = parser.parse_args()
     if not args.candidates_dir.is_dir() or not args.object_mesh.is_file():
         raise FileNotFoundError("--candidates-dir or --object-mesh does not exist")
@@ -76,10 +88,32 @@ def main() -> None:
         raise FileNotFoundError(args.adaptive_config)
     if min(args.near_surface_gap_mm, args.max_evaluations, args.collision_max_joint_delta_rad) <= 0:
         parser.error("Invalid planning limits")
-    if args.max_penetration_mm < 0 or args.max_tip_mean_error_mm < 0:
+    if (
+        args.max_penetration_mm < 0
+        or args.max_self_penetration_mm < 0
+        or args.max_contact_mean_error_mm < 0
+        or not 0 <= args.min_joint_margin <= 0.5
+        or not 0 < args.max_mesh_faces < 200_000
+        or (args.limit is not None and args.limit <= 0)
+    ):
         parser.error("Acceptance gates must be non-negative")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    shared_dir = args.output_dir / "_shared"
+    mesh_proxy = shared_dir / "object_collision_proxy.ply"
+    contact_cache = shared_dir / "contact_plans"
+    print("\n=== shared geometry cache ===")
+    _run([
+        sys.executable,
+        "-u",
+        str(MESH_PROXY_TOOL),
+        "--mesh",
+        str(args.object_mesh),
+        "--output",
+        str(mesh_proxy),
+        "--max-faces",
+        str(args.max_mesh_faces),
+    ])
     rows: list[dict[str, object]] = []
     for backend in args.backends:
         backend_dir = args.output_dir / backend
@@ -88,16 +122,22 @@ def main() -> None:
             "--candidates-dir", str(args.candidates_dir),
             "--object-mesh", str(args.object_mesh),
             "--output-dir", str(backend_dir),
+            "--mesh-proxy", str(mesh_proxy),
+            "--contact-plans-cache-dir", str(contact_cache),
             "--backend", backend,
             "--near-surface-gap-mm", str(args.near_surface_gap_mm),
             "--max-evaluations", str(args.max_evaluations),
             "--collision-aware",
             "--collision-max-joint-delta-rad", str(args.collision_max_joint_delta_rad),
             "--max-penetration-mm", str(args.max_penetration_mm),
-            "--max-tip-mean-error-mm", str(args.max_tip_mean_error_mm),
+            "--max-self-penetration-mm", str(args.max_self_penetration_mm),
+            "--max-contact-mean-error-mm", str(args.max_contact_mean_error_mm),
+            "--min-joint-margin", str(args.min_joint_margin),
         ]
         if backend == "adaptive":
             command.extend(["--config", str(args.adaptive_config)])
+        if args.limit is not None:
+            command.extend(["--limit", str(args.limit)])
         print(f"\n=== {backend} ===")
         row: dict[str, object] = {"backend": backend, "status": "failed"}
         try:
@@ -111,8 +151,10 @@ def main() -> None:
                 "successful_plan_count": int(summary["successful_plan_count"]),
                 "best_candidate": "" if preferred is None else preferred["candidate"],
                 "best_recommended": False if preferred is None else bool(preferred["recommended"]),
-                "best_tip_mean_error_mm": "" if preferred is None else float(preferred["tip_mean_error_mm"]),
+                "best_contact_mean_error_mm": "" if preferred is None else float(preferred["contact_mean_error_mm"]),
+                "best_tip_mean_error_mm": "" if preferred is None else float(preferred["contact_mean_error_mm"]),
                 "best_max_penetration_mm": "" if preferred is None else float(preferred["mujoco_max_penetration_mm"]),
+                "best_max_self_penetration_mm": "" if preferred is None else float(preferred["mujoco_max_self_penetration_mm"]),
                 "best_score": "" if preferred is None else float(preferred["final_l25_score"]),
                 "summary": str(summary_path.resolve()),
             })
@@ -139,6 +181,8 @@ def main() -> None:
         "method": "same HUG candidates + same object mesh + per-backend L25 plan + collision-aware final ranking",
         "backends": args.backends,
         "adaptive_config": str(args.adaptive_config.resolve()) if "adaptive" in args.backends else "",
+        "shared_mesh_proxy": str(mesh_proxy.resolve()),
+        "shared_contact_plans": str(contact_cache.resolve()),
         "rows": rows,
         "csv": str(csv_path.resolve()),
     }

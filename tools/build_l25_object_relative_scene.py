@@ -77,6 +77,43 @@ def _make_mujoco_mesh(mesh: trimesh.Trimesh, max_faces: int) -> tuple[trimesh.Tr
     raise RuntimeError(f"Unable to reduce object mesh below {max_faces} faces; final face count={len(reduced_faces)}")
 
 
+def prepare_mujoco_mesh_proxy(
+    source: Path, output: Path, max_faces: int = 180_000
+) -> tuple[Path, dict[str, object]]:
+    """Build or reuse one source-frame collision proxy for all candidates."""
+    source = source.resolve()
+    output = output.resolve()
+    metadata_path = output.with_suffix(output.suffix + ".json")
+    stat = source.stat()
+    signature = {
+        "source_mesh": str(source),
+        "source_size": int(stat.st_size),
+        "source_mtime_ns": int(stat.st_mtime_ns),
+        "max_faces": int(max_faces),
+    }
+    if output.is_file() and metadata_path.is_file():
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if all(metadata.get(key) == value for key, value in signature.items()):
+            return output, {**metadata, "cache_hit": True}
+
+    mesh = _load_mesh(source)
+    proxy, original_faces = _make_mujoco_mesh(mesh, max_faces)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    proxy.export(output)
+    metadata = {
+        **signature,
+        "source_vertices": int(len(mesh.vertices)),
+        "source_faces": int(original_faces),
+        "proxy_vertices": int(len(proxy.vertices)),
+        "proxy_faces": int(len(proxy.faces)),
+        "cache_hit": False,
+    }
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
+    )
+    return output, metadata
+
+
 def _source_mesh(plan_path: Path) -> Path:
     with np.load(plan_path, allow_pickle=False) as data:
         contact_path = Path(str(data["source_contact_plan"].item()))
@@ -129,27 +166,65 @@ def _build_xml(base: Path, mesh_path: Path, output: Path) -> None:
     tree.write(output, encoding="utf-8", xml_declaration=False)
 
 
-def _contact_report(model: mujoco.MjModel, data: mujoco.MjData) -> list[dict[str, object]]:
-    object_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "reconstructed_object_geom")
-    contacts = []
+def _contact_report(
+    model: mujoco.MjModel, data: mujoco.MjData
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    object_id = mujoco.mj_name2id(
+        model, mujoco.mjtObj.mjOBJ_GEOM, "reconstructed_object_geom"
+    )
+    object_contacts = []
+    self_contacts = []
+    fingers = ("thumb", "index", "middle", "ring", "pinky")
+
+    def finger(name: str) -> str | None:
+        lowered = name.lower()
+        return next(
+            (value for value in fingers if lowered.startswith(value + "_")),
+            None,
+        )
+
     for index in range(data.ncon):
         contact = data.contact[index]
-        if object_id not in (contact.geom1, contact.geom2):
+        geom1, geom2 = int(contact.geom1), int(contact.geom2)
+        name1 = (
+            mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, geom1)
+            or f"geom_{geom1}"
+        )
+        name2 = (
+            mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, geom2)
+            or f"geom_{geom2}"
+        )
+        if object_id in (geom1, geom2):
+            other_name = name2 if geom1 == object_id else name1
+            object_contacts.append({
+                "hand_geom": str(other_name),
+                "distance_m": float(contact.dist),
+                "position_m": np.asarray(contact.pos).tolist(),
+            })
             continue
-        other_id = contact.geom2 if contact.geom1 == object_id else contact.geom1
-        other_name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, other_id) or f"geom_{other_id}"
-        contacts.append({
-            "hand_geom": str(other_name),
+        finger1, finger2 = finger(str(name1)), finger(str(name2))
+        if finger1 is None or finger2 is None or finger1 == finger2:
+            continue
+        self_contacts.append({
+            "geom1": str(name1),
+            "geom2": str(name2),
+            "finger1": finger1,
+            "finger2": finger2,
             "distance_m": float(contact.dist),
             "position_m": np.asarray(contact.pos).tolist(),
         })
-    return contacts
+    return object_contacts, self_contacts
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--mesh-proxy",
+        type=Path,
+        help="Pre-simplified source-frame object mesh shared across candidates.",
+    )
     parser.add_argument("--max-mesh-faces", type=int, default=180_000, help="Maximum faces in the MuJoCo STL proxy; must be below 200000.")
     parser.add_argument("--show", action="store_true", help="Open the MuJoCo viewer after static contact evaluation.")
     args = parser.parse_args()
@@ -158,8 +233,11 @@ def main() -> None:
     if not 0 < args.max_mesh_faces < 200_000:
         raise ValueError("--max-mesh-faces must be between 1 and 199999")
     source_mesh = _source_mesh(args.plan)
+    geometry_mesh = args.mesh_proxy if args.mesh_proxy is not None else source_mesh
+    if not geometry_mesh.is_file():
+        raise FileNotFoundError(geometry_mesh)
     mesh_l25, transform, original_faces = _transform_mesh(
-        args.plan, source_mesh, args.output_dir / "object_in_l25_simulation_frame.stl", args.max_mesh_faces
+        args.plan, geometry_mesh, args.output_dir / "object_in_l25_simulation_frame.stl", args.max_mesh_faces
     )
     scene_xml = args.output_dir / "l25_object_relative_scene.xml"
     _build_xml(BASE_MODEL, args.output_dir / "object_in_l25_simulation_frame.stl", scene_xml)
@@ -172,7 +250,12 @@ def main() -> None:
         target_tips = np.asarray(data_file[target_key], dtype=np.float64)
         qpos_vector = np.asarray(data_file["qpos_vector_order"], dtype=np.float64)
         vector_joint_names = [str(value) for value in data_file["vector_joint_names"]]
-        actual_tips = np.asarray(data_file["l25_fingertip_positions_optimized"], dtype=np.float64)
+        actual_key = (
+            "l25_contact_positions_optimized"
+            if "l25_contact_positions_optimized" in data_file.files
+            else "l25_fingertip_positions_optimized"
+        )
+        actual_tips = np.asarray(data_file[actual_key], dtype=np.float64)
         active = np.asarray(data_file["active_contact_mask"], dtype=np.uint8).astype(bool)
     model_joint_names = [mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, index) for index in range(model.njnt)]
     index = {str(name).lower(): i for i, name in enumerate(model_joint_names) if name is not None}
@@ -181,7 +264,7 @@ def main() -> None:
     for value, name in zip(qpos, names):
         data.qpos[model.jnt_qposadr[index[name.lower()]]] = value
     mujoco.mj_forward(model, data)
-    contacts = _contact_report(model, data)
+    contacts, self_contacts = _contact_report(model, data)
 
     # Verify the exact five task-offset points used by Pinocchio against MuJoCo.
     retargeter = Retargeter.from_yaml(str(VECTOR_CONFIG), hand_side="right")
@@ -206,6 +289,7 @@ def main() -> None:
         "simulation_only": True,
         "plan": str(args.plan.resolve()),
         "source_object_mesh": str(source_mesh.resolve()),
+        "collision_mesh_source": str(geometry_mesh.resolve()),
         "transformed_object_mesh": str((args.output_dir / "object_in_l25_simulation_frame.stl").resolve()),
         "scene_xml": str(scene_xml.resolve()),
         "object_mesh_vertices": int(len(mesh_l25.vertices)),
@@ -213,6 +297,12 @@ def main() -> None:
         "object_mesh_faces_before_mujoco_simplification": int(original_faces),
         "contact_pair_count": len(contacts),
         "contacts": contacts,
+        "self_contact_pair_count": len(self_contacts),
+        "self_contacts": self_contacts,
+        "max_self_penetration_mm": max(
+            (max(0.0, -float(item["distance_m"])) * 1000.0 for item in self_contacts),
+            default=0.0,
+        ),
         "active_contact_target_error_mm": (np.linalg.norm(actual_tips[active] - target_tips[active], axis=1) * 1000.0).tolist(),
         "pinocchio_mujoco_task_point_delta_mm": fk_delta_mm.tolist(),
         "pinocchio_mujoco_task_point_delta_max_mm": float(fk_delta_mm.max()),
@@ -224,7 +314,8 @@ def main() -> None:
     print("L25 + reconstructed object MuJoCo scene built (simulation only)")
     if original_faces != len(mesh_l25.faces):
         print(f"  MuJoCo mesh proxy simplified: {original_faces} -> {len(mesh_l25.faces)} faces")
-    print(f"  static mesh contact pairs: {len(contacts)}")
+    print(f"  static object contact pairs: {len(contacts)}")
+    print(f"  cross-finger self-contact pairs: {len(self_contacts)}")
     print("  active contact target errors [mm]: " + ", ".join(f"{v:.1f}" for v in report["active_contact_target_error_mm"]))
     print(f"  Pinocchio-MuJoCo task-point max delta: {report['pinocchio_mujoco_task_point_delta_max_mm']:.3f} mm")
     print(f"  XML: {scene_xml}")

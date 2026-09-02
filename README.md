@@ -139,14 +139,18 @@ For the complete workflow from camera startup through hardware execution, use [d
 
 Final selection uses the L25 result, not only the initial HUG score:
 
-- L25 fingertip-to-target mean and maximum error
-- opposed thumb/finger geometry
-- object penetration
+- L25 distal-pad target mean and maximum error
+- thumb/finger opposition and contact-anchor spread across object sides
+- object penetration and cross-finger self-collision
 - joint-limit margin and saturation
 - deviation from the initial retargeted pose
-- optimizer feasibility and solver status
+- optional hardware command-tracking error when a measured report is supplied
 
 The first Viser top-three view helps reject implausible MANO grasps, but does not replace final robot-specific reranking.
+
+The four-backend benchmark shares one MuJoCo collision proxy and one set of
+backend-independent contact plans. Use `--limit 10` for a quick smoke test;
+omit it for the full candidate set.
 
 ## Repository Layout
 
@@ -174,9 +178,9 @@ tests/                          focused representation and pipeline tests
 ## Known Limitations
 
 - Hunyuan completion is a learned prior; a hybrid cloud is not guaranteed to outperform measured single-view depth.
-- Anchors use fingertip proximity, not MANO contact patches or full L25 link contact patches.
-- Rigid alignment currently requires three near-surface fingertips for numerical reasons and can reject valid two-finger pinches.
-- Object refinement does not yet penalize cross-finger self-collision.
+- Contact targets use three samples along each MANO distal phalanx as a distal-pad proxy; they are not dense MANO pressure patches.
+- Two-finger pinches are supported by fitting two contacts plus the wrist reference; three-finger and enveloping grasps use all active contact proxies.
+- MuJoCo refinement penalizes object penetration and cross-finger self-collision, but remains dependent on collision-mesh quality.
 - Output trajectories repeat one static qpos; approach, closure, force control, and release are not generated.
 - The project does not move a robot arm or transform camera-frame objects into a robot base frame.
 - There is no force-closure proof, tactile loop, or universal physical grasp guarantee.

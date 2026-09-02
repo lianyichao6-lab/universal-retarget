@@ -348,7 +348,6 @@ tools/benchmark_retargeting.py
 automatic VLM / grounding / segmentation
 contact-aware MANO refinement
 O6, L6, and G20 end-to-end retargeting
-real LinkerHand command transmission
 ```
 
 Do not document these as verified until their implementations and tests exist.
@@ -398,6 +397,43 @@ env -u http_proxy -u https_proxy -u all_proxy \
 cat "$SCENE/backend_benchmark_50/backend_benchmark.json"
 ```
 
+The benchmark creates two reusable caches under
+`$SCENE/backend_benchmark_50/_shared/`:
+
+- `object_collision_proxy.ply`: the Hunyuan mesh simplified once for MuJoCo;
+- `contact_plans/`: backend-independent MANO distal-pad anchors, computed once
+  per HUG candidate.
+
+The first backend populates the contact cache; later backends print
+`contact cache hit`. Cache entries are invalidated when the canonical grasp,
+object mesh, proximity threshold, or mesh file signature changes. For a quick
+four-backend smoke test before processing all 50 candidates, append
+`--limit 10`.
+
+The benchmark now uses contact-planning schema v2 and final-ranking v6. A
+contact target is selected from distal-pad proxy samples, valid two-finger
+pinches are retained, and the final MuJoCo pass evaluates both object
+penetration and cross-finger self-collision. Contact count is reported but is
+not rewarded.
+
+Optional hardware command-tracking reports can be added to a per-backend
+rerank. Name reports as `<candidate>.json` under one directory; each report must
+contain `target_command_0_255` and `state_after_0_255` arrays from
+`l25_hardware_execute.py`:
+
+```bash
+.venv/bin/python tools/rerank_l25_object_relative_candidates.py \
+  --candidates-dir "$SCENE/hug_candidates_50" \
+  --object-mesh "$SCENE/hunyuan_mv_mesh_photo_aligned.ply" \
+  --output-dir "$SCENE/vector_rerank_with_hardware" \
+  --backend vector --collision-aware \
+  --hardware-reports-dir outputs/l25/hardware_reports
+```
+
+Add `--require-hardware-validation` only after every candidate being compared
+has a measured report. This feedback measures command tracking, not force
+closure or physical grasp stability.
+
 After reading the benchmark JSON, select one backend and candidate. The
 verified cup run selected `Vector + candidate_017`:
 
@@ -436,13 +472,16 @@ physical workspace, `--hardware`, and `--confirm L25_RIGHT_CLEAR`.
 
 Current limitations:
 
-- The contact extractor uses fingertip proximity anchors, not MANO contact
-  patches or L25 link contact patches.
-- At least three near-surface fingertips are currently required only because
-  the rigid alignment uses three points. This is not a physical grasp rule and
-  incorrectly rejects valid two-finger pinches.
-- Collision refinement handles L25-object penetration but does not yet penalize
-  cross-finger self-collision.
+- The contact extractor samples three points along each MANO distal phalanx as
+  a distal-pad proxy. It is not a dense pressure/contact patch.
+- Two-finger pinches use two contacts plus the wrist reference for rigid
+  alignment; three-finger and enveloping grasps use all active contact proxies.
+- Collision refinement penalizes both L25-object penetration and cross-finger
+  self-collision. Accuracy remains limited by the object and hand collision meshes.
+- Final ranking does not reward contact count. It evaluates thumb opposition,
+  anchor spread, contact error, object/self penetration, joint margin, and
+  posture drift. Optional hardware reports add 0..255 command-tracking error;
+  this is not force, tactile, or grasp-stability validation.
 - Hybrid Hunyuan geometry is a learned prior and is not guaranteed to improve
   HUG over the measured single-view point cloud.
 - The 60 output frames repeat one static qpos; this is not a continuous grasp

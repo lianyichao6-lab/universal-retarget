@@ -1,0 +1,47 @@
+schema_version: 1
+status: target_machine_values_required
+
+robot:
+  arm_model: REQUIRED
+  base_frame: REQUIRED
+  flange_frame: REQUIRED
+  teach_mode_available: true
+
+hand:
+  model: linkerhand_l25
+  side: right
+  base_frame: REQUIRED
+  can_interface: can0
+  flange_to_hand_transform: REQUIRED_ON_TARGET
+
+cameras:
+  anchor: waist
+  waist:
+    model: orbbec_gemini335lg
+    serial_number: REQUIRED
+    color_optical_frame: waist_camera_color_optical_frame
+    depth_registered_to_color: true
+    base_to_camera_transform: REQUIRED_ON_TARGET
+  head:
+    model: orbbec_gemini335lg
+    serial_number: REQUIRED
+    color_optical_frame: head_camera_color_optical_frame
+    depth_registered_to_color: true
+    base_to_camera_transform: REQUIRED_ON_TARGET
+    transform_is_dynamic: REQUIRED
+
+planning:
+  reconstruction_backend: hunyuan3d2-multiview
+  reconstruction_contract: reconstruction_schema_v1
+  grasp_execution_contract: grasp_execution_schema_v1
+  pregrasp_offset_hand_m: REQUIRED_AFTER_TEACH_VALIDATION
+  operator_confirmation_required: true
+
+safety:
+  arm_speed_scale: 0.1
+  hand_speed: 20
+  hand_torque: 25
+  require_ik: true
+  require_arm_collision_check: true
+  require_emergency_stop: true
+  automatic_hardware_execution: false

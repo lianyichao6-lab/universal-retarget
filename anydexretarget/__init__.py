@@ -16,10 +16,12 @@ Example:
 from .retarget import Retargeter
 from .optimizer import BaseOptimizer, LPFilter
 from .mediapipe import apply_mediapipe_transformations
+from .hand_frame import CanonicalHandFrame
 
 __all__ = [
     "Retargeter",
     "BaseOptimizer",
     "LPFilter",
     "apply_mediapipe_transformations",
+    "CanonicalHandFrame",
 ]
