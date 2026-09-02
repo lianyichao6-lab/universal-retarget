@@ -9,6 +9,7 @@ viewer is read-only: it never publishes commands or connects to hardware.
 from __future__ import annotations
 
 import argparse
+import glob
 import threading
 import time
 from pathlib import Path
@@ -41,6 +42,17 @@ def apply_joint_state(model, data, addresses: dict[str, int], names, positions) 
         data.qpos[address] = float(value)
         matched += 1
     return matched
+
+def resolve_model_path(path: Path) -> Path:
+    """Resolve an explicit path or the latest live Luban temporary model."""
+    if str(path).lower() in {"latest", "auto"}:
+        candidates = [Path(item) for item in glob.glob("/tmp/luban_mujoco_robot_*.urdf")]
+        if candidates:
+            return max(candidates, key=lambda item: item.stat().st_mtime_ns)
+        raise FileNotFoundError("no live /tmp/luban_mujoco_robot_*.urdf; start Luban bringup first")
+    if path.is_file():
+        return path
+    raise FileNotFoundError(f"{path} (use exact Luban path, or --model latest while bringup is running)")
 
 
 class RosJointStateBridge:
@@ -89,8 +101,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.fps <= 0:
         parser.error("--fps must be positive")
-    if not args.model.is_file():
-        raise FileNotFoundError(args.model)
+    model_path = resolve_model_path(args.model)
 
     try:
         import mujoco
@@ -100,11 +111,11 @@ def main() -> int:
             "MuJoCo Python is unavailable; use a Python 3.12 ROS environment with mujoco installed"
         ) from exc
 
-    model = mujoco.MjModel.from_xml_path(str(args.model))
+    model = mujoco.MjModel.from_xml_path(str(model_path))
     data = mujoco.MjData(model)
     addresses = model_joint_qpos_addresses(model)
     bridge = RosJointStateBridge(model, data, addresses, args.joint_topic)
-    print(f"Loaded {args.model} ({model.njnt} joints); following {args.joint_topic}")
+    print(f"Loaded {model_path} ({model.njnt} joints); following {args.joint_topic}")
     period = 1.0 / args.fps
     try:
         with mujoco.viewer.launch_passive(model, data) as viewer:
