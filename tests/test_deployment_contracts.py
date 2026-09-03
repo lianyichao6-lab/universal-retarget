@@ -95,3 +95,29 @@ def test_execution_plan_preserves_portable_asset_references() -> None:
         result["source_reconstruction_result"].item()
         == "reconstruction/reconstruction_metadata.json"
     )
+
+
+def test_object_anchored_plan_composes_hug_object_frame() -> None:
+    from anydexretarget.deployment import build_object_anchored_grasp_execution_plan
+
+    final_plan = _plan()
+    object_to_camera = np.eye(4)
+    object_to_camera[:3, 3] = [0.2, 0.1, -0.1]
+    contact_plan = {
+        "object_to_camera": object_to_camera,
+        "source_object_mesh": np.asarray("objects/cracker_box.stl"),
+    }
+    result = build_object_anchored_grasp_execution_plan(
+        final_plan, contact_plan, source_plan="final.npz",
+        source_contact_plan="contacts.npz", anchor_frame="luban_scene_object"
+    )
+    expected = rigid_transform(
+        final_plan["camera_to_l25_rotation"],
+        final_plan["camera_to_l25_translation"],
+    ) @ object_to_camera
+    np.testing.assert_allclose(result["T_l25_hand_anchor"], expected)
+    np.testing.assert_allclose(
+        result["T_l25_hand_anchor"] @ result["T_anchor_l25_hand"],
+        np.eye(4), atol=1e-7
+    )
+    assert result["anchor_kind"].item() == "hug_object_frame"

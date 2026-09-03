@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from anydexretarget.deployment import build_grasp_execution_plan
+from anydexretarget.deployment import build_grasp_execution_plan, build_object_anchored_grasp_execution_plan
 
 
 def _strict_json_value(value: object) -> object:
@@ -38,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--object-mesh", type=Path)
+    parser.add_argument("--contact-plan", type=Path, help="HUG object-relative contact plan (.npz).")
     parser.add_argument("--reconstruction-result", type=Path)
     parser.add_argument("--anchor-frame", default="hand_camera_color_optical_frame")
     parser.add_argument("--hand-side", choices=("left", "right"), default="right")
@@ -57,7 +58,15 @@ def main() -> None:
     with np.load(args.plan, allow_pickle=False) as data:
         final_plan = {key: np.asarray(data[key]).copy() for key in data.files}
     candidate_id = args.candidate_id or args.plan.parent.name
-    result = build_grasp_execution_plan(
+    if args.contact_plan is not None:
+        with np.load(args.contact_plan, allow_pickle=False) as data:
+            contact_plan = {key: np.asarray(data[key]).copy() for key in data.files}
+        result = build_object_anchored_grasp_execution_plan(
+            final_plan, contact_plan, source_plan=args.plan, source_contact_plan=args.contact_plan,
+            anchor_frame=args.anchor_frame, hand_side=args.hand_side, candidate_id=candidate_id
+        )
+    else:
+        result = build_grasp_execution_plan(
         final_plan,
         source_plan=args.plan,
         anchor_frame=args.anchor_frame,
