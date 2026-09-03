@@ -91,9 +91,14 @@ def main() -> None:
     parser.add_argument("--flange-hand", type=Path, help="NPY 4x4 T_arm_flange_l25_hand.")
     parser.add_argument("--lift-m", type=float, default=0.0)
     parser.add_argument("--kinematic-hold", action="store_true")
+    parser.add_argument("--render-dir", type=Path, help="Write offline rgb.npy and depth.npy frames.")
+    parser.add_argument("--render-width", type=int, default=320)
+    parser.add_argument("--render-height", type=int, default=240)
     args = parser.parse_args()
     if args.fps <= 0 or args.lift_m < 0:
         parser.error("--fps must be positive and --lift-m must be non-negative")
+    if args.render_width <= 0 or args.render_height <= 0:
+        parser.error("--render-width and --render-height must be positive")
 
     targets = _load_targets(args.trajectory)
     with tempfile.TemporaryDirectory(prefix="anydex_l25_lift_") as temp_dir:
@@ -127,6 +132,9 @@ def main() -> None:
         wrenches = np.zeros((count, 5, 6), dtype=np.float32)
         hand_positions = np.zeros((count, 3), dtype=np.float32)
         object_positions = np.zeros((count, 3), dtype=np.float32)
+        rgb_frames = []
+        depth_frames = []
+        renderer = mujoco.Renderer(model, width=args.render_width, height=args.render_height) if args.render_dir else None
         hold_offset = None
         grasp_frame = None
         for index, target in enumerate(targets):
@@ -168,6 +176,15 @@ def main() -> None:
             wrenches[index] = state.wrenches
             hand_positions[index] = hand_pos
             object_positions[index] = data.xpos[object_body_id]
+            if renderer is not None:
+                renderer.update_scene(data)
+                rgb_frames.append(renderer.render().copy())
+                renderer.enable_depth_rendering()
+                renderer.update_scene(data)
+                depth_frames.append(renderer.render().copy())
+                renderer.disable_depth_rendering()
+        if renderer is not None:
+            renderer.close()
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
@@ -194,6 +211,13 @@ def main() -> None:
         "hardware_command_generated": False,
     }
     args.output.with_suffix(".json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if args.render_dir:
+        args.render_dir.mkdir(parents=True, exist_ok=True)
+        np.save(args.render_dir / "rgb.npy", np.asarray(rgb_frames, dtype=np.uint8))
+        np.save(args.render_dir / "depth.npy", np.asarray(depth_frames, dtype=np.float32))
+        report["rgb_path"] = str((args.render_dir / "rgb.npy").resolve())
+        report["depth_path"] = str((args.render_dir / "depth.npy").resolve())
+        args.output.with_suffix(".json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(f"Replayed {count} frames; max contact count={report['max_contact_count']}")
     print(f"grasp_contact_observed={report['grasp_contact_observed']} lift_success={report['lift_success']}")
     print(f"tactile output: {args.output}")
