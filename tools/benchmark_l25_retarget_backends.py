@@ -66,6 +66,9 @@ def main() -> None:
     parser.add_argument("--adaptive-config", type=Path,
                         default=ROOT / "example/config/adaptive/mediapipe/mediapipe_linkerhand_l25_geometry_calibrated.yaml")
     parser.add_argument("--near-surface-gap-mm", type=float, default=25.0)
+    parser.add_argument("--contact-fingers", type=str)
+    parser.add_argument("--joint-margin-weight", type=float, default=0.0)
+    parser.add_argument("--minimum-joint-margin", type=float, default=0.015)
     parser.add_argument("--max-evaluations", type=int, default=160)
     parser.add_argument("--collision-max-joint-delta-rad", type=float, default=0.10)
     parser.add_argument("--max-penetration-mm", type=float, default=5.0)
@@ -92,6 +95,8 @@ def main() -> None:
         args.max_penetration_mm < 0
         or args.max_self_penetration_mm < 0
         or args.max_contact_mean_error_mm < 0
+        or args.joint_margin_weight < 0
+        or not 0 <= args.minimum_joint_margin <= 0.5
         or not 0 <= args.min_joint_margin <= 0.5
         or not 0 < args.max_mesh_faces < 200_000
         or (args.limit is not None and args.limit <= 0)
@@ -133,7 +138,11 @@ def main() -> None:
             "--max-self-penetration-mm", str(args.max_self_penetration_mm),
             "--max-contact-mean-error-mm", str(args.max_contact_mean_error_mm),
             "--min-joint-margin", str(args.min_joint_margin),
+            "--joint-margin-weight", str(args.joint_margin_weight),
+            "--minimum-joint-margin", str(args.minimum_joint_margin),
         ]
+        if args.contact_fingers:
+            command.extend(["--contact-fingers", args.contact_fingers])
         if backend == "adaptive":
             command.extend(["--config", str(args.adaptive_config)])
         if args.limit is not None:

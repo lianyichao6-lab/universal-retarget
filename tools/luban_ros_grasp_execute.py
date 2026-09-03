@@ -73,8 +73,28 @@ def _wait_for_subscribers(rclpy, node, publisher, topic: str, timeout: float) ->
     raise TimeoutError(f"No subscriber discovered on {topic}")
 
 
+def _controller_state_converged(
+    reference_before: np.ndarray | None,
+    reference_now: np.ndarray | None,
+    error: np.ndarray | None,
+    tolerance: float,
+) -> bool:
+    """Return true only after a new controller reference reaches tolerance."""
+    if reference_before is None or reference_now is None or error is None:
+        return False
+    if reference_before.shape != reference_now.shape or error.shape != reference_now.shape:
+        return False
+    if not np.isfinite(reference_now).all() or not np.isfinite(error).all():
+        return False
+    return bool(
+        np.max(np.abs(reference_now - reference_before), initial=0.0) > 1e-4
+        and np.max(np.abs(error), initial=0.0) <= tolerance
+    )
+
+
 def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
     import rclpy
+    from control_msgs.msg import JointTrajectoryControllerState
     from geometry_msgs.msg import PoseStamped
     from std_msgs.msg import Bool, Float64MultiArray
 
@@ -86,6 +106,21 @@ def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
     done = {"arm": False, "hand": False}
     node.create_subscription(Bool, args.arm_done_topic, lambda msg: done.__setitem__("arm", bool(msg.data)), 10)
     node.create_subscription(Bool, args.hand_done_topic, lambda msg: done.__setitem__("hand", bool(msg.data)), 10)
+    controller_state: dict[str, np.ndarray | None] = {"reference": None, "error": None}
+
+    def update_controller_state(message: JointTrajectoryControllerState) -> None:
+        reference = np.asarray(message.reference.positions, dtype=np.float64)
+        error = np.asarray(message.error.positions, dtype=np.float64)
+        if reference.shape == (7,) and error.shape == (7,):
+            controller_state["reference"] = reference
+            controller_state["error"] = error
+
+    node.create_subscription(
+        JointTrajectoryControllerState,
+        args.controller_state_topic,
+        update_controller_state,
+        10,
+    )
 
     def pose(transform: np.ndarray) -> PoseStamped:
         position, quaternion = arm_flange_pose_xyzw(transform)
@@ -101,6 +136,9 @@ def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
         _wait_for_subscribers(
             rclpy, node, arm_pub, args.arm_topic, args.discovery_timeout
         )
+        reference_before = controller_state["reference"]
+        if reference_before is not None:
+            reference_before = reference_before.copy()
         for _ in range(args.publish_count):
             arm_pub.publish(pose(transform))
             rclpy.spin_once(node, timeout_sec=args.publish_period_s)
@@ -110,6 +148,16 @@ def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
             if done["arm"]:
                 node.get_logger().info(
                     f"Arm stage '{stage}' completed via {args.arm_done_topic}"
+                )
+                return
+            if args.mock_controller_state_fallback and _controller_state_converged(
+                reference_before,
+                controller_state["reference"],
+                controller_state["error"],
+                args.controller_state_tolerance,
+            ):
+                node.get_logger().warn(
+                    f"Arm stage '{stage}' accepted via mock controller-state fallback"
                 )
                 return
         raise TimeoutError(f"No successful arm completion on {args.arm_done_topic}")
@@ -175,6 +223,16 @@ def main() -> None:
     parser.add_argument("--arm-done-topic", default=LUBAN_RIGHT_ARM_DONE_TOPIC)
     parser.add_argument("--hand-done-topic", default=LUBAN_RIGHT_HAND_DONE_TOPIC)
     parser.add_argument("--arm-timeout", type=float, default=30.0)
+    parser.add_argument(
+        "--controller-state-topic",
+        default="/right_arm_controller/controller_state",
+    )
+    parser.add_argument(
+        "--mock-controller-state-fallback",
+        action="store_true",
+        help="Mock-only fallback when a one-shot motion_done event is missed.",
+    )
+    parser.add_argument("--controller-state-tolerance", type=float, default=0.01)
     parser.add_argument("--hand-timeout", type=float, default=12.0)
     parser.add_argument("--discovery-timeout", type=float, default=5.0)
     parser.add_argument("--publish-count", type=int, default=3)
@@ -186,6 +244,7 @@ def main() -> None:
         or args.discovery_timeout <= 0
         or args.publish_count <= 0
         or args.publish_period_s <= 0
+        or args.controller_state_tolerance <= 0
     ):
         parser.error("timeouts, publish-count and publish-period-s must be positive")
     if args.execute and args.confirm != "AR5_L25_CLEAR":

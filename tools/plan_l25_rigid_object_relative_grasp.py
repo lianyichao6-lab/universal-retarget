@@ -89,6 +89,15 @@ def _parse_surface_gaps(
     return gaps
 
 
+def _joint_margin_deficit(
+    q: np.ndarray, lower: np.ndarray, upper: np.ndarray, minimum_margin: float
+) -> np.ndarray:
+    """Return the normalized amount by which each joint misses its margin."""
+    span = np.maximum(np.asarray(upper) - np.asarray(lower), 1e-6)
+    margin = np.minimum((q - lower) / span, (upper - q) / span)
+    return np.maximum(0.0, minimum_margin - margin)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--contact-plan", type=Path, required=True)
@@ -110,6 +119,8 @@ def main() -> None:
     parser.add_argument("--surface-gap-mm", type=float, default=0.0)
     parser.add_argument("--surface-gaps-mm", type=str)
     parser.add_argument("--contact-fingers", type=str)
+    parser.add_argument("--joint-margin-weight", type=float, default=0.0)
+    parser.add_argument("--minimum-joint-margin", type=float, default=0.015)
     parser.add_argument("--max-evaluations", type=int, default=160)
     args = parser.parse_args()
     if (
@@ -117,6 +128,8 @@ def main() -> None:
         or args.posture_weight < 0
         or args.contact_scale_mm <= 0
         or args.surface_gap_mm < 0
+        or args.joint_margin_weight < 0
+        or not 0 <= args.minimum_joint_margin <= 0.5
         or args.max_evaluations <= 0
     ):
         raise ValueError("Invalid optimization settings")
@@ -276,6 +289,8 @@ def main() -> None:
                 * (fk(q, contact_offsets)[active] - contact_targets[active]).reshape(-1)
                 / contact_scale,
                 np.sqrt(args.posture_weight) * (q - baseline_q) / ranges,
+                np.sqrt(args.joint_margin_weight)
+                * _joint_margin_deficit(q, lower, upper, args.minimum_joint_margin),
             )
         )
 
@@ -322,6 +337,7 @@ def main() -> None:
         vector_joint_names=np.asarray(vector_names),
         qpos_vector_order=q_vector.astype(np.float32),
         qpos_initial_retarget=baseline_q.astype(np.float32),
+        finger_names=np.asarray(finger_names),
         active_contact_mask=active.astype(np.uint8),
         contact_point_kind=np.asarray(
             contact.get("contact_point_kind", ["tip"] * 5)
@@ -357,6 +373,8 @@ def main() -> None:
         "simulation_only": True,
         "hardware_command_generated": False,
         "object_scale_fixed_to_one": True,
+        "joint_margin_weight": args.joint_margin_weight,
+        "minimum_joint_margin": args.minimum_joint_margin,
         "method": (
             "distal_pad_contact_fit_then_bounded_surface_refinement"
         ),

@@ -1,6 +1,21 @@
 import numpy as np
 
 from anydexretarget.luban_execution import build_luban_grasp_request
+from tools.luban_ros_grasp_execute import _controller_state_converged
+
+
+def test_controller_state_fallback_requires_new_converged_reference() -> None:
+    previous = np.asarray((0.0, 0.0, 0.0))
+    current = np.asarray((0.1, 0.0, 0.0))
+    assert _controller_state_converged(
+        previous, current, np.asarray((0.001, 0.0, 0.0)), 0.01
+    )
+    assert not _controller_state_converged(
+        previous, previous, np.zeros(3), 0.01
+    )
+    assert not _controller_state_converged(
+        previous, current, np.asarray((0.02, 0.0, 0.0)), 0.01
+    )
 
 
 def test_request_uses_capture_pose_and_active_l25_joints() -> None:

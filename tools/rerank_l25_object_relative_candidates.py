@@ -47,6 +47,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--dex-scaling", type=float)
     parser.add_argument("--dex-project-dist", type=float)
     parser.add_argument("--dex-escape-dist", type=float)
+    parser.add_argument("--contact-fingers", type=str)
+    parser.add_argument("--joint-margin-weight", type=float, default=0.0)
+    parser.add_argument("--minimum-joint-margin", type=float, default=0.015)
     parser.add_argument("--required-opposed-fingers", type=int, default=1)
     parser.add_argument("--min-opposed-anchor-span-ratio", type=float, default=0.08)
     parser.add_argument("--max-penetration-mm", type=float, default=5.0)
@@ -73,6 +76,8 @@ def _parse_args() -> argparse.Namespace:
         or args.max_self_penetration_mm < 0
         or args.max_contact_mean_error_mm < 0
         or args.max_posture_delta_rms < 0
+        or args.joint_margin_weight < 0
+        or not 0 <= args.minimum_joint_margin <= 0.5
         or not 0 <= args.min_joint_margin <= 0.5
         or args.max_hardware_mean_error < 0
         or args.collision_max_joint_delta_rad <= 0
@@ -187,9 +192,23 @@ def _joint_metrics(plan_path: Path) -> dict[str, float | int]:
 
 def _contact_metrics(contact_path: Path, object_diagonal: float) -> dict[str, object]:
     with np.load(contact_path, allow_pickle=False) as data:
-        active = np.asarray(data["near_surface"], dtype=np.uint8).astype(bool)
-        normals = np.asarray(data["surface_normal_camera"], dtype=np.float64)
-        anchors = np.asarray(data["surface_anchor_camera"], dtype=np.float64)
+        active_key = (
+            "active_contact_mask" if "active_contact_mask" in data.files
+            else "near_surface"
+        )
+        normal_key = (
+            "surface_normal_positions_l25"
+            if "surface_normal_positions_l25" in data.files
+            else "surface_normal_camera"
+        )
+        anchor_key = (
+            "surface_anchor_positions_l25"
+            if "surface_anchor_positions_l25" in data.files
+            else "surface_anchor_camera"
+        )
+        active = np.asarray(data[active_key], dtype=np.uint8).astype(bool)
+        normals = np.asarray(data[normal_key], dtype=np.float64)
+        anchors = np.asarray(data[anchor_key], dtype=np.float64)
         names = [str(value).lower() for value in data["finger_names"]]
         kinds = [
             str(value)
@@ -350,7 +369,11 @@ def main() -> None:
                 "--output", str(plan_path),
                 "--max-evaluations", str(args.max_evaluations),
                 "--backend", args.backend,
+                "--joint-margin-weight", str(args.joint_margin_weight),
+                "--minimum-joint-margin", str(args.minimum_joint_margin),
             ]
+            if args.contact_fingers:
+                plan_command.extend(["--contact-fingers", args.contact_fingers])
             if args.config is not None:
                 plan_command.extend(["--config", str(args.config)])
             if args.dex_scaling is not None:
@@ -385,7 +408,7 @@ def main() -> None:
                     report["active_fingertip_error_after_mm"],
                 )
             ]
-            row.update(_contact_metrics(contact_path, object_diagonal))
+            row.update(_contact_metrics(plan_path, object_diagonal))
             row.update(_joint_metrics(plan_path))
             if args.build_scenes or args.collision_aware:
                 row.update(_scene_metrics(scene_dir / "scene_report.json"))

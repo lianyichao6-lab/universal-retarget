@@ -10,7 +10,11 @@ import trimesh
 
 from tools.build_l25_object_relative_scene import prepare_mujoco_mesh_proxy
 
-from tools.plan_l25_rigid_object_relative_grasp import _apply, _rigid
+from tools.plan_l25_rigid_object_relative_grasp import (
+    _apply,
+    _joint_margin_deficit,
+    _rigid,
+)
 from tools.refine_l25_collision_aware import _finger_from_geom
 from tools.rerank_l25_object_relative_candidates import (
     _contact_cache_valid,
@@ -78,6 +82,15 @@ class ContactPlannerV2Tests(unittest.TestCase):
         self.assertEqual(_finger_from_geom("thumb_proximal_visual"), "thumb")
         self.assertIsNone(_finger_from_geom("hand_base_link_visual"))
 
+    def test_joint_margin_deficit_only_penalizes_near_limits(self) -> None:
+        deficit = _joint_margin_deficit(
+            np.asarray((0.5, 0.01, 0.99)),
+            np.zeros(3),
+            np.ones(3),
+            minimum_margin=0.05,
+        )
+        np.testing.assert_allclose(deficit, (0.0, 0.04, 0.04))
+
     def test_contact_metrics_capture_opposition_and_span(self) -> None:
         active = np.asarray((1, 1, 0, 0, 0), dtype=np.uint8)
         normals = np.asarray(
@@ -91,9 +104,12 @@ class ContactPlannerV2Tests(unittest.TestCase):
             path = Path(directory) / "contact.npz"
             np.savez_compressed(
                 path,
-                near_surface=active,
+                near_surface=np.ones(5, dtype=np.uint8),
+                active_contact_mask=active,
                 surface_normal_camera=normals,
                 surface_anchor_camera=anchors,
+                surface_normal_positions_l25=normals,
+                surface_anchor_positions_l25=anchors,
                 finger_names=np.asarray(
                     ("thumb", "index", "middle", "ring", "pinky")
                 ),
@@ -103,6 +119,7 @@ class ContactPlannerV2Tests(unittest.TestCase):
             )
             metrics = _contact_metrics(path, object_diagonal=0.2)
         self.assertTrue(metrics["thumb_opposed"])
+        self.assertEqual(metrics["active_contact_fingers"], 2)
         self.assertEqual(metrics["thumb_opposed_fingers"], "index")
         self.assertAlmostEqual(metrics["opposed_anchor_span_ratio"], 0.5)
 
