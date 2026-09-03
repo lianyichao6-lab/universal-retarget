@@ -100,6 +100,16 @@ class RosJointStateBridge:
             self._rclpy.shutdown()
 
 
+class OfflineJointStateBridge:
+    """No-op bridge for viewing with a MuJoCo-only Python environment."""
+
+    def spin_once(self) -> bool:
+        return True
+
+    def close(self) -> None:
+        return None
+
+
 def apply_viewer_style(model) -> None:
     """Keep source materials and improve only neutral scene lighting."""
     model.vis.headlight.ambient = np.asarray((0.45, 0.45, 0.45), dtype=np.float32)
@@ -184,8 +194,14 @@ def main() -> int:
     mujoco.mj_forward(model, data)
     apply_viewer_style(model)
     addresses = model_joint_qpos_addresses(model)
-    bridge = RosJointStateBridge(model, data, addresses, args.joint_topic)
-    print(f"Loaded {model_path} ({model.njnt} joints); following {args.joint_topic}")
+    try:
+        bridge = RosJointStateBridge(model, data, addresses, args.joint_topic)
+        bridge_mode = f"following {args.joint_topic}"
+    except RuntimeError as exc:
+        print(f"ROS bridge unavailable; offline viewer mode: {exc}")
+        bridge = OfflineJointStateBridge()
+        bridge_mode = "offline"
+    print(f"Loaded {model_path} ({model.njnt} joints); {bridge_mode}")
     period = 1.0 / args.fps
     try:
         with mujoco.viewer.launch_passive(model, data) as viewer:
