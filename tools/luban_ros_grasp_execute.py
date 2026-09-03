@@ -121,6 +121,13 @@ def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
         update_controller_state,
         10,
     )
+    if args.mock_controller_state_fallback:
+        # Establish a controller reference before publishing; otherwise a fast
+        # mock trajectory can finish before the executor has a baseline.
+        deadline = time.monotonic() + args.discovery_timeout
+        while rclpy.ok() and controller_state["reference"] is None and time.monotonic() < deadline:
+            rclpy.spin_once(node, timeout_sec=0.05)
+
 
     def pose(transform: np.ndarray) -> PoseStamped:
         position, quaternion = arm_flange_pose_xyzw(transform)
