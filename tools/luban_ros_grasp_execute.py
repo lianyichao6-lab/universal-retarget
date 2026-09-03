@@ -131,11 +131,19 @@ def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
         raise TimeoutError(f"No successful hand completion on {args.hand_done_topic}")
 
     try:
+        if args.stage == "preview":
+            _wait_for_subscribers(
+                rclpy, node, wrist_pub, args.wrist_topic, args.discovery_timeout
+            )
+            for _ in range(args.publish_count):
+                wrist_pub.publish(pose(request["T_robot_base_l25_hand_target"]))
+                rclpy.spin_once(node, timeout_sec=args.publish_period_s)
+            node.get_logger().info(
+                f"Published diagnostic wrist goal to {args.wrist_topic}"
+            )
+            return
         wrist_pub.publish(pose(request["T_robot_base_l25_hand_target"]))
         node.get_logger().info(f"Published diagnostic wrist goal to {args.wrist_topic}")
-        if args.stage == "preview":
-            rclpy.spin_once(node, timeout_sec=args.publish_period_s)
-            return
         if args.stage in {"pregrasp", "all"}:
             publish_arm(
                 request["T_robot_base_arm_flange_pregrasp"],

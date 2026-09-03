@@ -74,3 +74,22 @@ the NPZ key `T_arm_flange_l25_hand`.
 Run `luban_ros_grasp_execute.py` one stage at a time: `preview`, `pregrasp`,
 `approach`, then `close`. Keep `MOCK=1`; hardware execution is not part of this
 workflow.
+
+## ROS Preview
+
+When Luban runs in its Docker container, it uses localhost-only DDS discovery.
+Use the same setting in the AnyDex terminal and preview the wrist target before
+any motion stage:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+export PYTHONPATH=".:$PYTHONPATH"
+
+/usr/bin/python3 tools/luban_ros_grasp_execute.py \
+  --request "$RUN/deployment/luban_grasp_request.npz" \
+  --stage preview --execute --confirm AR5_L25_CLEAR
+```
+
+The preview waits for an RViz or `ros2 topic echo` subscriber and publishes only
+`/anydex/right_l25_wrist_goal`; it does not command the arm or hand.
