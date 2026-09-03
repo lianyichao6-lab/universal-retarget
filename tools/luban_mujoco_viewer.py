@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -124,11 +125,40 @@ def add_blue_floor(viewer, data) -> None:
     scene.ngeom = 1
 
 
+def prepare_floor_model(model_path: Path, floor_mode: str, floor_z: float) -> Path:
+    """Add an optional non-colliding floor to a viewer-only URDF copy."""
+    if floor_mode in {"none", "blue"}:
+        return model_path
+    source = model_path.read_text(encoding="utf-8")
+    if "name=\"anydex_checker_floor\"" in source:
+        return model_path
+    extension = (
+        "<mujoco><asset>"
+        "<texture name=\"anydex_checker_texture\" type=\"2d\" builtin=\"checker\" "
+        "width=\"512\" height=\"512\" rgb1=\"0.12 0.16 0.22\" "
+        "rgb2=\"0.68 0.74 0.82\"/>"
+        "<material name=\"anydex_checker_material\" texture=\"anydex_checker_texture\" "
+        "texrepeat=\"12 12\"/>"
+        "</asset><worldbody>"
+        f"<geom name=\"anydex_checker_floor\" type=\"plane\" size=\"3 3 0.1\" "
+        f"pos=\"0 0 {floor_z:.9g}\" material=\"anydex_checker_material\" "
+        "contype=\"0\" conaffinity=\"0\"/>"
+        "</worldbody></mujoco>"
+    )
+    handle = tempfile.NamedTemporaryFile(
+        mode="w", prefix="anydex_luban_checker_", suffix=".urdf", delete=False
+    )
+    with handle:
+        handle.write(source.replace("</robot>", extension + "</robot>"))
+    return Path(handle.name)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, required=True, help="Luban temporary URDF/MJCF model")
     parser.add_argument("--joint-topic", default="/joint_states")
     parser.add_argument("--fps", type=float, default=60.0)
+    parser.add_argument("--floor", choices=("grid", "blue", "none"), default="grid", help="Viewer-only floor style (default: grid).")
     args = parser.parse_args()
     if args.fps <= 0:
         parser.error("--fps must be positive")
@@ -142,7 +172,14 @@ def main() -> int:
             "MuJoCo Python is unavailable; use a Python 3.12 ROS environment with mujoco installed"
         ) from exc
 
-    model = mujoco.MjModel.from_xml_path(str(model_path))
+    floor_source = model_path
+    if args.floor == "grid":
+        probe_model = mujoco.MjModel.from_xml_path(str(model_path))
+        probe_data = mujoco.MjData(probe_model)
+        mujoco.mj_forward(probe_model, probe_data)
+        floor_z = float(np.min(probe_data.geom_xpos[:, 2]) - 0.02)
+        floor_source = prepare_floor_model(model_path, args.floor, floor_z)
+    model = mujoco.MjModel.from_xml_path(str(floor_source))
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
     apply_viewer_style(model)
@@ -153,7 +190,8 @@ def main() -> int:
     try:
         with mujoco.viewer.launch_passive(model, data) as viewer:
             configure_camera(viewer, model)
-            add_blue_floor(viewer, data)
+            if args.floor == "blue":
+                add_blue_floor(viewer, data)
             while viewer.is_running():
                 started = time.perf_counter()
                 if not bridge.spin_once():
