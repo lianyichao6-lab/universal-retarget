@@ -63,6 +63,16 @@ def _report(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
     }, indent=2))
 
 
+def _wait_for_subscribers(rclpy, node, publisher, topic: str, timeout: float) -> None:
+    """Wait for DDS discovery before sending a one-shot motion command."""
+    deadline = time.monotonic() + timeout
+    while rclpy.ok() and time.monotonic() < deadline:
+        if publisher.get_subscription_count() > 0:
+            return
+        rclpy.spin_once(node, timeout_sec=0.05)
+    raise TimeoutError(f"No subscriber discovered on {topic}")
+
+
 def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
     import rclpy
     from geometry_msgs.msg import PoseStamped
@@ -86,8 +96,11 @@ def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
         message.pose.orientation.x, message.pose.orientation.y, message.pose.orientation.z, message.pose.orientation.w = quaternion.tolist()
         return message
 
-    def publish_arm(transform: np.ndarray, timeout: float) -> None:
+    def publish_arm(transform: np.ndarray, timeout: float, stage: str) -> None:
         done["arm"] = False
+        _wait_for_subscribers(
+            rclpy, node, arm_pub, args.arm_topic, args.discovery_timeout
+        )
         for _ in range(args.publish_count):
             arm_pub.publish(pose(transform))
             rclpy.spin_once(node, timeout_sec=args.publish_period_s)
@@ -95,16 +108,25 @@ def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
         while rclpy.ok() and time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=0.05)
             if done["arm"]:
+                node.get_logger().info(
+                    f"Arm stage '{stage}' completed via {args.arm_done_topic}"
+                )
                 return
         raise TimeoutError(f"No successful arm completion on {args.arm_done_topic}")
 
     def publish_hand(timeout: float) -> None:
         done["hand"] = False
+        _wait_for_subscribers(
+            rclpy, node, hand_pub, args.hand_topic, args.discovery_timeout
+        )
         hand_pub.publish(Float64MultiArray(data=request["l25_active_positions"].tolist()))
         deadline = time.monotonic() + timeout
         while rclpy.ok() and time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=0.05)
             if done["hand"]:
+                node.get_logger().info(
+                    f"Hand stage 'close' completed via {args.hand_done_topic}"
+                )
                 return
         raise TimeoutError(f"No successful hand completion on {args.hand_done_topic}")
 
@@ -115,9 +137,17 @@ def _execute(request: dict[str, np.ndarray], args: argparse.Namespace) -> None:
             rclpy.spin_once(node, timeout_sec=args.publish_period_s)
             return
         if args.stage in {"pregrasp", "all"}:
-            publish_arm(request["T_robot_base_arm_flange_pregrasp"], args.arm_timeout)
+            publish_arm(
+                request["T_robot_base_arm_flange_pregrasp"],
+                args.arm_timeout,
+                "pregrasp",
+            )
         if args.stage in {"approach", "all"}:
-            publish_arm(request["T_robot_base_arm_flange_target"], args.arm_timeout)
+            publish_arm(
+                request["T_robot_base_arm_flange_target"],
+                args.arm_timeout,
+                "approach",
+            )
         if args.stage in {"close", "all"}:
             publish_hand(args.hand_timeout)
     finally:
@@ -138,10 +168,17 @@ def main() -> None:
     parser.add_argument("--hand-done-topic", default=LUBAN_RIGHT_HAND_DONE_TOPIC)
     parser.add_argument("--arm-timeout", type=float, default=30.0)
     parser.add_argument("--hand-timeout", type=float, default=12.0)
+    parser.add_argument("--discovery-timeout", type=float, default=5.0)
     parser.add_argument("--publish-count", type=int, default=3)
     parser.add_argument("--publish-period-s", type=float, default=0.1)
     args = parser.parse_args()
-    if args.arm_timeout <= 0 or args.hand_timeout <= 0 or args.publish_count <= 0 or args.publish_period_s <= 0:
+    if (
+        args.arm_timeout <= 0
+        or args.hand_timeout <= 0
+        or args.discovery_timeout <= 0
+        or args.publish_count <= 0
+        or args.publish_period_s <= 0
+    ):
         parser.error("timeouts, publish-count and publish-period-s must be positive")
     if args.execute and args.confirm != "AR5_L25_CLEAR":
         parser.error("hardware or simulation execution requires --confirm AR5_L25_CLEAR")

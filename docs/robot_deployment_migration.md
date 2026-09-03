@@ -202,15 +202,24 @@ The default executor mode is a dry-run;
 the `preview` stage only publishes `/anydex/right_l25_wrist_goal` for RViz.
 
 ~~~bash
-/usr/bin/python3 tools/luban_ros_grasp_execute.py \
+PYTHONPATH="$PWD:${PYTHONPATH:-}" /usr/bin/python3 tools/luban_ros_grasp_execute.py \
   --request luban_grasp_request.npz
 
-/usr/bin/python3 tools/luban_ros_grasp_execute.py \
+PYTHONPATH="$PWD:${PYTHONPATH:-}" /usr/bin/python3 tools/luban_ros_grasp_execute.py \
   --request luban_grasp_request.npz \
   --stage pregrasp --execute --confirm AR5_L25_CLEAR
 ~~~
 
 Use `approach` and `close` as separate operator-confirmed stages before `all`.
+After those stages pass in a clean `MOCK=1` session, run the cold-start
+sequence with:
+
+~~~bash
+PYTHONPATH="$PWD:${PYTHONPATH:-}" /usr/bin/python3 tools/luban_ros_grasp_execute.py \
+  --request luban_grasp_request.npz \
+  --stage all --execute --confirm AR5_L25_CLEAR
+~~~
+
 Luban receives a `PoseStamped` on `/right_arm/target_pose` and exactly 16
 active L25 joint radians on `/right_hand_controller/commands`; the internal
 21-DoF L25 qpos is not published directly.

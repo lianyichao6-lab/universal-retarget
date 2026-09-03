@@ -22,3 +22,32 @@ def test_request_reader_rejects_internal_21_joint_command(tmp_path) -> None:
         assert "16 finite" in str(exc)
     else:
         raise AssertionError("expected active L25 joint validation failure")
+
+
+def test_wait_for_subscribers_spins_until_dds_match(monkeypatch) -> None:
+    clock = iter((0.0, 0.1, 0.2, 0.3))
+    monkeypatch.setattr(MODULE.time, "monotonic", lambda: next(clock))
+
+    class Publisher:
+        calls = 0
+
+        def get_subscription_count(self):
+            self.calls += 1
+            return int(self.calls >= 2)
+
+    class Rclpy:
+        spins = 0
+
+        @staticmethod
+        def ok():
+            return True
+
+        @classmethod
+        def spin_once(cls, _node, timeout_sec):
+            assert timeout_sec == 0.05
+            cls.spins += 1
+
+    publisher = Publisher()
+    MODULE._wait_for_subscribers(Rclpy, object(), publisher, "/command", 1.0)
+    assert publisher.calls == 2
+    assert Rclpy.spins == 1
