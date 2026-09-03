@@ -134,9 +134,36 @@ def build_grasp_execution_plan(
     return result
 
 
+def build_object_anchored_grasp_execution_plan(final_plan: Mapping[str, object], contact_plan: Mapping[str, object], *, source_plan: str | Path, source_contact_plan: str | Path, anchor_frame: str, hand_side: str = 'right', candidate_id: str = '') -> dict[str, np.ndarray]:
+    "Build a simulation-only contract anchored in the HUG object frame."
+    if 'object_to_camera' not in contact_plan:
+        raise ValueError('Contact plan is missing object_to_camera')
+    object_raw = np.asarray(contact_plan['object_to_camera'], dtype=np.float64)
+    if object_raw.shape != (4, 4):
+        raise ValueError('T_camera_object must have shape (4, 4)')
+    object_to_camera = rigid_transform(object_raw[:3, :3], object_raw[:3, 3])
+    camera_to_l25 = rigid_transform(final_plan['camera_to_l25_rotation'], final_plan['camera_to_l25_translation'])
+    l25_to_object = camera_to_l25 @ object_to_camera
+    anchored = dict(final_plan)
+    anchored['camera_to_l25_rotation'] = l25_to_object[:3, :3]
+    anchored['camera_to_l25_translation'] = l25_to_object[:3, 3]
+    mesh = contact_plan.get('source_object_mesh')
+    if mesh is None:
+        raise ValueError('Contact plan is missing source_object_mesh')
+    result = build_grasp_execution_plan(anchored, source_plan=source_plan, anchor_frame=anchor_frame, hand_side=hand_side, candidate_id=candidate_id, object_mesh=str(np.asarray(mesh).item()))
+    result['source_contact_plan'] = np.asarray(str(Path(source_contact_plan).resolve()))
+    result['anchor_kind'] = np.asarray('hug_object_frame')
+    result['T_l25_hand_camera'] = camera_to_l25.astype(np.float64)
+    result['T_camera_anchor'] = object_to_camera.astype(np.float64)
+    result['T_l25_hand_anchor'] = l25_to_object.astype(np.float64)
+    result['T_anchor_l25_hand'] = np.linalg.inv(l25_to_object).astype(np.float64)
+    return result
+
+
 __all__ = [
     "GRASP_EXECUTION_SCHEMA_VERSION",
     "RECONSTRUCTION_SCHEMA_VERSION",
+    "build_object_anchored_grasp_execution_plan",
     "build_grasp_execution_plan",
     "rigid_transform",
 ]
