@@ -8,7 +8,6 @@
   -> HUG 多候选抓取
   -> L25 重定向与碰撞排序
   -> 带物体 mesh 的 MuJoCo
-  -> MuJoCo 触觉记录
   -> LinkerHand L25 真机预检/有界执行
 ```
 
@@ -151,19 +150,8 @@ export MUJOCO_SCENE="$SCENE/mujoco_scene"
 
 观察手指是否穿模、物体是否错位、抓取姿态是否合理。MuJoCo 不包含机械臂。
 
-## 6. 记录仿真触觉
-
-```bash
-"$PY" tools/replay_l25_tactile_episode.py \
-  --scene "$MUJOCO_SCENE/l25_object_relative_scene.xml" \
-  --trajectory "$TRAJECTORY" \
-  --output "$SCENE/${BACKEND}_${BEST}_tactile.npz" \
-  --fps 30
-```
-
-这是接触几何得到的仿真触觉，不是真机传感器数据，也不是力闭环验证。
-
-## 7. L25 真机：先离线，再只读，再有界动作
+## 6. L25 真机：先离线，再只读，再有界动作
+## 6. L25 真机：先离线，再只读，再有界动作
 
 离线检查：
 
