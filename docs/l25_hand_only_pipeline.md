@@ -107,6 +107,8 @@ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
   --output "$HUG_OUTPUT" --dry-run
 ```
 
+每个候选目录都会保存 prediction.pkl、canonical_grasp.npz、trajectory.pkl、trajectory.npz 和 metrics.json。trajectory.pkl 是该 HUG 候选经过一次 L25 重定向得到的静态 21 维 qpos 轨迹；--frames 60 只是重复同一目标姿态。50 个候选来自不同随机 seed，不代表 50 个都可执行或成功。初步排序结果在 HUG_OUTPUT/candidates.csv 和 HUG_OUTPUT/best_candidate.json，最终选择必须继续经过 L25 物体相对优化和 MuJoCo 检查。
+
 ## 4. L25 碰撞排序
 
 ```bash

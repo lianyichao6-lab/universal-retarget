@@ -11,6 +11,7 @@ L25 抓取轨迹 + AR5 关节轨迹
 ```
 
 这是离线 MuJoCo 流程，不连接真实 AR5、L25、CAN 或 Luban ROS。
+联合仿真的 L25 输入应来自某一个已经选定的 HUG 候选，而不是把 50 个候选同时送入 AR5。50 个候选的生成、每候选的 trajectory.pkl，以及 Vector/Adaptive 等 L25 优化和最终 candidate 选择，见 docs/l25_hand_only_pipeline.md；本手册从选定的 L25_TRAJECTORY 和 AR5_TRAJECTORY 开始。
 
 ## 0. 设置路径
 
