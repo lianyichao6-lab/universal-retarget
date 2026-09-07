@@ -1,9 +1,99 @@
 # ROS 感知 → AnyDex 抓取 全流程 CLI(evo-station-c01 已验证)
 
-状态日期:2026-09-04
+状态日期:2026-09-07
 
 本机(`evo-station-c01`)实测跑通:把在线 Luban 感知(ZED2i + RobotPerception)
 的输出桥接进 AnyDex,不经过 Hunyuan 重建,直接 HUG → L25 → 真机执行 plan。
+
+---
+
+## 集成架构
+
+### 总体拓扑
+
+```
+┌──────────────── Luban (ROS 2 Jazzy) ──────────────────┐
+│  ZED2i                                                 │
+│   → FoundationStereo (TRT) → stereo_depth             │
+│   → EfficientTAM / SAM2    → masks                    │
+│   → FoundationPose 6D      → mesh_cloud/obj_<tag>     │
+│   → Rex-Omni / VLM         → labeled_poses            │
+│   → left_color/image_raw  +  left_color/camera_info   │
+│                                                        │
+│  标定文件:                                             │
+│    /botclaw/calib_results/full_calibration_result.npz  │
+│    (含 T_world_headcam: world ↔ zed_left_optical)     │
+└────────────────────────┬──────────────────────────────┘
+                         │ ROS topics (实时发布)
+                         ▼
+┌──── 桥接层 (手动触发, 一次性快照) ────────────────────┐
+│  capture_ros_perception.py                             │
+│    订阅 4 topic → rgb/depth/mask/object_pointcloud     │
+│  capture_ros_object_mesh.py                            │
+│    订阅 mesh_cloud → inv(T_world_headcam) 转相机系    │
+│    → 凸包重建 .ply                                    │
+└────────────────────────┬──────────────────────────────┘
+                         │ 磁盘文件 (AnyDex 场景格式)
+                         ▼
+┌──── AnyDex (离线处理) ────────────────────────────────┐
+│  HUG 50 候选 → L25 retarget benchmark                 │
+│  → collision-aware planning → trajectory + plan        │
+└────────────────────────┬──────────────────────────────┘
+                         │ plan .npz (qpos + TCP 位姿)
+                         ▼
+┌──── 硬件执行 ─────────────────────────────────────────┐
+│  l25_hardware_execute.py → LinkerHand CAN → L25 手    │
+│  arm_grasp_execute.py    → xCoreSDK → AR5 臂 (未验证) │
+└───────────────────────────────────────────────────────┘
+```
+
+### 集成方式
+
+- **文件快照桥接,不是实时流水线**:每次换物体手动跑两个 capture 命令拍一次快照,
+  然后离线跑 HUG + benchmark。Luban 感知和 AnyDex 之间没有实时数据流。
+- **零侵入**:不修改任何 Luban 代码,全部从外部订阅 ROS topic + 读标定文件。
+- **共享标定**:用 Luban 已有的 `T_world_headcam`
+  (`/botclaw/calib_results/full_calibration_result.npz`),无额外标定。
+- **共享 RViz**:`l25_rviz_show.py` 向 Luban 已运行的 RViz 里加手模型 display。
+
+### ROS topic 依赖
+
+| topic | 类型 | 用途 |
+|---|---|---|
+| `/clawbot_cam_head/left_color/image_raw` | Image (bgra8) | RGB 输入 |
+| `/clawbot_cam_head/perception/stereo_depth` | Image (32FC1) | 深度(m→uint16 mm) |
+| `/clawbot_cam_head/perception/masks` | Image (mono8) | 前景 mask |
+| `/clawbot_cam_head/left_color/camera_info` | CameraInfo | 内参 K 矩阵 |
+| `/clawbot_cam_head/perception/mesh_cloud/obj_<tag>` | PointCloud2 | 物体 CAD 点云(world 系) |
+
+### 坐标系
+
+- **world**:Luban 标定锚定系(`T_world_headcam` 定义)
+- **zed_left_camera_frame_optical**:AnyDex 锚定系(相机光心),所有 AnyDex 数据
+  (点云、mesh、HUG 候选、plan TCP 位姿)统一在此系下
+- 桥接 mesh 时做 `world → camera`:pts_cam = inv(T_world_headcam) @ pts_world
+
+### 硬件 SDK 依赖
+
+| 硬件 | SDK | 路径 | 状态 |
+|---|---|---|---|
+| L25 灵巧手 | LinkerHand v3.1.1 (CAN) | `~/linker_hand_ros2_sdk/.../linker_hand_ros2_sdk` | 已验证 |
+| G20 灵巧手 | LinkerHand v3.1.1 (CAN) | 同上 | 代码就绪,未验证 |
+| AR5 机械臂 | xCoreSDK v0.7.1 | `~/luban_framework/.../Arms_SDK_v0.7.1_py/Release/linux` | 代码就绪,缺标定 |
+
+### 验证状态
+
+| 环节 | 状态 | 备注 |
+|---|---|---|
+| 感知桥接(可见面 + mesh) | ✅ 验证 | 2 个物体(hezi, P5636_36A) |
+| HUG 候选生成 | ✅ 验证 | 50 候选 × 2 物体 |
+| L25 retarget benchmark | ✅ 验证 | vector 后端 |
+| collision-aware planning | ✅ 验证 | 穿透 + 自碰撞检查 |
+| MuJoCo 可视化 | ✅ 验证 | 交互式 + 静态渲染 |
+| L25 手真机执行 | ⚠️ 部分 | set_enable 修复已加,未重新验证 |
+| AR5 臂 + 手联合执行 | ❌ 未验证 | 缺 T_arm_flange_l25_hand 标定 |
+
+---
 
 ## 前置
 
