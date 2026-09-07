@@ -70,15 +70,25 @@ class TrajectoryPlayer(Node):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Offline L25 trajectory player for RViz")
-    parser.add_argument("--trajectory", required=True, type=Path)
+    parser.add_argument("--trajectory", type=Path, help="Required unless --neutral is set.")
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--no-loop", action="store_true")
+    parser.add_argument(
+        "--neutral",
+        action="store_true",
+        help="Publish a single all-zero L25 pose (no .pkl needed) so RViz shows the hand.",
+    )
     args = parser.parse_args()
     if args.fps <= 0:
         parser.error("--fps must be positive")
-    trajectory = load_trajectory(args.trajectory)
+    if args.neutral:
+        trajectory = [[0.0] * len(INDEPENDENT_JOINTS)]
+    elif args.trajectory is None:
+        parser.error("--trajectory is required unless --neutral is set")
+    else:
+        trajectory = load_trajectory(args.trajectory)
     rclpy.init()
-    node = TrajectoryPlayer(trajectory, args.fps, not args.no_loop)
+    node = TrajectoryPlayer(trajectory, args.fps, not args.no_loop and not args.neutral)
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

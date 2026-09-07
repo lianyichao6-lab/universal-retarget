@@ -97,6 +97,13 @@ def _parse_args() -> argparse.Namespace:
         help="Offline only. --no-dry-run is rejected because hardware sending is not implemented.",
     )
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--hug-pointcloud",
+        type=Path,
+        default=None,
+        help="External object point cloud (.npz with points_camera + colors_rgb) "
+             "to override the depth-derived point cloud fed to HUG.",
+    )
     args = parser.parse_args()
     if not args.dry_run:
         parser.error("hardware execution is not implemented; use --dry-run")
@@ -489,6 +496,7 @@ def main() -> None:
         device,
         args.sampling_steps,
         pcl_seed=args.seed,
+        hug_pointcloud=args.hug_pointcloud,
     )
     prediction = _prediction_payload(input_pkl, grasp, actual_uv)
     prediction_path = args.output / "prediction.pkl"

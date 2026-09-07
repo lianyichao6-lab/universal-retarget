@@ -194,6 +194,7 @@ def main() -> None:
             if args.hardware:
                 selected = np.asarray(sorted(selected_channels), dtype=np.int64)
                 next_command = state.astype(np.int64).copy()
+                api.set_enable()
                 api.set_speed([args.speed] * 5)
                 api.set_torque([args.torque] * 5)
                 if args.replay_target:
