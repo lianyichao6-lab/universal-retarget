@@ -197,6 +197,19 @@ ROBOT_CONFIGS = {
         'num_fingers': 5,
         'neutral_qpos': [0.0] * 21,
     },
+    # LinkerHand O30: 20 independent HOP semantic joints.
+    'linkerhand_o30': {
+        'origin_link': 'hand_base_link',
+        'tip_links': ['thumb_distal', 'index_distal', 'middle_distal', 'ring_distal', 'pinky_distal'],
+        'tip_offsets': [[0.0, 0.0, 0.027], [0.006, 0.0, 0.030], [0.006, 0.0, 0.030], [0.006, 0.0, 0.030], [0.006, 0.0, 0.030]],
+        'link1_names': ['thumb_metacarpals_base2', 'index_proximal', 'middle_proximal', 'ring_proximal', 'pinky_proximal'],
+        'link3_names': ['thumb_proximal', 'index_middle', 'middle_middle', 'ring_middle', 'pinky_middle'],
+        'link4_names': ['thumb_distal', 'index_distal', 'middle_distal', 'ring_distal', 'pinky_distal'],
+        'urdf_subdir': 'assets/linkerhand_o30',
+        'urdf_file': {'right': 'right/linkerhand_o30_right.urdf'},
+        'num_fingers': 5,
+        'neutral_qpos': [0.0] * 20,
+    },
     'linkerhand_o6': {
         'origin_link': 'rh_hand_base_link',
         'tip_links': ['rh_thumb_distal', 'rh_index_distal', 'rh_middle_distal', 'rh_ring_distal', 'rh_pinky_distal'],
