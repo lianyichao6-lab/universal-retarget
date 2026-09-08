@@ -1,0 +1,9 @@
+accelerate==1.14.0
+diffusers==0.40.0
+einops==0.8.2
+-e external/hunyuan3d2
+pip==23.0.1
+pygltflib==1.16.5
+pymeshlab==2025.7.post1
+setuptools==79.0.1
+xatlas==0.0.11
