@@ -207,6 +207,8 @@ class O30CollisionEvaluator:
         target = np.asarray(target_qpos, dtype=np.float64)
         lower, upper = self.model.lowerPositionLimit, self.model.upperPositionLimit
         target = np.clip(target, lower, upper)
+        # Vector retargeting uses zero qpos as O30 neutral.  The all-lower
+        # posture self-collides, so it is not a valid closure starting pose.
         open_qpos = np.clip(np.zeros_like(target), lower, upper)
         safe_fraction = 0.0
         safe_result = self.evaluate(open_qpos)

@@ -17,7 +17,7 @@ The command writes the following inside each candidate directory:
 
 - `o30_collision_metrics.json`: O30 mesh self-collision pairs, per-link
   visible-object clearance, non-tip violations, and fingertip distances.
-- `safe_close_trajectory.pkl`: a 16-frame linear trajectory from open O30 to
+- `safe_close_trajectory.pkl`: a 16-frame linear trajectory from the O30 Vector neutral posture to
   the maximum mesh-safe closure fraction. This is suitable for MuJoCo playback
   or inspection, not direct real-hardware authorization.
 
@@ -37,35 +37,55 @@ prove force closure, account for unseen object surfaces, replace arm collision
 planning, or certify a real grasp. Use it to choose the candidate, then run the
 full scene in MuJoCo and use conservative real-hand close/force limits.
 
-## Luban O30 Mock Playback
 
-Start the O30 controller in mock mode with its official mesh display from the
-Luban container, then run the executor from the same ROS environment. The
-first command below is a dry preview only. The second command publishes the
-complete collision-filtered trajectory at 15 Hz to the mock controller.
+The trajectory starts from the collision-free Vector neutral qpos, not from an
+unverified physical open pose. Read the real O30 feedback before commanding it
+and verify that this neutral pose is appropriate for the mounted hand.
 
-```bash
-# In the Luban container after its O30 packages have been built.
-source /opt/ros/jazzy/setup.bash
-source /evo/.ws/devel/setup.bash
-export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
-export MOCK=1 HAND_SIDE=right VIEW_MESH=1 VIEW_MESH_SIDE=right LAUNCH_RVIZ=1
-ros2 launch linkerhand_hardware launch_o30_hand.py
-```
+## Standalone O30 MuJoCo
+
+This uses AnyDexRetarget's O30 URDF directly. It does not start Luban or ROS.
 
 ```bash
-# A second terminal in the same container. /evo/data/anydex_runtime must
-# contain this AnyDexRetarget checkout.
-source /opt/ros/jazzy/setup.bash
-source /evo/.ws/devel/setup.bash
-export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
-export PYTHONPATH=/evo/data/anydex_runtime
-
-python3 /evo/data/anydex_runtime/tools/luban_hand_ros_execute.py \
-  --trajectory /evo/data/o30/candidate_001/safe_close_trajectory.pkl \
-  --all-frames --fps 15 --hand-model o30
+.venv/bin/python tools/o30_mujoco_playback.py \
+  --trajectory outputs/grasp_o30/candidates/candidate_001/safe_close_trajectory.pkl \
+  --fps 10 --no-loop
 ```
 
-Use `--execute --confirm O30_HAND_CLEAR` only after mock validation or after a
-real O30 driver has initialized on its confirmed CAN-FD channel. The executor
-is hand-only and cannot move either arm.
+Use `--dry-run` to check the 20-DoF mapping without opening a MuJoCo window.
+
+## Standalone O30 HOP Validation
+
+The direct HOP driver is independent of Luban. For this workstation it is at:
+
+```text
+/home/evolabs-5080/lianyichao/luban_framework_o30/third_party/linkerhand-o30-hop/spec/linker_hand_o30_control.py
+```
+
+First read the hand's current 20 joint feedback without motion. Supply the
+actual transport and channel; do not reuse a channel that failed to initialize.
+
+```bash
+DRIVER=/home/evolabs-5080/lianyichao/luban_framework_o30/third_party/linkerhand-o30-hop/spec/linker_hand_o30_control.py
+TRAJECTORY=outputs/grasp_o30/candidates/candidate_001/safe_close_trajectory.pkl
+
+.venv/bin/python tools/o30_hardware_validate.py \
+  --trajectory "$TRAJECTORY" \
+  --driver "$DRIVER" \
+  --comm-type libcanbus --canfd-device 0 --channel <confirmed-channel> \
+  --read-state
+```
+
+Only after the hand is clear, its feedback and neutral pose have been checked,
+and the same safe trajectory has passed MuJoCo, play it at a conservative rate:
+
+```bash
+.venv/bin/python tools/o30_hardware_validate.py \
+  --trajectory "$TRAJECTORY" --all-frames --fps 10 \
+  --driver "$DRIVER" \
+  --comm-type libcanbus --canfd-device 0 --channel <confirmed-channel> \
+  --execute --confirm O30_HAND_CLEAR
+```
+
+This uses HOP's documented 0..255 position values in the audited 20-joint
+order. It is hand-only and cannot move either arm.

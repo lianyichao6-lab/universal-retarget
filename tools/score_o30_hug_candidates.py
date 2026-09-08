@@ -40,21 +40,23 @@ def _load_qpos(path: Path) -> np.ndarray:
 def _write_safe_close_trajectory(
     source: Path,
     output: Path,
+    open_qpos: np.ndarray,
     safe_qpos: np.ndarray,
     *,
     safe_fraction: float,
     frames: int,
 ) -> None:
-    """Write an O30 open-to-safe-close command trajectory for offline playback."""
+    """Write an O30 neutral-to-safe-close trajectory for offline playback."""
     records = _load_records(source)
+    open_target = np.asarray(open_qpos, dtype=np.float32)
     target = np.asarray(safe_qpos, dtype=np.float32)
-    if target.shape != (20,):
-        raise ValueError("safe O30 qpos must contain 20 values")
+    if open_target.shape != (20,) or target.shape != (20,):
+        raise ValueError("O30 qpos must contain 20 values")
     template = records[-1]
     timestamps = np.linspace(0.0, (frames - 1) / 30.0, frames)
     safe_records: list[dict] = []
     for fraction, timestamp in zip(np.linspace(0.0, 1.0, frames), timestamps):
-        qpos = target * fraction
+        qpos = open_target + fraction * (target - open_target)
         record = copy.deepcopy(template)
         record["timestamp"] = float(timestamp)
         record["target"] = qpos.copy()
@@ -106,13 +108,17 @@ def main() -> None:
                 forbidden_clearance_m=args.forbidden_clearance_mm / 1000.0,
             )
         qpos = _load_qpos(directory / "trajectory.pkl")
-        target = evaluator.evaluate(qpos)
-        safe_fraction, close = evaluator.safe_closure(qpos, steps=args.closure_steps)
-        safe_qpos = qpos * safe_fraction
+        lower, upper = evaluator.model.lowerPositionLimit, evaluator.model.upperPositionLimit
+        open_qpos = np.clip(np.zeros_like(qpos), lower, upper)
+        target_qpos = np.clip(qpos, lower, upper)
+        target = evaluator.evaluate(target_qpos)
+        safe_fraction, close = evaluator.safe_closure(target_qpos, steps=args.closure_steps)
+        safe_qpos = open_qpos + safe_fraction * (target_qpos - open_qpos)
         safe_trajectory = directory / "safe_close_trajectory.pkl"
         _write_safe_close_trajectory(
             directory / "trajectory.pkl",
             safe_trajectory,
+            open_qpos,
             safe_qpos,
             safe_fraction=safe_fraction,
             frames=args.safe_close_frames,
@@ -120,6 +126,7 @@ def main() -> None:
         report = {
             "candidate": directory.name,
             "target": target.as_dict(),
+            "open_qpos": open_qpos.tolist(),
             "safe_close_fraction": safe_fraction,
             "safe_close": close.as_dict(),
             "safe_close_qpos": safe_qpos.tolist(),
@@ -129,8 +136,6 @@ def main() -> None:
             "mesh_vertices_per_link": args.mesh_vertices_per_link,
         }
         (directory / "o30_collision_metrics.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-        # Lexicographic: feasible closing path first, then fewer collision violations,
-        # then retain the existing HUG/Vector score as a final tie breaker.
         old = json.loads((directory / "metrics.json").read_text(encoding="utf-8"))
         rank_key = (
             safe_fraction < 0.999999,
