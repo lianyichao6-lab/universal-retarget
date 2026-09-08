@@ -61,15 +61,17 @@ def main() -> None:
     parser.add_argument("--fps", type=float, default=15.0)
     parser.add_argument("--no-loop", action="store_true")
     parser.add_argument("--model", type=Path, default=MODEL_PATH)
+    parser.add_argument("--scene-xml", type=Path, help="Optional O30 object-relative URDF/XML built by build_o30_object_relative_scene.py.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.fps <= 0:
         parser.error("--fps must be positive")
-    model = mujoco.MjModel.from_xml_path(str(args.model))
+    model_path = args.scene_xml if args.scene_xml is not None else args.model
+    model = mujoco.MjModel.from_xml_path(str(model_path))
     frames = _load_frames(args.trajectory, model)
     if args.dry_run:
         print(json.dumps({
-            "model": str(args.model),
+            "model": str(model_path),
             "model_nq": model.nq,
             "frame_count": len(frames),
             "first_qpos": frames[0].tolist(),
