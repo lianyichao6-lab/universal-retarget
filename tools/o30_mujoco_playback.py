@@ -62,6 +62,7 @@ def main() -> None:
     parser.add_argument("--no-loop", action="store_true")
     parser.add_argument("--model", type=Path, default=MODEL_PATH)
     parser.add_argument("--scene-xml", type=Path, help="Optional O30 object-relative URDF/XML built by build_o30_object_relative_scene.py.")
+    parser.add_argument("--final-pose", action="store_true", help="Display only the final grasp pose; do not replay the close trajectory.")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.fps <= 0:
@@ -74,11 +75,21 @@ def main() -> None:
             "model": str(model_path),
             "model_nq": model.nq,
             "frame_count": len(frames),
+            "final_pose": bool(args.final_pose),
             "first_qpos": frames[0].tolist(),
             "last_qpos": frames[-1].tolist(),
         }, indent=2))
         return
     data = mujoco.MjData(model)
+    if args.final_pose:
+        data.qpos[:] = frames[-1]
+        mujoco.mj_forward(model, data)
+        print("Displaying the final O30 grasp pose in MuJoCo")
+        with mujoco.viewer.launch_passive(model, data) as viewer:
+            while viewer.is_running():
+                viewer.sync()
+                time.sleep(0.02)
+        return
     period = 1.0 / args.fps
     print(f"Playing {len(frames)} O30 frames in MuJoCo at {args.fps:.1f} Hz")
     with mujoco.viewer.launch_passive(model, data) as viewer:

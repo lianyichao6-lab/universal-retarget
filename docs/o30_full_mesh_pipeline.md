@@ -64,7 +64,7 @@ RUN="$OUT/$BEST/o30_object_relative"
 .venv/bin/python tools/o30_mujoco_playback.py \
   --trajectory "$RUN/o30_collision_refined_plan_trajectory.pkl" \
   --scene-xml "$RUN/scene/o30_object_relative_scene.urdf" \
-  --fps 10 --no-loop
+  --final-pose
 ```
 
 The mesh and hand share the O30 simulation hand frame. This is intentionally
