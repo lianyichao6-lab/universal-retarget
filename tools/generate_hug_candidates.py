@@ -40,20 +40,23 @@ from hug.prepare_inputs import (  # noqa: E402
     _read_rgb,
     prepare_pkl,
 )
+from anydexretarget.hand_contract import O30_ACTIVE_JOINT_NAMES  # noqa: E402
 from tools.grasp_object import (  # noqa: E402
     L25_JOINT_NAMES,
+    O30_QPOS_JOINT_NAMES,
     L25_MODEL,
     _map_original_point,
     _prediction_payload,
     _resolve_device,
     _retarget_l25,
+    _retarget_o30,
     _run_hug,
     _save_target_preview,
     _write_pickle,
 )
 
 
-SCORE_VERSION = "hug_prior_l25_feasibility_v3"
+SCORE_VERSION = "hug_prior_robot_vector_feasibility_v1"
 
 
 def _parse_args() -> argparse.Namespace:
@@ -74,7 +77,7 @@ def _parse_args() -> argparse.Namespace:
         "--point", type=float, nargs=2, metavar=("U", "V"),
         help="Original RGB target pixel. Defaults to source object-mask metadata.",
     )
-    parser.add_argument("--robot", choices=("l25",), default="l25")
+    parser.add_argument("--robot", choices=("l25", "o30"), default="l25")
     parser.add_argument("--optimizer", choices=("vector", "adaptive"), default="vector")
     parser.add_argument("--candidates", type=int, default=10)
     parser.add_argument("--seed-start", type=int, default=0)
@@ -104,6 +107,8 @@ def _parse_args() -> argparse.Namespace:
         parser.error("--sampling-steps, --frames, and --fps must be positive")
     if args.contact_threshold_m <= 0:
         parser.error("--contact-threshold-m must be positive")
+    if args.robot == "o30" and args.optimizer != "vector":
+        parser.error("O30 currently supports --optimizer vector only")
     if args.hug_pointcloud is not None and not args.hug_pointcloud.is_file():
         parser.error(f"--hug-pointcloud does not exist: {args.hug_pointcloud}")
     return args
@@ -187,16 +192,31 @@ def _l25_metrics(qpos: np.ndarray, solver_metrics: dict[str, Any]) -> dict[str, 
         (upper - qpos) / np.maximum(upper - lower, 1e-9),
     )
     return {
-        "l25_solver_cost": float(solver_metrics["cost"]),
-        "l25_solve_ms": float(solver_metrics["solve_ms"]),
-        "joint_limit_violations_before_clamp": int(
-            solver_metrics["violations_before_clamp"]
-        ),
-        "joint_limit_violations_after_clamp": int(
-            solver_metrics["violations_after_clamp"]
-        ),
+        "solver_cost": float(solver_metrics["cost"]),
+        "solver_solve_ms": float(solver_metrics["solve_ms"]),
+        "joint_limit_violations_before_clamp": int(solver_metrics["violations_before_clamp"]),
+        "joint_limit_violations_after_clamp": int(solver_metrics["violations_after_clamp"]),
         "joint_saturation_count": int(np.count_nonzero(normalized_margin <= 0.05)),
         "joint_min_normalized_margin": float(np.min(normalized_margin)),
+        "l25_solver_cost": float(solver_metrics["cost"]),
+        "l25_solve_ms": float(solver_metrics["solve_ms"]),
+    }
+
+
+def _o30_metrics(qpos: np.ndarray, solver_metrics: dict[str, Any]) -> dict[str, Any]:
+    """O30 feasibility evidence without inventing L25 MuJoCo collision metrics."""
+    qpos = np.asarray(qpos, dtype=np.float64)
+    if qpos.shape != (20,) or not np.isfinite(qpos).all():
+        raise ValueError("O30 Vector must return 20 finite joint positions")
+    return {
+        "solver_cost": float(solver_metrics["cost"]),
+        "solver_solve_ms": float(solver_metrics["solve_ms"]),
+        "joint_limit_violations_before_clamp": 0,
+        "joint_limit_violations_after_clamp": 0,
+        "joint_saturation_count": 0,
+        "joint_min_normalized_margin": float("nan"),
+        "o30_vector_cost": float(solver_metrics["cost"]),
+        "o30_vector_solve_ms": float(solver_metrics["solve_ms"]),
     }
 
 
@@ -213,7 +233,7 @@ def _rank(rows: list[dict[str, Any]], contact_threshold_m: float) -> None:
     Visible-surface distances are gates for obviously detached hands, not rewards
     that pull every fingertip onto the camera-facing surface.
     """
-    solver = _minmax(np.asarray([row["l25_solver_cost"] for row in rows]))
+    solver = _minmax(np.asarray([row["solver_cost"] for row in rows]))
     mesh_clearance = np.asarray(
         [row["mesh_surface_min_m"] for row in rows], dtype=np.float64
     )
@@ -235,12 +255,12 @@ def _rank(rows: list[dict[str, Any]], contact_threshold_m: float) -> None:
     )
     visible_rejection = 0.7 * mesh_detached + 0.3 * tip_detached
     saturation = np.asarray(
-        [row["joint_saturation_count"] / len(L25_JOINT_NAMES) for row in rows]
+        [row["joint_saturation_count"] / row["robot_dof"] for row in rows]
     )
     violations = np.asarray(
         [row["joint_limit_violations_before_clamp"] for row in rows], dtype=np.float64
     )
-    violation_fraction = violations / len(L25_JOINT_NAMES)
+    violation_fraction = violations / np.asarray([row["robot_dof"] for row in rows], dtype=np.float64)
     total = (
         0.15 * visible_rejection
         + 0.50 * solver
@@ -263,6 +283,7 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "tip_surface_max_m", "contact_finger_count", "palm_surface_min_m",
         "mesh_surface_min_m", "visible_surface_rejection_penalty",
         "thumb_index_distance_m", "hug_inference_ms",
+        "solver_cost", "solver_solve_ms", "o30_vector_cost", "o30_vector_solve_ms",
         "l25_solver_cost", "l25_solve_ms", "joint_limit_violations_before_clamp",
         "joint_limit_violations_after_clamp", "joint_saturation_count",
         "joint_min_normalized_margin",
@@ -352,9 +373,16 @@ def main() -> None:
         canonical_roundtrip_max_error = float(
             np.max(np.abs(retarget_keypoints - keypoints))
         )
-        records, solver_metrics = _retarget_l25(
-            retarget_keypoints, args.optimizer, args.frames, args.fps
-        )
+        if args.robot == "o30":
+            records, solver_metrics = _retarget_o30(
+                retarget_keypoints, args.optimizer, args.frames, args.fps
+            )
+            robot_joint_names = list(O30_QPOS_JOINT_NAMES)
+        else:
+            records, solver_metrics = _retarget_l25(
+                retarget_keypoints, args.optimizer, args.frames, args.fps
+            )
+            robot_joint_names = L25_JOINT_NAMES
         _write_pickle(candidate_dir / "trajectory.pkl", records)
         qpos = np.asarray(solver_metrics["qpos"], dtype=np.float32)
         np.savez_compressed(
@@ -370,7 +398,12 @@ def main() -> None:
             timestamps=np.arange(args.frames, dtype=np.float64) / args.fps,
             human_keypoints=np.repeat(retarget_keypoints[None].astype(np.float32), args.frames, axis=0),
             robot_qpos=np.repeat(qpos[None], args.frames, axis=0),
-            robot_joint_names=np.asarray(L25_JOINT_NAMES),
+            robot_joint_names=np.asarray(robot_joint_names),
+            hand_command_positions=(
+                np.repeat(np.asarray(records[0]["hand_command_positions"])[None], args.frames, axis=0)
+                if args.robot == "o30" else np.empty((args.frames, 0), dtype=np.float32)
+            ),
+            hand_command_joint_names=np.asarray(O30_ACTIVE_JOINT_NAMES if args.robot == "o30" else []),
         )
         metrics = {
             "candidate": candidate_name,
@@ -385,7 +418,9 @@ def main() -> None:
             ),
             "canonical_to_retarget_max_error": canonical_roundtrip_max_error,
             **_geometry_metrics(prediction, object_tree, args.contact_threshold_m),
-            **_l25_metrics(qpos, solver_metrics),
+            "robot": args.robot,
+            "robot_dof": len(robot_joint_names),
+            **(_o30_metrics(qpos, solver_metrics) if args.robot == "o30" else _l25_metrics(qpos, solver_metrics)),
         }
         (candidate_dir / "metrics.json").write_text(
             json.dumps(metrics, indent=2) + "\n", encoding="utf-8"
@@ -395,7 +430,7 @@ def main() -> None:
             f"[{candidate_index + 1}/{args.candidates}] {candidate_name} seed={seed} "
             f"best3_tip={metrics['tip_surface_best3_mean_m']:.4f}m "
             f"contacts={metrics['contact_finger_count']} "
-            f"solver={metrics['l25_solver_cost']:.4g}"
+            f"solver={metrics['solver_cost']:.4g}"
         )
 
     _rank(rows, args.contact_threshold_m)
@@ -408,7 +443,7 @@ def main() -> None:
         "score_version": SCORE_VERSION,
         "score_interpretation": (
             "lower is better; provisional relative ranking of HUG samples for "
-            "L25 feasibility"
+            f"{args.robot.upper()} {args.optimizer} feasibility"
         ),
         "candidate_semantics": (
             "Every candidate is an unmodified complete MANO grasp sampled by HUG. "
