@@ -99,6 +99,22 @@ def _connect(args: argparse.Namespace):
     return hand
 
 
+def _ramp_commands(start: object, target: object, frames: int) -> list[np.ndarray]:
+    """Return bounded integer HOP commands from feedback to a first target."""
+    source = np.asarray(start, dtype=np.float64).reshape(-1)
+    destination = np.asarray(target, dtype=np.float64).reshape(-1)
+    if source.shape != (20,) or destination.shape != (20,):
+        raise ValueError("O30 ramp endpoints must each contain 20 values")
+    if frames < 1:
+        raise ValueError("O30 ramp frame count must be positive")
+    if np.any(source < 0) or np.any(source > 255) or np.any(destination < 0) or np.any(destination > 255):
+        raise ValueError("O30 ramp endpoints must stay within [0, 255]")
+    return [
+        np.rint(source + (index / frames) * (destination - source)).astype(np.uint8)
+        for index in range(1, frames + 1)
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--trajectory", type=Path, required=True)
@@ -112,11 +128,13 @@ def main() -> None:
     parser.add_argument("--canfd-device", type=int, default=0)
     parser.add_argument("--channel", default="0")
     parser.add_argument("--read-state", action="store_true")
+    parser.add_argument("--ramp-from-current", action="store_true", help="Ramp feedback to the trajectory first frame before executing")
+    parser.add_argument("--ramp-seconds", type=float, default=2.0)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--confirm")
     args = parser.parse_args()
-    if args.fps <= 0:
-        parser.error("--fps must be positive")
+    if args.fps <= 0 or args.ramp_seconds <= 0:
+        parser.error("--fps and --ramp-seconds must be positive")
     if args.execute and args.confirm != "O30_HAND_CLEAR":
         parser.error("--execute requires --confirm O30_HAND_CLEAR")
     model = mujoco.MjModel.from_xml_path(str(args.model))
@@ -129,6 +147,8 @@ def main() -> None:
         "hop_joint_names": list(O30_ACTIVE_JOINT_NAMES),
         "first_command_0_255": commands[0].tolist(),
         "last_command_0_255": commands[-1].tolist(),
+        "ramp_from_current": args.ramp_from_current if args.execute else False,
+        "ramp_seconds": args.ramp_seconds if args.execute and args.ramp_from_current else None,
     }, indent=2))
     if not args.read_state and not args.execute:
         return
@@ -140,6 +160,15 @@ def main() -> None:
                 raise TimeoutError("O30 did not return current joint positions")
             print(json.dumps({"current_position_0_255": current}, indent=2))
         if args.execute:
+            if args.ramp_from_current:
+                current = hand.get_current_position()
+                if current is None:
+                    raise TimeoutError("O30 did not return current joint positions for ramp")
+                ramp_frames = max(1, int(np.ceil(args.ramp_seconds * args.fps)))
+                for command in _ramp_commands(current, commands[0], ramp_frames):
+                    if not hand.set_target_position(command.tolist()):
+                        raise RuntimeError("O30 rejected a feedback-ramp command")
+                    time.sleep(1.0 / args.fps)
             if not hand.setup():
                 raise RuntimeError("O30 HOP setup failed")
             period = 1.0 / args.fps if args.all_frames else 0.0
