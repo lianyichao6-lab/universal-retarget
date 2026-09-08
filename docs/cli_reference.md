@@ -106,7 +106,7 @@ external/hug/data/custom/grasp_pred/custom_<timestamp>.pkl
 The prediction contains HUG MANO output and `grasp.landmarks_3d` with shape
 `(21, 3)`.
 
-## 5. HUG Prediction -> L25 Trajectory
+## 5. HUG Prediction -> L25/O30 Trajectory
 
 Vector:
 
@@ -128,10 +128,20 @@ Adaptive:
   --frames 60
 ```
 
-This tool currently targets L25 only. Do not pass `--robot`; that option does
-not exist yet. The 60 frames repeat one static HUG grasp for playback.
+The same 21-point HUG prediction can also drive O30 Vector. O30 currently
+supports Vector only and writes a 20-axis physical qpos plus the audited Luban
+HOP command order:
 
-## 5a. One-command RGB-D Point -> HUG -> L25
+```bash
+.venv/bin/python tools/hug_static_retarget.py \
+  --prediction external/hug/data/custom/grasp_pred/custom_20260820_170049_628.pkl \
+  --robot o30 --optimizer vector \
+  --output outputs/o30/custom_170049_vector.pkl --frames 60
+```
+
+The 60 frames repeat one static HUG grasp for playback.
+
+## 5a. One-command RGB-D Point -> HUG -> L25/O30
 
 The verified non-interactive pipeline is:
 
@@ -151,6 +161,17 @@ The verified non-interactive pipeline is:
 landscape image to a square before resizing it to 224x224. For the current
 672x376 sample, valid original-image points have `u=148..523` and `v=0..375`;
 the earlier example point `640 360` is outside the model input and is rejected.
+
+For O30, use the same command with `--robot o30 --optimizer vector`, or the
+explicit O30 entry point:
+
+```bash
+.venv/bin/python tools/grasp_object_o30.py \
+  --rgb external/hug/data/custom/rgb.png \
+  --depth external/hug/data/custom/depth.png \
+  --intrinsics external/hug/data/custom/intrinsics.txt \
+  --point 478 285 --output outputs/grasp_o30/red_cup
+```
 
 The output directory contains:
 
@@ -228,10 +249,10 @@ Inspect the visible object surface at `http://localhost:8082`:
   --pointcloud outputs/grasp/red_cup/object_pointcloud.npz
 ```
 
-## 5d. HUG Multi-candidate Ranking -> L25
+## 5d. HUG Multi-candidate Ranking -> L25/O30
 
 Generate ten stochastic HUG candidates with one model load, reject candidates
-that are clearly detached from the visible object, rank L25 feasibility, and
+that are clearly detached from the visible object, rank O30 Vector feasibility, and
 save each candidate trajectory:
 
 ```bash
@@ -242,9 +263,9 @@ save each candidate trajectory:
   --pointcloud outputs/grasp/red_cup/object_pointcloud.npz \
   --candidates 10 \
   --seed-start 100 \
-  --robot l25 \
+  --robot o30 \
   --optimizer vector \
-  --output outputs/grasp/red_cup/candidates \
+  --output outputs/grasp/red_cup/o30_candidates \
   --dry-run
 ```
 
@@ -254,7 +275,9 @@ objects. `candidates.csv` and `best_candidate.json` contain a provisional
 ranking. Each candidate remains the complete MANO grasp sampled by HUG. The
 single-view point cloud is only a weak rejection signal; it does not reward
 placing every fingertip on the visible surface. The result is not a
-force-closure, hidden-surface collision, or physical-stability metric.
+force-closure, hidden-surface collision, or physical-stability metric. For O30,
+the rank is a provisional HUG visible-surface plus Vector-cost ranking; it does
+not reuse L25 MuJoCo hand-collision metrics.
 
 Compare the top three MANO candidates with the object point cloud at
 `http://localhost:8083`:

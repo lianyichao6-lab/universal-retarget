@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate one HUG grasp at an RGB-D pixel and retarget it to LinkerHand L25.
+"""Generate one HUG grasp at an RGB-D pixel and retarget it to LinkerHand L25 or O30.
 
 This is an offline-only pipeline. It never imports or calls a hardware SDK.
 """
@@ -32,6 +32,8 @@ from anydexretarget.hug_adapter import landmarks_from_prediction
 from anydexretarget.hand_representation import canonical_grasp_from_hug
 from anydexretarget.retarget import Retargeter
 from anydexretarget.dex_backend import DEX_CONFIGS, DexRetargetBackend
+from anydexretarget.hug_o30 import retarget_hug_o30
+from anydexretarget.luban_contract import O30_ACTIVE_JOINT_NAMES, O30_QPOS_JOINT_NAMES
 from hug.dataloader.data_classes import CameraIntrinsics, Grasp, GraspData
 from hug.dataloader.grasp_dataset import GraspDataset
 from hug.inference import load_model
@@ -52,7 +54,10 @@ CONFIGS = {
         "vector": ROOT / "example/config/vector/mediapipe/mediapipe_linkerhand_l25.yaml",
         "adaptive": ROOT / "example/config/adaptive/mediapipe/mediapipe_linkerhand_l25.yaml",
         **DEX_CONFIGS,
-    }
+    },
+    "o30": {
+        "vector": ROOT / "example/config/vector/mediapipe/mediapipe_linkerhand_o30.yaml",
+    },
 }
 L25_MODEL = ROOT / "assets/linkerhand_l25/linkerhand_l25_right_mujoco.xml"
 L25_JOINT_NAMES = [
@@ -106,6 +111,8 @@ def _parse_args() -> argparse.Namespace:
         parser.error("--frames must be positive")
     if args.fps <= 0:
         parser.error("--fps must be positive")
+    if args.robot == "o30" and args.optimizer != "vector":
+        parser.error("O30 currently supports --optimizer vector only")
     return args
 
 
@@ -452,6 +459,49 @@ def _retarget_l25(
     return records, metrics
 
 
+def _retarget_o30(
+    keypoints: np.ndarray,
+    optimizer_name: str,
+    frames: int,
+    fps: float,
+) -> tuple[list[dict[str, Any]], dict[str, np.ndarray | float | int]]:
+    """Retarget HUG's 21 points to O30 with the audited Vector baseline."""
+    if optimizer_name != "vector":
+        raise ValueError("O30 currently supports the Vector optimizer only")
+    started = time.perf_counter()
+    result = retarget_hug_o30(keypoints)
+    solve_ms = (time.perf_counter() - started) * 1000.0
+    target = result.qpos.astype(np.float32, copy=True)
+    records = [
+        {
+            "timestamp": index / fps,
+            "target": target.copy(),
+            "sim_qpos": target.copy(),
+            "robot_joint_names": list(O30_QPOS_JOINT_NAMES),
+            "joint_names": list(O30_QPOS_JOINT_NAMES),
+            "luban_hand_positions": result.luban_active_positions.copy(),
+            "luban_hand_joint_names": list(O30_ACTIVE_JOINT_NAMES),
+            "human_keypoints": keypoints.astype(np.float32, copy=True),
+            "human_keypoints_retarget_frame": result.transformed_keypoints.copy(),
+            "solver_cost": result.cost,
+            "solve_time_ms": solve_ms,
+            "robot": "o30",
+            "optimizer": "vector",
+            "dry_run": True,
+        }
+        for index in range(frames)
+    ]
+    return records, {
+        "qpos": target,
+        "fingertips": np.full((5, 3), np.nan, dtype=np.float32),
+        "transformed_keypoints": result.transformed_keypoints.copy(),
+        "cost": result.cost,
+        "solve_ms": solve_ms,
+        "violations_before_clamp": 0,
+        "violations_after_clamp": 0,
+    }
+
+
 def main() -> None:
     args = _parse_args()
     rgb = _read_rgb(args.rgb)
@@ -516,9 +566,16 @@ def main() -> None:
         np.max(np.abs(retarget_keypoints - keypoints))
     )
 
-    records, metrics = _retarget_l25(
-        retarget_keypoints, args.optimizer, args.frames, args.fps
-    )
+    if args.robot == "o30":
+        robot_joint_names = list(O30_QPOS_JOINT_NAMES)
+        records, metrics = _retarget_o30(
+            retarget_keypoints, args.optimizer, args.frames, args.fps
+        )
+    else:
+        robot_joint_names = L25_JOINT_NAMES
+        records, metrics = _retarget_l25(
+            retarget_keypoints, args.optimizer, args.frames, args.fps
+        )
     trajectory_path = args.output / "trajectory.pkl"
     _write_pickle(trajectory_path, records)
     timestamps = np.arange(args.frames, dtype=np.float64) / args.fps
@@ -535,7 +592,12 @@ def main() -> None:
         timestamps=timestamps,
         human_keypoints=np.repeat(keypoints[None].astype(np.float32), args.frames, axis=0),
         robot_qpos=np.repeat(np.asarray(metrics["qpos"])[None], args.frames, axis=0),
-        robot_joint_names=np.asarray(L25_JOINT_NAMES),
+        robot_joint_names=np.asarray(robot_joint_names),
+        luban_hand_positions=(
+            np.repeat(np.asarray(records[0]["luban_hand_positions"])[None], args.frames, axis=0)
+            if args.robot == "o30" else np.empty((args.frames, 0), dtype=np.float32)
+        ),
+        luban_hand_joint_names=np.asarray(O30_ACTIVE_JOINT_NAMES if args.robot == "o30" else []),
         fingertip_positions=np.repeat(
             np.asarray(metrics["fingertips"])[None], args.frames, axis=0
         ),
@@ -570,8 +632,9 @@ def main() -> None:
         "hug_inference_ms": hug_ms,
         "frames": args.frames,
         "fps": args.fps,
-        "robot_dof": len(L25_JOINT_NAMES),
-        "robot_joint_names": L25_JOINT_NAMES,
+        "robot_dof": len(robot_joint_names),
+        "robot_joint_names": robot_joint_names,
+        "luban_hand_joint_names": list(O30_ACTIVE_JOINT_NAMES) if args.robot == "o30" else [],
         "solver_cost": metrics["cost"],
         "solve_time_ms": metrics["solve_ms"],
         "joint_limit_violations_before_clamp": metrics["violations_before_clamp"],
@@ -583,7 +646,7 @@ def main() -> None:
     (args.output / "metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )
-    print("HUG grasp -> L25 retargeting completed (offline dry-run)")
+    print(f"HUG grasp -> {args.robot.upper()} {args.optimizer} retargeting completed (offline dry-run)")
     print(f"  HUG keypoints: {keypoints.shape}, finite={np.isfinite(keypoints).all()}")
     print(f"  Robot qpos: {np.asarray(metrics['qpos']).shape}, finite={np.isfinite(metrics['qpos']).all()}")
     print(f"  HUG inference: {hug_ms:.1f} ms; retarget solve: {float(metrics['solve_ms']):.1f} ms")
