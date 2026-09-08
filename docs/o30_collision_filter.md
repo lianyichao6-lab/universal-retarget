@@ -36,3 +36,36 @@ measures distance to the observed point-cloud surface. Therefore it does not
 prove force closure, account for unseen object surfaces, replace arm collision
 planning, or certify a real grasp. Use it to choose the candidate, then run the
 full scene in MuJoCo and use conservative real-hand close/force limits.
+
+## Luban O30 Mock Playback
+
+Start the O30 controller in mock mode with its official mesh display from the
+Luban container, then run the executor from the same ROS environment. The
+first command below is a dry preview only. The second command publishes the
+complete collision-filtered trajectory at 15 Hz to the mock controller.
+
+```bash
+# In the Luban container after its O30 packages have been built.
+source /opt/ros/jazzy/setup.bash
+source /evo/.ws/devel/setup.bash
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+export MOCK=1 HAND_SIDE=right VIEW_MESH=1 VIEW_MESH_SIDE=right LAUNCH_RVIZ=1
+ros2 launch linkerhand_hardware launch_o30_hand.py
+```
+
+```bash
+# A second terminal in the same container. /evo/data/anydex_runtime must
+# contain this AnyDexRetarget checkout.
+source /opt/ros/jazzy/setup.bash
+source /evo/.ws/devel/setup.bash
+export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+export PYTHONPATH=/evo/data/anydex_runtime
+
+python3 /evo/data/anydex_runtime/tools/luban_hand_ros_execute.py \
+  --trajectory /evo/data/o30/candidate_001/safe_close_trajectory.pkl \
+  --all-frames --fps 15 --hand-model o30
+```
+
+Use `--execute --confirm O30_HAND_CLEAR` only after mock validation or after a
+real O30 driver has initialized on its confirmed CAN-FD channel. The executor
+is hand-only and cannot move either arm.
