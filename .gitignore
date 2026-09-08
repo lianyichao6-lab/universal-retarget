@@ -41,3 +41,8 @@ MJMODEL.TXT
 example/MJDATA.TXT
 example/mjmodel.xml
 example/mjmodel.mjb
+
+# Local robot assets and MuJoCo runtime dumps
+assets/cad/
+MJDATA.TXT
+mjmodel.mjb

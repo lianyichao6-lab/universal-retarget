@@ -1,0 +1,46 @@
+# LinkerHand O30 right hand, Vector baseline for the standard 21-point hand.
+# The semantics and joint ordering match Luban O30 HOP.
+optimizer:
+  type: "KeyVectorOptimizer"
+
+robot:
+  type: "linkerhand_o30"
+
+retarget:
+  huber_delta: 2.0
+  norm_delta: 0.06
+  lp_alpha: 0.4
+  key_vectors:
+    # thumb
+  - {origin: hand_base_link, task: thumb_proximal, origin_kp: 0, task_kp: 2, scale: 1.20}
+  - {origin: hand_base_link, task: thumb_distal, origin_kp: 0, task_kp: 3, scale: 1.12}
+  - {origin: hand_base_link, task: thumb_distal, origin_kp: 0, task_kp: 4, task_offset: [0.0, 0.0, 0.027], scale: 1.10}
+    # index
+  - {origin: hand_base_link, task: index_middle, origin_kp: 0, task_kp: 6, scale: 1.45}
+  - {origin: hand_base_link, task: index_distal, origin_kp: 0, task_kp: 7, scale: 1.38}
+  - {origin: hand_base_link, task: index_distal, origin_kp: 0, task_kp: 8, task_offset: [0.006, 0.0, 0.030], scale: 1.33}
+    # middle
+  - {origin: hand_base_link, task: middle_middle, origin_kp: 0, task_kp: 10, scale: 1.47}
+  - {origin: hand_base_link, task: middle_distal, origin_kp: 0, task_kp: 11, scale: 1.40}
+  - {origin: hand_base_link, task: middle_distal, origin_kp: 0, task_kp: 12, task_offset: [0.006, 0.0, 0.030], scale: 1.35}
+    # ring
+  - {origin: hand_base_link, task: ring_middle, origin_kp: 0, task_kp: 14, scale: 1.51}
+  - {origin: hand_base_link, task: ring_distal, origin_kp: 0, task_kp: 15, scale: 1.49}
+  - {origin: hand_base_link, task: ring_distal, origin_kp: 0, task_kp: 16, task_offset: [0.006, 0.0, 0.030], scale: 1.45}
+    # pinky
+  - {origin: hand_base_link, task: pinky_middle, origin_kp: 0, task_kp: 18, scale: 1.63}
+  - {origin: hand_base_link, task: pinky_distal, origin_kp: 0, task_kp: 19, scale: 1.68}
+  - {origin: hand_base_link, task: pinky_distal, origin_kp: 0, task_kp: 20, task_offset: [0.006, 0.0, 0.030], scale: 1.68}
+
+  # Initial alignment inherited from the audited LinkerHand camera pipeline.
+  # Refit only after recording a MANUS O30 calibration sequence.
+  mediapipe_rotation:
+    x: -4.9
+    y: -3.8
+    z: -24.4
+
+render:
+  camera:
+    azimuth: 180
+    elevation: 20
+    distance: 0.5
