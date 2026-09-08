@@ -46,7 +46,8 @@ for CAND in "$OUT"/candidate_*; do
   .venv/bin/python tools/refine_o30_collision_aware.py \
     --plan "$RUN/o30_object_relative_plan.npz" \
     --scene-xml "$RUN/scene/o30_object_relative_scene.urdf" \
-    --output "$RUN/o30_collision_refined_plan.npz" || continue
+    --mesh-contact-weight 12 --max-joint-delta-rad 0.35 \
+    --output "/o30_collision_refined_plan.npz" || continue
 
 done
 ```
