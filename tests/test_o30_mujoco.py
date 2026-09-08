@@ -46,3 +46,13 @@ def test_o30_hop_command_has_the_audited_twenty_axes() -> None:
 
     assert command.shape == (20,)
     assert command.dtype == np.uint8
+
+
+def test_o30_feedback_ramp_is_bounded_and_reaches_target() -> None:
+    hardware = _load_tool("o30_hardware_validate")
+    ramp = hardware._ramp_commands(np.zeros(20), np.full(20, 255), 4)
+
+    assert len(ramp) == 4
+    assert all(command.shape == (20,) and command.dtype == np.uint8 for command in ramp)
+    np.testing.assert_array_equal(ramp[-1], np.full(20, 255, dtype=np.uint8))
+    assert all(np.all(after >= before) for before, after in zip(ramp, ramp[1:]))
