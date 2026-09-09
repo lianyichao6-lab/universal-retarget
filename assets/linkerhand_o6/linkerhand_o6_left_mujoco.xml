@@ -1,0 +1,71 @@
+<mujoco model="linkerhand_o6_left_urdf_generated">
+  <compiler angle="radian" meshdir="left" autolimits="true"/>
+  <option gravity="0 0 0"/>
+  <visual><global offwidth="960" offheight="720" azimuth="145" elevation="-20"/></visual>
+  <asset>
+    <mesh name="lh_hand_base_link" file="meshes/hand_base_link.STL"/>
+    <mesh name="lh_thumb_metacarpals_base2" file="meshes/thumb_metacarpals_base2.STL"/>
+    <mesh name="lh_thumb_metacarpals" file="meshes/thumb_metacarpals.STL"/>
+    <mesh name="lh_thumb_distal" file="meshes/thumb_distal.STL"/>
+    <mesh name="lh_index_proximal" file="meshes/index_proximal.STL"/>
+    <mesh name="lh_index_distal" file="meshes/index_distal.STL"/>
+    <mesh name="lh_middle_proximal" file="meshes/middle_proximal.STL"/>
+    <mesh name="lh_middle_distal" file="meshes/middle_distal.STL"/>
+    <mesh name="lh_ring_proximal" file="meshes/ring_proximal.STL"/>
+    <mesh name="lh_ring_distal" file="meshes/ring_distal.STL"/>
+    <mesh name="lh_pinky_proximal" file="meshes/pinky_proximal.STL"/>
+    <mesh name="lh_pinky_distal" file="meshes/pinky_distal.STL"/>
+  </asset>
+  <worldbody>
+    <light pos="0.5 -0.5 1.2" dir="-0.4 0.4 -1" directional="true"/>
+    <light pos="-0.5 0.5 1" dir="0.4 -0.4 -1" directional="true"/>
+    <geom type="plane" size="1 1 0.1" rgba="0.14 0.17 0.21 1"/>
+    <body name="lh_hand_base_link" pos="0 0 0.05" quat="1 0 0 0">
+      <geom name="lh_hand_base_link_visual" type="mesh" mesh="lh_hand_base_link" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+      <body name="lh_thumb_metacarpals_base2" pos="0.011508 -0.022975 0.032794" quat="1.0 0.0 0.0 0.0">
+        <geom name="lh_thumb_metacarpals_base2_visual" type="mesh" mesh="lh_thumb_metacarpals_base2" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+        <joint name="lh_thumb_cmc_yaw" type="hinge" axis="0 0 1" range="0 1.3"/>
+        <body name="lh_thumb_metacarpals" pos="0.0061649 -0.010678 -0.004891" quat="0.41919965200090403 0.4720287207586649 -0.27252436779004574 0.7260792019483103">
+          <geom name="lh_thumb_metacarpals_visual" type="mesh" mesh="lh_thumb_metacarpals" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+          <joint name="lh_thumb_cmc_pitch" type="hinge" axis="0 1 0" range="0 0.58"/>
+          <body name="lh_thumb_distal" pos="0.0037776 0 0.045368" quat="1.0 0.0 0.0 0.0">
+            <geom name="lh_thumb_distal_visual" type="mesh" mesh="lh_thumb_distal" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+            <joint name="lh_thumb_ip" type="hinge" axis="0 1 0" range="0 1.08"/>
+          </body>
+        </body>
+      </body>
+      <body name="lh_index_proximal" pos="0.0024758 -0.02419 0.098779" quat="0.9996573233730004 0.026177009506979564 0.0 0.0">
+        <geom name="lh_index_proximal_visual" type="mesh" mesh="lh_index_proximal" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+        <joint name="lh_index_mcp_pitch" type="hinge" axis="0 1 0" range="0 1.60"/>
+        <body name="lh_index_distal" pos="-0.0052516 0 0.036625" quat="1.0 0.0 0.0 0.0">
+          <geom name="lh_index_distal_visual" type="mesh" mesh="lh_index_distal" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+          <joint name="lh_index_dip" type="hinge" axis="0 1 0" range="0 1.43"/>
+        </body>
+      </body>
+      <body name="lh_middle_proximal" pos="0.00052576 -0.00634 0.1027" quat="1.0 0.0 0.0 0.0">
+        <geom name="lh_middle_proximal_visual" type="mesh" mesh="lh_middle_proximal" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+        <joint name="lh_middle_mcp_pitch" type="hinge" axis="0 1 0" range="0 1.60"/>
+        <body name="lh_middle_distal" pos="-0.0052516 0 0.036625" quat="1.0 0.0 0.0 0.0">
+          <geom name="lh_middle_distal_visual" type="mesh" mesh="lh_middle_distal" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+          <joint name="lh_middle_dip" type="hinge" axis="0 1 0" range="0 1.43"/>
+        </body>
+      </body>
+      <body name="lh_ring_proximal" pos="0.0010258 0.011135 0.098767" quat="0.9996573233730004 -0.026177009506979564 0.0 0.0">
+        <geom name="lh_ring_proximal_visual" type="mesh" mesh="lh_ring_proximal" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+        <joint name="lh_ring_mcp_pitch" type="hinge" axis="0 1 0" range="0 1.60"/>
+        <body name="lh_ring_distal" pos="-0.0052516 0 0.036625" quat="1.0 0.0 0.0 0.0">
+          <geom name="lh_ring_distal_visual" type="mesh" mesh="lh_ring_distal" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+          <joint name="lh_ring_dip" type="hinge" axis="0 1 0" range="0 1.43"/>
+        </body>
+      </body>
+      <body name="lh_pinky_proximal" pos="0.0024758 0.028372 0.092741" quat="0.9990482316709891 -0.0436191562856228 0.0 0.0">
+        <geom name="lh_pinky_proximal_visual" type="mesh" mesh="lh_pinky_proximal" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+        <joint name="lh_pinky_mcp_pitch" type="hinge" axis="0 1 0" range="0 1.60"/>
+        <body name="lh_pinky_distal" pos="-0.0052516 0 0.036625" quat="1.0 0.0 0.0 0.0">
+          <geom name="lh_pinky_distal_visual" type="mesh" mesh="lh_pinky_distal" pos="0 0 0" quat="1 0 0 0" rgba="0.78 0.82 0.93 1"/>
+          <joint name="lh_pinky_dip" type="hinge" axis="0 1 0" range="0 1.43"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
