@@ -206,7 +206,11 @@ def main() -> None:
         "object_height_delta_m": float(object_positions[-1, 2] - object_positions[0, 2]),
         "lift_evaluated": bool(args.lift_m > 0),
         "kinematic_hold": bool(args.kinematic_hold),
-        "lift_success": bool(args.kinematic_hold and grasp_frame is not None and object_positions[-1, 2] - object_positions[0, 2] >= 0.05),
+        "lift_success": bool(
+            args.kinematic_hold
+            and grasp_frame is not None
+            and object_positions[-1, 2] - object_positions[0, 2] >= args.lift_m - 1e-6
+        ),
         "physics_interpretation": "kinematic object hold; not a force-closure or hardware validation",
         "hardware_command_generated": False,
     }

@@ -232,8 +232,8 @@ def main() -> None:
         raise FileNotFoundError(args.plan)
     if not 0 < args.max_mesh_faces < 200_000:
         raise ValueError("--max-mesh-faces must be between 1 and 199999")
-    source_mesh = _source_mesh(args.plan)
-    geometry_mesh = args.mesh_proxy if args.mesh_proxy is not None else source_mesh
+    source_mesh = args.mesh_proxy if args.mesh_proxy is not None else _source_mesh(args.plan)
+    geometry_mesh = source_mesh
     if not geometry_mesh.is_file():
         raise FileNotFoundError(geometry_mesh)
     mesh_l25, transform, original_faces = _transform_mesh(
