@@ -13,6 +13,7 @@ import argparse
 import csv
 import gc
 import json
+import os
 import random
 import sys
 from pathlib import Path
@@ -41,6 +42,7 @@ from hug.prepare_inputs import (  # noqa: E402
     prepare_pkl,
 )
 from anydexretarget.hand_contract import O30_ACTIVE_JOINT_NAMES  # noqa: E402
+from anydexretarget.o30_scale import O30ScaleProfile  # noqa: E402
 from tools.grasp_object import (  # noqa: E402
     L25_JOINT_NAMES,
     O30_QPOS_JOINT_NAMES,
@@ -79,6 +81,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--robot", choices=("l25", "o30"), default="l25")
     parser.add_argument("--optimizer", choices=("vector", "adaptive"), default="vector")
+    parser.add_argument("--o30-scale-profile", type=Path, help="Validated O30 scale profile JSON")
     parser.add_argument("--candidates", type=int, default=10)
     parser.add_argument("--seed-start", type=int, default=0)
     parser.add_argument("--sampling-steps", type=int, default=50)
@@ -86,11 +89,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--frames", type=int, default=60)
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
-    parser.add_argument(
-        "--checkpoint",
-        type=Path,
-        default=ROOT / "external/hug/checkpoints/hug_full.safetensors",
-    )
+    parser.add_argument("--checkpoint", type=Path, help="HUG safetensors checkpoint; defaults to HUG_CHECKPOINT")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument(
@@ -99,6 +98,11 @@ def _parse_args() -> argparse.Namespace:
         default=True,
     )
     args = parser.parse_args()
+    if args.checkpoint is None:
+        value = os.environ.get("HUG_CHECKPOINT")
+        args.checkpoint = Path(value) if value else ROOT / "external/hug/checkpoints/hug_full.safetensors"
+    if not args.checkpoint.is_file():
+        parser.error("HUG checkpoint is missing; pass --checkpoint or set HUG_CHECKPOINT")
     if not args.dry_run:
         parser.error("hardware execution is not implemented; use --dry-run")
     if args.candidates <= 0:
@@ -342,6 +346,10 @@ def main() -> None:
     )
 
     rows: list[dict[str, Any]] = []
+    o30_profile = (
+        O30ScaleProfile.load(args.o30_scale_profile)
+        if args.o30_scale_profile is not None else None
+    )
     for candidate_index in range(args.candidates):
         seed = args.seed_start + candidate_index
         _set_seed(seed)
@@ -375,7 +383,7 @@ def main() -> None:
         )
         if args.robot == "o30":
             records, solver_metrics = _retarget_o30(
-                retarget_keypoints, args.optimizer, args.frames, args.fps
+                retarget_keypoints, args.optimizer, args.frames, args.fps, o30_profile
             )
             robot_joint_names = list(O30_QPOS_JOINT_NAMES)
         else:
@@ -420,6 +428,9 @@ def main() -> None:
             **_geometry_metrics(prediction, object_tree, args.contact_threshold_m),
             "robot": args.robot,
             "robot_dof": len(robot_joint_names),
+            "o30_scale_profile": (
+                str(args.o30_scale_profile.resolve()) if args.o30_scale_profile else "nominal_yaml_baseline"
+            ) if args.robot == "o30" else None,
             **(_o30_metrics(qpos, solver_metrics) if args.robot == "o30" else _l25_metrics(qpos, solver_metrics)),
         }
         (candidate_dir / "metrics.json").write_text(

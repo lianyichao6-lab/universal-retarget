@@ -1,7 +1,7 @@
 # LinkerHand O30 right hand, Vector baseline for the standard 21-point hand.
 # The semantics and joint ordering match Luban O30 HOP.
 optimizer:
-  type: "KeyVectorOptimizer"
+  type: "AdaptiveOptimizerAnalytical"
 
 robot:
   type: "linkerhand_o30"

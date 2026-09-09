@@ -12,6 +12,7 @@ from .hand_contract import (
     o30_qpos_to_command_order,
 )
 from .o30_retarget_backend import retarget_o30_vector
+from .o30_scale import O30ScaleProfile
 
 
 @dataclass(frozen=True)
@@ -26,9 +27,11 @@ class HUGO30Result:
     cost: float
 
 
-def retarget_hug_o30(keypoints: np.ndarray) -> HUGO30Result:
+def retarget_hug_o30(
+    keypoints: np.ndarray, *, scale_profile: O30ScaleProfile | None = None
+) -> HUGO30Result:
     """Convert one finite HUG 21x3 right-hand prediction to O30 qpos."""
-    result = retarget_o30_vector(keypoints, hand_side="right")
+    result = retarget_o30_vector(keypoints, hand_side="right", scale_profile=scale_profile)
     qpos = np.asarray(result.qpos, dtype=np.float32)
     if tuple(result.joint_names) != O30_QPOS_JOINT_NAMES:
         raise ValueError("O30 Vector output order does not match the audited O30 contract")

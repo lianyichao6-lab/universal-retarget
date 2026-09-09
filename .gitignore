@@ -29,10 +29,29 @@ assets/sharpa-urdf-usd-xml-main/
 *.bak-*
 
 # HUG local model assets (large/licensed; keep on disk, never commit)
-external/
-external/hug/checkpoints/*.safetensors
-external/hug/assets/mano_models/
-external/hug/data/**/grasp_pred/
+external/*
+!external/hug/
+external/hug/*
+!external/hug/src/
+!external/hug/src/**
+!external/hug/assets/
+!external/hug/assets/mano_rhand_mesh_faces.npy
+!external/hug/assets/mano_rhand_shape.npy
+!external/hug/assets/norm_stats.json
+!external/hug/assets/mano_models/
+!external/hug/assets/mano_models/models/
+!external/hug/assets/mano_models/models/MANO_RIGHT.pkl
+external/hug/assets/img/
+!external/hug/pyproject.toml
+!external/hug/requirements-local.txt
+!external/hug/environment.yaml
+!external/hug/README.md
+!external/hug/LICENSE
+external/hug/checkpoints/
+external/hug/data/
+external/hug/build/
+external/hug/hug.egg-info/
+external/hug/.git/
 
 # Local experiment outputs and generated MuJoCo artifacts
 outputs/

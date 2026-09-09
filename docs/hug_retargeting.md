@@ -44,8 +44,8 @@ uv pip install --python .venv/bin/python \
 uv pip install --python .venv/bin/python --no-deps -e external/hug
 ```
 
-The local checkpoint is `external/hug/checkpoints/hug_full.safetensors` and
-MANO is under `external/hug/assets/mano_models/`.
+Set `HUG_CHECKPOINT` to the local checkpoint path. MANO is under
+`external/hug/assets/mano_models/`.
 
 ## Run one HUG prediction
 

@@ -14,15 +14,18 @@ ROOT = Path(__file__).resolve().parents[1]
 DEX_SOURCE = ROOT / "external" / "dex-retargeting" / "src"
 if str(DEX_SOURCE) not in sys.path:
     sys.path.insert(0, str(DEX_SOURCE))
-L25_REFERENCE = ROOT / "external" / "dex-retargeting" / "l25_reference"
-L25_VISUAL_URDF = ROOT / "assets" / "linkerhand_l25" / "right" / "linkerhand_l25_right.urdf"
+DEX_ROOT = ROOT / "external" / "dex-retargeting"
+MODEL_SPECS = {
+    "l25": (DEX_ROOT / "l25_reference", ROOT / "assets" / "linkerhand_l25" / "right" / "linkerhand_l25_right.urdf", "linkerhand_l25_right.urdf"),
+    "o30": (DEX_ROOT / "o30_reference", ROOT / "assets" / "linkerhand_o30" / "right" / "linkerhand_o30_right.urdf", "linkerhand_o30_right.urdf"),
+}
 DEX_CONFIGS = {
-    "dexpilot": L25_REFERENCE / "linkerhand_l25_right_dexpilot.yml",
-    "joint_angle": L25_REFERENCE / "linkerhand_l25_right_joint_angle.yml",
+    "dexpilot": MODEL_SPECS["l25"][0] / "linkerhand_l25_right_dexpilot.yml",
+    "joint_angle": MODEL_SPECS["l25"][0] / "linkerhand_l25_right_joint_angle.yml",
 }
 
 
-def _assert_l25_kinematic_equivalence(reference_path: Path, visual_path: Path) -> None:
+def _assert_kinematic_equivalence(reference_path: Path, visual_path: Path) -> None:
     """Reject DexPilot if its active-joint URDF drifts from the visual model."""
     def active(path: Path) -> dict[str, tuple]:
         root = ET.parse(path).getroot()
@@ -47,20 +50,24 @@ def _assert_l25_kinematic_equivalence(reference_path: Path, visual_path: Path) -
 class DexRetargetBackend:
     """Run a migrated dex-retargeting optimizer for the L25 baseline."""
 
-    def __init__(self, optimizer: str, hand_side: str = "right", scaling_factor: float | None = None, project_dist: float | None = None, escape_dist: float | None = None) -> None:
+    def __init__(self, optimizer: str, hand_side: str = "right", scaling_factor: float | None = None, project_dist: float | None = None, escape_dist: float | None = None, robot_model: str = "l25") -> None:
         if hand_side != "right":
             raise ValueError("The migrated L25 backend currently supports right hand only")
-        if optimizer not in DEX_CONFIGS:
+        if robot_model not in MODEL_SPECS:
+            raise ValueError(f"Unsupported Dex hand model: {robot_model}")
+        if optimizer not in {"dexpilot", "joint_angle"}:
             raise ValueError(f"Unsupported dex-retargeting optimizer: {optimizer}")
         for name, value in (("scaling_factor", scaling_factor), ("project_dist", project_dist), ("escape_dist", escape_dist)):
             if value is not None and (not np.isfinite(value) or value <= 0):
                 raise ValueError(f"{name} must be finite and positive")
         from dex_retargeting.retargeting_config import RetargetingConfig
 
-        urdf_path = L25_REFERENCE / "linkerhand_l25_right.urdf"
-        if not L25_VISUAL_URDF.is_file():
-            raise FileNotFoundError(f"Canonical visual L25 URDF is missing: {L25_VISUAL_URDF}")
-        _assert_l25_kinematic_equivalence(urdf_path, L25_VISUAL_URDF)
+        reference, visual_urdf, urdf_name = MODEL_SPECS[robot_model]
+        urdf_path = reference / urdf_name
+        config_path = reference / f"{urdf_path.stem}_{optimizer}.yml"
+        if not visual_urdf.is_file() or not urdf_path.is_file() or not config_path.is_file():
+            raise FileNotFoundError(f"Dex {robot_model} reference assets are incomplete under {reference}")
+        _assert_kinematic_equivalence(urdf_path, visual_urdf)
         RetargetingConfig.set_default_urdf_dir(urdf_path.parent)
         override = {"urdf_path": str(urdf_path)}
         if scaling_factor is not None:
@@ -69,8 +76,9 @@ class DexRetargetBackend:
             override["project_dist"] = float(project_dist)
         if escape_dist is not None:
             override["escape_dist"] = float(escape_dist)
-        config = RetargetingConfig.load_from_file(DEX_CONFIGS[optimizer], override=override)
+        config = RetargetingConfig.load_from_file(config_path, override=override)
         self.optimizer_name = optimizer
+        self.robot_model = robot_model
         self.scaling_factor = float(getattr(config, "scaling_factor", 1.0))
         self.retargeting = config.build()
         self.optimizer = self.retargeting.optimizer

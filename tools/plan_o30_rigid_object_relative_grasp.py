@@ -13,7 +13,8 @@ from scipy.optimize import least_squares
 from scipy.spatial.transform import Rotation
 
 from anydexretarget.hand_representation import load_canonical_grasp_state
-from anydexretarget.o30_retarget_backend import VECTOR_CONFIG, retarget_o30_vector
+from anydexretarget.o30_retarget_backend import BACKENDS, VECTOR_CONFIG, retarget_o30_static
+from anydexretarget.o30_scale import O30ScaleProfile
 
 ROOT = Path(__file__).resolve().parents[1]
 O30_MODEL = ROOT / "assets/linkerhand_o30/right/linkerhand_o30_right.urdf"
@@ -55,6 +56,12 @@ def _gaps(value: str | None, names: list[str], default: float) -> np.ndarray:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--contact-plan', type=Path, required=True)
+    parser.add_argument('--scale-profile', type=Path, help='Validated O30 Vector scale profile JSON')
+    parser.add_argument('--backend', choices=BACKENDS, default='vector')
+    parser.add_argument('--config', type=Path, help='Optional native Vector or Adaptive config override.')
+    parser.add_argument('--dex-scaling', type=float)
+    parser.add_argument('--dex-project-dist', type=float)
+    parser.add_argument('--dex-escape-dist', type=float)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--contact-fingers', type=str)
     parser.add_argument('--surface-gap-mm', type=float, default=0.0)
@@ -68,6 +75,7 @@ def main() -> None:
     parser.add_argument('--wrist-position-weight', type=float, default=0.35)
     parser.add_argument('--wrist-orientation-weight', type=float, default=0.25)
     args = parser.parse_args()
+    scale_profile = O30ScaleProfile.load(args.scale_profile) if args.scale_profile else None
     if args.surface_gap_mm < 0 or args.contact_weight <= 0 or args.posture_weight < 0 or args.contact_scale_mm <= 0 or args.max_evaluations <= 0 or args.wrist_translation_limit_mm < 0 or args.wrist_rotation_limit_deg < 0 or args.wrist_position_weight < 0 or args.wrist_orientation_weight < 0:
         raise ValueError('Invalid optimization settings')
     with np.load(args.contact_plan, allow_pickle=False) as data:
@@ -82,9 +90,9 @@ def main() -> None:
         unknown = selected - {item.lower() for item in finger_names}
         if unknown:
             raise ValueError('Unknown contact finger(s): ' + ', '.join(sorted(unknown)))
-        active &= np.asarray([item.lower() in selected for item in finger_names])
-    if int(active.sum()) < 2:
-        raise ValueError('Need at least two near-surface selected HUG contacts')
+        active = np.asarray([item.lower() in selected for item in finger_names])
+    if int(active.sum()) < 3:
+        raise ValueError('Need at least three selected O30 contact fingers')
     state_path = Path(str(contact['source_canonical_grasp'].item()))
     state = load_canonical_grasp_state(state_path)
     human_tips = np.asarray(contact['fingertip_positions_camera'], dtype=np.float64)
@@ -93,7 +101,11 @@ def main() -> None:
     if human_tips.shape != (5, 3) or human_contacts.shape != (5, 3) or alpha.shape != (5,) or np.any((alpha <= 0) | (alpha > 1)):
         raise ValueError('Invalid HUG distal-pad contact geometry')
 
-    baseline = retarget_o30_vector(state.keypoints_for_retargeting())
+    baseline = retarget_o30_static(
+        state.keypoints_for_retargeting(), backend=args.backend, native_config=args.config,
+        scale_profile=scale_profile, dex_scaling=args.dex_scaling, dex_project_dist=args.dex_project_dist,
+        dex_escape_dist=args.dex_escape_dist,
+    )
     retargeter, robot = baseline.geometry_retargeter, baseline.geometry_retargeter.optimizer.robot
     vector_names, baseline_q = baseline.joint_names, np.asarray(baseline.qpos, dtype=np.float64)
     task_names = [str(item) for item in retargeter.optimizer.task_link_names]
@@ -172,8 +184,8 @@ def main() -> None:
     object_to_o30 = np.eye(4, dtype=np.float64)
     object_to_o30[:3, :3], object_to_o30[:3, 3] = rotation, translation
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(args.output, schema_version=np.asarray(3), simulation_only=np.asarray(True), object_scale_fixed_to_one=np.asarray(True), robot=np.asarray('o30'), optimizer=np.asarray('o30_rigid_distal_pad_object_relative_contact'), source_contact_plan=np.asarray(str(args.contact_plan.resolve())), source_canonical_grasp=np.asarray(str(state_path.resolve())), source_object_mesh=contact['source_object_mesh'], robot_joint_names=np.asarray(model_names), qpos=np.asarray([by_vector[name.lower()] for name in model_names], dtype=np.float32), vector_joint_names=np.asarray(vector_names), qpos_vector_order=qpos.astype(np.float32), qpos_initial_retarget=baseline_q.astype(np.float32), active_contact_mask=active.astype(np.uint8), active_contact_fingers=np.asarray(finger_names)[active], contact_point_alpha=alpha.astype(np.float32), contact_task_offsets_o30=contact_offsets.astype(np.float32), o30_fingertip_link_names=np.asarray(task_names), o30_fingertip_task_offsets=contact_offsets.astype(np.float32), o30_fingertip_positions_baseline=baseline_tips.astype(np.float32), o30_fingertip_positions_optimized=final_tips.astype(np.float32), o30_contact_positions_baseline=baseline_contacts.astype(np.float32), o30_contact_positions_optimized=final_contacts.astype(np.float32), contact_target_positions_o30=targets.astype(np.float32), contact_error_before_m=before.astype(np.float32), contact_error_after_m=after.astype(np.float32), camera_to_o30_rotation=rotation.astype(np.float32), camera_to_o30_translation=translation.astype(np.float32), human_to_o30_uniform_scale=np.asarray(1.0, dtype=np.float32), object_uniform_scale_in_o30_frame=np.asarray(1.0, dtype=np.float32), object_to_o30=object_to_o30.astype(np.float32), surface_gap_per_finger_m=gaps.astype(np.float32), alignment_reference=np.asarray(reference), wrist_translation_adjustment_m=delta_translation.astype(np.float32), wrist_rotation_adjustment_rad=delta_rotation.astype(np.float32), wrist_translation_limit_m=np.asarray(translation_limit, dtype=np.float32), wrist_rotation_limit_rad=np.asarray(rotation_limit, dtype=np.float32))
-    report = {'simulation_only': True, 'hardware_command_generated': False, 'object_scale_fixed_to_one': True, 'method': 'rigid_no_scale_fit_then_distal_pad_surface_refinement_with_bounded_o30_wrist_compensation' if use_wrist_compensation else 'rigid_no_scale_fit_then_distal_pad_surface_refinement', 'alignment_reference': reference, 'active_fingers': [name for name, enabled in zip(finger_names, active) if enabled], 'optimizer_success': bool(solve.success), 'function_evaluations': int(solve.nfev), 'active_contact_error_before_mm': (before[active] * 1000).tolist(), 'active_contact_error_after_mm': (after[active] * 1000).tolist(), 'active_mean_error_before_mm': float(before[active].mean() * 1000), 'active_mean_error_after_mm': float(after[active].mean() * 1000), 'surface_gap_per_finger_mm': {name: float(gap * 1000) for name, gap in zip(finger_names, gaps)}, 'wrist_translation_adjustment_mm': (delta_translation * 1000).tolist(), 'wrist_rotation_adjustment_deg': np.rad2deg(delta_rotation).tolist(), 'wrist_translation_limit_mm': float(args.wrist_translation_limit_mm), 'wrist_rotation_limit_deg': float(args.wrist_rotation_limit_deg), 'joint_saturation_count': int(np.count_nonzero(np.minimum((qpos - lower) / ranges, (upper - qpos) / ranges) <= .05)), 'limitations': 'Rigid hand-relative geometry is simulation only; mesh collision, force closure, and hardware calibration are separate checks.'}
+    np.savez_compressed(args.output, schema_version=np.asarray(3), simulation_only=np.asarray(True), object_scale_fixed_to_one=np.asarray(True), robot=np.asarray('o30'), optimizer=np.asarray('o30_rigid_distal_pad_object_relative_contact'), retarget_backend=np.asarray(args.backend), source_contact_plan=np.asarray(str(args.contact_plan.resolve())), scale_profile=np.asarray(str(args.scale_profile.resolve()) if args.scale_profile else 'nominal_yaml_baseline'), source_canonical_grasp=np.asarray(str(state_path.resolve())), source_object_mesh=contact['source_object_mesh'], robot_joint_names=np.asarray(model_names), qpos=np.asarray([by_vector[name.lower()] for name in model_names], dtype=np.float32), vector_joint_names=np.asarray(vector_names), qpos_vector_order=qpos.astype(np.float32), qpos_initial_retarget=baseline_q.astype(np.float32), active_contact_mask=active.astype(np.uint8), active_contact_fingers=np.asarray(finger_names)[active], contact_point_alpha=alpha.astype(np.float32), contact_task_offsets_o30=contact_offsets.astype(np.float32), o30_fingertip_link_names=np.asarray(task_names), o30_fingertip_task_offsets=contact_offsets.astype(np.float32), o30_fingertip_positions_baseline=baseline_tips.astype(np.float32), o30_fingertip_positions_optimized=final_tips.astype(np.float32), o30_contact_positions_baseline=baseline_contacts.astype(np.float32), o30_contact_positions_optimized=final_contacts.astype(np.float32), contact_target_positions_o30=targets.astype(np.float32), contact_error_before_m=before.astype(np.float32), contact_error_after_m=after.astype(np.float32), camera_to_o30_rotation=rotation.astype(np.float32), camera_to_o30_translation=translation.astype(np.float32), human_to_o30_uniform_scale=np.asarray(1.0, dtype=np.float32), object_uniform_scale_in_o30_frame=np.asarray(1.0, dtype=np.float32), object_to_o30=object_to_o30.astype(np.float32), surface_gap_per_finger_m=gaps.astype(np.float32), alignment_reference=np.asarray(reference), wrist_translation_adjustment_m=delta_translation.astype(np.float32), wrist_rotation_adjustment_rad=delta_rotation.astype(np.float32), wrist_translation_limit_m=np.asarray(translation_limit, dtype=np.float32), wrist_rotation_limit_rad=np.asarray(rotation_limit, dtype=np.float32))
+    report = {'simulation_only': True, 'hardware_command_generated': False, 'object_scale_fixed_to_one': True, 'method': 'rigid_no_scale_fit_then_distal_pad_surface_refinement_with_bounded_o30_wrist_compensation' if use_wrist_compensation else 'rigid_no_scale_fit_then_distal_pad_surface_refinement', 'alignment_reference': reference, 'scale_profile': str(args.scale_profile.resolve()) if args.scale_profile else 'nominal_yaml_baseline', 'active_fingers': [name for name, enabled in zip(finger_names, active) if enabled], 'optimizer_success': bool(solve.success), 'function_evaluations': int(solve.nfev), 'active_contact_error_before_mm': (before[active] * 1000).tolist(), 'active_contact_error_after_mm': (after[active] * 1000).tolist(), 'active_mean_error_before_mm': float(before[active].mean() * 1000), 'active_mean_error_after_mm': float(after[active].mean() * 1000), 'surface_gap_per_finger_mm': {name: float(gap * 1000) for name, gap in zip(finger_names, gaps)}, 'wrist_translation_adjustment_mm': (delta_translation * 1000).tolist(), 'wrist_rotation_adjustment_deg': np.rad2deg(delta_rotation).tolist(), 'wrist_translation_limit_mm': float(args.wrist_translation_limit_mm), 'wrist_rotation_limit_deg': float(args.wrist_rotation_limit_deg), 'joint_saturation_count': int(np.count_nonzero(np.minimum((qpos - lower) / ranges, (upper - qpos) / ranges) <= .05)), 'limitations': 'Rigid hand-relative geometry is simulation only; mesh collision, force closure, and hardware calibration are separate checks.'}
     report_path = args.output.with_suffix('.json')
     report_path.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print('Rigid no-scale O30 distal-pad plan written (simulation only)')

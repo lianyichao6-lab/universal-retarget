@@ -17,6 +17,8 @@ from pathlib import Path
 
 import numpy as np
 import trimesh
+
+from anydexretarget.o30_mesh_collision import O30MeshCollisionEvaluator
 from scipy.optimize import minimize
 
 FINGERS = ("thumb", "index", "middle", "ring", "pinky")
@@ -79,13 +81,14 @@ def main() -> None:
     parser.add_argument("--self-collision-weight", type=float, default=30.0)
     parser.add_argument("--contact-weight", type=float, default=1.0)
     parser.add_argument("--mesh-contact-weight", type=float, default=2.0, help="Weight for actual O30 fingertip-to-displayed-mesh closure.")
+    parser.add_argument("--full-mesh-clearance-weight", type=float, default=40.0, help="Penalty for strict non-pad and link clearance violations.")
     parser.add_argument("--posture-weight", type=float, default=0.08)
     parser.add_argument("--contact-scale-mm", type=float, default=8.0)
     parser.add_argument("--penetration-scale-mm", type=float, default=2.0)
     parser.add_argument("--max-joint-delta-rad", type=float, default=0.10)
     parser.add_argument("--max-iterations", type=int, default=120)
     args = parser.parse_args()
-    if min(args.collision_weight, args.self_collision_weight, args.contact_weight, args.mesh_contact_weight, args.contact_scale_mm, args.penetration_scale_mm, args.max_joint_delta_rad, args.max_iterations) <= 0 or args.posture_weight < 0:
+    if min(args.collision_weight, args.self_collision_weight, args.contact_weight, args.mesh_contact_weight, args.full_mesh_clearance_weight, args.contact_scale_mm, args.penetration_scale_mm, args.max_joint_delta_rad, args.max_iterations) <= 0 or args.posture_weight < 0:
         raise ValueError("Invalid collision refinement settings")
     with np.load(args.plan, allow_pickle=False) as source:
         plan = {key: np.asarray(source[key]).copy() for key in source.files}
@@ -96,6 +99,10 @@ def main() -> None:
     if not mesh_path.is_file():
         raise FileNotFoundError(mesh_path)
     object_mesh = trimesh.load_mesh(mesh_path, process=False)
+    mesh_evaluator = O30MeshCollisionEvaluator(
+        mesh_path, wrist_position_camera=np.zeros(3), canonical_basis_row=np.eye(3),
+        object_mesh_is_hand_frame=True, vertices_per_link=256, max_object_faces=2000,
+    )
     if not isinstance(object_mesh, trimesh.Trimesh):
         raise ValueError("Expected one transformed object triangle mesh")
     model, data = mujoco.MjModel.from_xml_path(str(args.scene_xml)), None
@@ -119,6 +126,7 @@ def main() -> None:
 
     def evaluate(qpos: np.ndarray, detailed: bool = False):
         _set_q(model, data, qpos, names, joint_ids)
+        strict = mesh_evaluator.evaluate(qpos, exact_collision=False)
         points = _tip_points(model, data, links, offsets)
         object_pairs, self_pairs = _contacts(model, data)
         forbidden = [item for item in object_pairs if not str(item["hand_geom"]).lower().startswith(allowed_prefixes)]
@@ -127,14 +135,26 @@ def main() -> None:
         _closest, mesh_distance, _face = trimesh.proximity.closest_point_naive(object_mesh, points)
         mesh_error = mesh_distance[active] / (args.contact_scale_mm / 1000.0)
         posture_error = (qpos - q_initial) / ranges
-        cost = (args.contact_weight * float(np.dot(contact_error, contact_error)) + args.mesh_contact_weight * float(np.dot(mesh_error, mesh_error)) + args.posture_weight * float(np.dot(posture_error, posture_error)) + args.collision_weight * float(np.sum((object_pen / (args.penetration_scale_mm / 1000.0)) ** 2)) + args.self_collision_weight * float(np.sum((self_pen / (args.penetration_scale_mm / 1000.0)) ** 2)))
-        return (cost, points, object_pairs, self_pairs, forbidden, object_pen, self_pen, mesh_distance) if detailed else cost
+        strict_violations = set(strict.forbidden_mesh_collisions) | set(strict.nonpad_clearance_violations)
+        clearance_error = np.asarray([max(0.0, 0.001 - strict.link_clearances_m.get(name, 0.0)) for name in strict_violations], dtype=np.float64)
+        strict_cost = float(np.dot(clearance_error / (args.penetration_scale_mm / 1000.0), clearance_error / (args.penetration_scale_mm / 1000.0))) + float(len(strict.self_collision_pairs))
+        cost = (args.full_mesh_clearance_weight * strict_cost + args.contact_weight * float(np.dot(contact_error, contact_error)) + args.mesh_contact_weight * float(np.dot(mesh_error, mesh_error)) + args.posture_weight * float(np.dot(posture_error, posture_error)) + args.collision_weight * float(np.sum((object_pen / (args.penetration_scale_mm / 1000.0)) ** 2)) + args.self_collision_weight * float(np.sum((self_pen / (args.penetration_scale_mm / 1000.0)) ** 2)))
+        return (cost, points, object_pairs, self_pairs, forbidden, object_pen, self_pen, mesh_distance, strict) if detailed else cost
 
-    bounds = [(float(max(lower[index] + 1e-6, q_initial[index] - args.max_joint_delta_rad)), float(min(upper[index] - 1e-6, q_initial[index] + args.max_joint_delta_rad))) for index in range(len(q_initial))]
-    result = minimize(evaluate, q_initial, method="Powell", bounds=bounds, options={"maxiter": args.max_iterations, "xtol": 1e-4, "ftol": 1e-6})
     before = evaluate(q_initial, detailed=True)
-    after = evaluate(np.asarray(result.x, dtype=np.float64), detailed=True)
-    q_final, points_before, points_after = np.asarray(result.x, dtype=np.float64), before[1], after[1]
+    near_fingers = {finger for name in (set(before[8].forbidden_mesh_collisions) | set(before[8].nonpad_clearance_violations)) if (finger := _finger(name))}
+    near_fingers |= {FINGERS[index] for index, enabled in enumerate(active) if enabled}
+    variable_indices = np.asarray([index for index, name in enumerate(names) if _finger(name) in near_fingers], dtype=np.int64)
+    bounds = [(float(max(lower[index] + 1e-6, q_initial[index] - args.max_joint_delta_rad)), float(min(upper[index] - 1e-6, q_initial[index] + args.max_joint_delta_rad))) for index in variable_indices]
+    def partial_cost(partial: np.ndarray) -> float:
+        qpos = q_initial.copy()
+        qpos[variable_indices] = np.asarray(partial, dtype=np.float64)
+        return float(evaluate(qpos))
+    result = minimize(partial_cost, q_initial[variable_indices], method="Powell", bounds=bounds, options={"maxiter": args.max_iterations, "xtol": 1e-4, "ftol": 1e-6})
+    q_final = q_initial.copy()
+    q_final[variable_indices] = np.asarray(result.x, dtype=np.float64)
+    after = evaluate(q_final, detailed=True)
+    points_before, points_after = before[1], after[1]
     final_by_name = {name.lower(): value for name, value in zip(names, q_final)}
     plan.update({
         "schema_version": np.asarray(2, dtype=np.int64), "optimizer": np.asarray("o30_object_and_self_collision_aware"),
@@ -154,12 +174,12 @@ def main() -> None:
         pickle.dump([{"target": (neutral + fraction * (q_final - neutral)).astype(np.float32), "sim_qpos": (neutral + fraction * (q_final - neutral)).astype(np.float32), "robot_joint_names": names, "robot": "o30", "optimizer": "o30_object_and_self_collision_aware"} for fraction in np.linspace(0.0, 1.0, 30)], stream)
     report = {
         "simulation_only": True, "hardware_command_generated": False, "source_plan": str(args.plan.resolve()), "scene_xml": str(args.scene_xml.resolve()),
-        "method": "MuJoCo forbidden-object-penetration + cross-finger-self-collision + O30-tip-target + actual-mesh-closure", "optimization_success": bool(result.success),
+        "method": "MuJoCo forbidden-object-penetration + cross-finger-self-collision + O30-tip-target + actual-mesh-closure", "optimization_success": bool(result.success), "optimized_joint_count": int(len(variable_indices)),
         "message": str(result.message), "iterations": int(getattr(result, "nit", 0)), "cost": float(after[0]),
         "active_contact_error_before_mm": (np.linalg.norm(points_before - targets, axis=1)[active] * 1000.0).tolist(),
         "active_contact_error_after_mm": (np.linalg.norm(points_after - targets, axis=1)[active] * 1000.0).tolist(),
         "active_mesh_distance_before_mm": (before[7][active] * 1000.0).tolist(), "active_mesh_distance_after_mm": (after[7][active] * 1000.0).tolist(),
-        "forbidden_object_pairs_before": before[4], "forbidden_object_pairs_after": after[4], "self_pairs_before": before[3], "self_pairs_after": after[3],
+        "forbidden_object_pairs_before": before[4], "forbidden_object_pairs_after": after[4], "self_pairs_before": before[3], "self_pairs_after": after[3], "strict_nonpad_before": list(before[8].nonpad_clearance_violations), "strict_nonpad_after": list(after[8].nonpad_clearance_violations), "strict_forbidden_before": list(before[8].forbidden_mesh_collisions), "strict_forbidden_after": list(after[8].forbidden_mesh_collisions),
         "max_forbidden_object_penetration_before_mm": float(before[5].max(initial=0.0) * 1000.0), "max_forbidden_object_penetration_after_mm": float(after[5].max(initial=0.0) * 1000.0),
         "max_self_penetration_before_mm": float(before[6].max(initial=0.0) * 1000.0), "max_self_penetration_after_mm": float(after[6].max(initial=0.0) * 1000.0), "trajectory": str(trajectory_path.resolve()),
         "limitations": "MuJoCo contact reports do not certify force closure, tactile stability, unknown-object geometry, or physical hand calibration.",

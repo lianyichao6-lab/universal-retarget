@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 from pathlib import Path
 
@@ -18,6 +19,7 @@ import torch
 from anydexretarget.hand_representation import canonical_grasp_from_hug
 from anydexretarget.hug_adapter import landmarks_from_prediction
 from anydexretarget.hug_o30 import retarget_hug_o30
+from anydexretarget.o30_scale import O30ScaleProfile
 from anydexretarget.hand_contract import O30_ACTIVE_JOINT_NAMES, O30_QPOS_JOINT_NAMES
 from hug.prepare_inputs import _load_intrinsics, _read_depth_uint16, _read_rgb, prepare_pkl
 from grasp_object import (
@@ -38,11 +40,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--intrinsics", type=Path, required=True)
     parser.add_argument("--point", type=float, nargs=2, required=True, metavar=("U", "V"))
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument(
-        "--checkpoint", type=Path,
-        default=ROOT / "external/hug/checkpoints/hug_full.safetensors",
-    )
+    parser.add_argument("--checkpoint", type=Path, help="HUG safetensors checkpoint; defaults to HUG_CHECKPOINT")
     parser.add_argument("--sampling-steps", type=int, default=50)
+    parser.add_argument("--o30-scale-profile", type=Path, help="Validated O30 scale profile JSON")
     parser.add_argument("--frames", type=int, default=60)
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--seed", type=int, default=42)
@@ -56,6 +56,15 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
+    if args.checkpoint is None:
+        value = os.environ.get("HUG_CHECKPOINT")
+        args.checkpoint = Path(value) if value else ROOT / "external/hug/checkpoints/hug_full.safetensors"
+    if not args.checkpoint.is_file():
+        raise FileNotFoundError("HUG checkpoint is missing; pass --checkpoint or set HUG_CHECKPOINT")
+    scale_profile = (
+        O30ScaleProfile.load(args.o30_scale_profile)
+        if args.o30_scale_profile is not None else None
+    )
     rgb = _read_rgb(args.rgb)
     depth = _read_depth_uint16(args.depth)
     if rgb.shape[:2] != depth.shape[:2]:
@@ -97,7 +106,7 @@ def main() -> None:
     canonical_path = args.output / "canonical_grasp.npz"
     canonical.to_npz(canonical_path)
     retarget_keypoints = canonical.keypoints_for_retargeting()
-    result = retarget_hug_o30(retarget_keypoints)
+    result = retarget_hug_o30(retarget_keypoints, scale_profile=scale_profile)
     records = [
         {
             "timestamp": index / args.fps,
@@ -137,6 +146,9 @@ def main() -> None:
         "actual_point_224": actual_uv.tolist(), "condition_depth_m": depth_m,
         "canonical_grasp": str(canonical_path.resolve()), "hug_inference_ms": hug_ms,
         "vector_solve_cost": result.cost, "robot_dof": 20,
+        "o30_scale_profile": (
+            str(args.o30_scale_profile.resolve()) if args.o30_scale_profile else "nominal_yaml_baseline"
+        ),
         "robot_joint_names": list(O30_QPOS_JOINT_NAMES),
         "hand_command_joint_names": list(O30_ACTIVE_JOINT_NAMES),
     }

@@ -362,6 +362,7 @@ def _retarget_l25(
     optimizer_name: str,
     frames: int,
     fps: float,
+    scale_profile=None,
 ) -> tuple[list[dict[str, Any]], dict[str, np.ndarray | float | int]]:
     started = time.perf_counter()
     if optimizer_name in DEX_CONFIGS:
@@ -464,12 +465,13 @@ def _retarget_o30(
     optimizer_name: str,
     frames: int,
     fps: float,
+    scale_profile=None,
 ) -> tuple[list[dict[str, Any]], dict[str, np.ndarray | float | int]]:
     """Retarget HUG's 21 points to O30 with the audited Vector baseline."""
     if optimizer_name != "vector":
         raise ValueError("O30 currently supports the Vector optimizer only")
     started = time.perf_counter()
-    result = retarget_hug_o30(keypoints)
+    result = retarget_hug_o30(keypoints, scale_profile=scale_profile)
     solve_ms = (time.perf_counter() - started) * 1000.0
     target = result.qpos.astype(np.float32, copy=True)
     records = [
